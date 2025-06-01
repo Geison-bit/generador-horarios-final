@@ -1,0 +1,9 @@
+# Ignorar dependencias y archivos innecesarios
+node_modules/
+dist/
+.env
+.vscode/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
