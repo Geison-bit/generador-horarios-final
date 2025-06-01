@@ -9,7 +9,7 @@ export const enviarDznAlServidor = async (
   restricciones,
   horasCursos,
   nivel
-) => {
+) => 
   try {
     console.log("🌐 Usando API:", `${baseURL}/generar-horario-general`); // 👈 Verificación
     const response = await fetch(`${baseURL}/generar-horario-general`, {
