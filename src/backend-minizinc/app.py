@@ -9,8 +9,11 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# Habilitar CORS solo para tu frontend en Vercel (más seguro en producción)
-CORS(app, origins=["https://generador-horarios-final.vercel.app"])
+# ✅ Permitir CORS desde Vercel (producción) y localhost (desarrollo)
+CORS(app, origins=[
+    "https://generador-horarios-final.vercel.app",
+    "http://localhost:5173"
+])
 
 # Cargar archivo .env desde la misma carpeta que app.py
 env_path = Path(__file__).resolve().parent / ".env"
@@ -31,12 +34,10 @@ supabase = create_client(supabase_url, supabase_key)
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8
 
-# Ruta de prueba para saber si el backend está vivo
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "message": "Backend activo"}), 200
 
-# Obtener nuevo número de versión de horario
 def obtener_nuevo_numero_horario(nivel):
     response = supabase.table("horarios") \
         .select("horario") \
@@ -53,7 +54,6 @@ def obtener_nuevo_numero_horario(nivel):
 
     return max(versiones, default=0) + 1
 
-# Ruta principal para generar horario
 @app.route('/generar-horario-general', methods=['POST'])
 def generar_horario_general():
     try:
