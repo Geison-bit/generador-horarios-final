@@ -3,8 +3,8 @@ FROM python:3.10-slim
 
 # Instala dependencias necesarias y MiniZinc
 RUN apt-get update && apt-get install -y wget unzip curl && \
-    curl -LO https://github.com/MiniZinc/MiniZincIDE/releases/download/2.7.6/MiniZincIDE-2.7.6-bundled-linux-x86_64.tgz && \
-    tar -xvzf MiniZincIDE-2.7.6-bundled-linux-x86_64.tgz && \
+    curl -L -o mzn.tgz https://github.com/MiniZinc/MiniZincIDE/releases/download/2.7.6/MiniZincIDE-2.7.6-bundled-linux-x86_64.tgz && \
+    tar -xvzf mzn.tgz && \
     mv MiniZincIDE-2.7.6-bundled-linux-x86_64 /opt/minizinc && \
     ln -s /opt/minizinc/bin/minizinc /usr/bin/minizinc
 
