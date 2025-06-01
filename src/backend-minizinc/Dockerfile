@@ -1,11 +1,11 @@
-# Usa una imagen oficial de Python
+# Usa una imagen oficial de Python como base
 FROM python:3.10-slim
 
-# Instala dependencias necesarias y MiniZinc
-RUN apt-get update && apt-get install -y wget unzip curl && \
-    curl -L -o mzn.tgz https://github.com/MiniZinc/MiniZincIDE/releases/download/2.7.6/MiniZincIDE-2.7.6-bundled-linux-x86_64.tgz && \
-    tar -xvzf mzn.tgz && \
-    mv MiniZincIDE-2.7.6-bundled-linux-x86_64 /opt/minizinc && \
+# Instala MiniZinc
+RUN apt-get update && apt-get install -y wget unzip && \
+    wget https://github.com/MiniZinc/MiniZincIDE/releases/download/2.9.3/MiniZincIDE-2.9.3-bundle-linux-x86_64.tgz && \
+    tar -xvzf MiniZincIDE-2.9.3-bundle-linux-x86_64.tgz && \
+    mv MiniZincIDE-2.9.3-bundle-linux-x86_64 /opt/minizinc && \
     ln -s /opt/minizinc/bin/minizinc /usr/bin/minizinc
 
 # Define el directorio de trabajo
@@ -14,10 +14,10 @@ WORKDIR /app
 # Copia los archivos al contenedor
 COPY . .
 
-# Instala dependencias Python
+# Instala las dependencias de Python
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Expone el puerto
+# Expone el puerto donde correrá la app
 EXPOSE 8080
 
 # Comando de inicio
