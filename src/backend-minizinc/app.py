@@ -9,9 +9,9 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# ✅ Permitir CORS desde Vercel (producción) y localhost (desarrollo)
+# ✅ Agrega el dominio real de Vercel para CORS
 CORS(app, origins=[
-    "https://generador-horarios-final.vercel.app",
+    "https://generador-horarios-final-git-main-galcantara2s-projects.vercel.app",
     "http://localhost:5173"
 ])
 
