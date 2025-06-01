@@ -12,8 +12,10 @@ app = Flask(__name__)
 # ✅ Agrega el dominio real de Vercel para CORS
 CORS(app, origins=[
     "https://generador-horarios-final-git-main-galcantara2s-projects.vercel.app",
+    "https://generador-horarios-final.vercel.app",
     "http://localhost:5173"
 ])
+
 
 # Cargar archivo .env desde la misma carpeta que app.py
 env_path = Path(__file__).resolve().parent / ".env"
