@@ -1,6 +1,16 @@
-export const enviarDznAlServidor = async (docentes, asignaciones, restricciones, horasCursos, nivel) => {
+// src/services/horarioService.js
+
+const baseURL = import.meta.env.VITE_API_URL;
+
+export const enviarDznAlServidor = async (
+  docentes,
+  asignaciones,
+  restricciones,
+  horasCursos,
+  nivel
+) => {
   try {
-    const response = await fetch("http://localhost:5000/generar-horario-general", {
+    const response = await fetch(`${baseURL}/generar-horario-general`, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
@@ -10,7 +20,7 @@ export const enviarDznAlServidor = async (docentes, asignaciones, restricciones,
         asignaciones,
         restricciones,
         horas_curso_grado: horasCursos,
-        nivel  // ✅ Agregado aquí
+        nivel, // ✅ Incluido correctamente
       }),
     });
 

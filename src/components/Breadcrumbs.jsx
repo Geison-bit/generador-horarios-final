@@ -15,6 +15,7 @@ const Breadcrumbs = () => {
   const location = useLocation();
   const navigate = useNavigate();
 
+  // Detectar nivel educativo desde la URL
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const nivelURL = params.get("nivel");
@@ -28,15 +29,26 @@ const Breadcrumbs = () => {
     }
   }, [location.search]);
 
+  // Buscar ruta actual según el pathname
+  const rutaActual = rutas.find((ruta) => location.pathname.startsWith(ruta.path));
+
   const irA = (path) => {
     navigate(`${path}?nivel=${nivel}`);
   };
 
   return (
     <div className="bg-gray-100 p-3 rounded shadow flex flex-wrap gap-3 items-center justify-between mb-6">
-      <span className="text-lg font-semibold text-blue-700">
-        🏫 Nivel seleccionado: {nivel}
-      </span>
+      <div className="flex items-center gap-4 flex-wrap">
+        <span className="text-lg font-semibold text-blue-700">
+          🏫 Nivel seleccionado: {nivel}
+        </span>
+        <span className="text-sm text-gray-600">
+          📍 Estás en:{" "}
+          <strong>
+            {rutaActual ? rutaActual.label : "Inicio"}
+          </strong>
+        </span>
+      </div>
       <div className="flex gap-2 flex-wrap">
         <button
           onClick={() => navigate(`/`)}
@@ -48,7 +60,11 @@ const Breadcrumbs = () => {
           <button
             key={ruta.path}
             onClick={() => irA(ruta.path)}
-            className="bg-gray-200 hover:bg-gray-300 px-3 py-1 rounded"
+            className={`px-3 py-1 rounded ${
+              location.pathname.startsWith(ruta.path)
+                ? "bg-blue-200 font-semibold"
+                : "bg-gray-200 hover:bg-gray-300"
+            }`}
           >
             {ruta.label}
           </button>
