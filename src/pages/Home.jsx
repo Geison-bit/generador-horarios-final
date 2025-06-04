@@ -23,6 +23,13 @@ const Home = () => {
           📋 Registrar Docentes
         </Link>
 
+        <Link
+          to={`/aulas?nivel=${nivelSeleccionado}`}
+          className="bg-indigo-700 text-white py-3 px-4 rounded hover:bg-indigo-800 shadow"
+        >
+          🏫 Registrar Aulas
+        </Link>
+
         {nivelSeleccionado === "Secundaria" && (
           <Link
             to={`/restricciones?nivel=${nivelSeleccionado}`}

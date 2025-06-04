@@ -114,6 +114,14 @@ const HorarioTable = () => {
         ])
       );
 
+      console.log("📤 Datos que se enviarán:", {
+        docentes: docentesFiltrados,
+        asignaciones: asignacionesFiltradas,
+        restricciones,
+        horas_curso_grado: horasCursos,
+        nivel
+      });
+
       const resultado = await enviarDznAlServidor(
         docentesFiltrados,
         asignacionesFiltradas,

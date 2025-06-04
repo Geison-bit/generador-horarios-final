@@ -25,11 +25,6 @@ def son_consecutivos(bloques):
     return all(b2 - b1 == 1 for b1, b2 in zip(bloques, bloques[1:]))
 
 def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
-    """
-    Genera un horario semanal asignando cursos a grados en bloques disponibles.
-    Se respetan restricciones horarias de los docentes, sin importar el nivel.
-    """
-
     if not docentes or not asignaciones or not horas_curso_grado:
         raise ValueError("Faltan datos de entrada requeridos para generar el horario.")
 
@@ -41,73 +36,79 @@ def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, ni
     def bloque_disponible(docente_id, dia_nombre, bloque):
         return restricciones.get(str(docente_id), {}).get(f"{dia_nombre}-{bloque}", False)
 
+    # 🔸 Ordenar asignaciones por horas (prioridad a cursos más largos)
+    asignaciones_ordenadas = []
     for curso_id, grados in asignaciones.items():
         for grado_str, datos in grados.items():
             grado = int(grado_str)
-            docente_id = datos["docente_id"]
             horas = horas_curso_grado.get(str(curso_id), {}).get(str(grado), 0)
+            asignaciones_ordenadas.append((curso_id, grado_str, datos["docente_id"], horas))
+    asignaciones_ordenadas.sort(key=lambda x: -x[3])  # de mayor a menor
 
-            if horas <= 1:
-                print(f"⛔ Curso {curso_id}, Grado {grado}: solo {horas}h -> omitido")
-                horas_asignadas[(curso_id, grado)] = 0
-                continue
+    for curso_id, grado_str, docente_id, horas in asignaciones_ordenadas:
+        grado = int(grado_str)
 
-            combinaciones = sorted(dividir_horas(horas), key=len)
-            asignado_ok = False
+        if horas <= 1:
+            print(f"⛔ Curso {curso_id}, Grado {grado}: solo {horas}h -> omitido")
+            horas_asignadas[(curso_id, grado)] = 0
+            continue
 
-            for combo in combinaciones:
-                dias_usados = set()
-                asign_temp = []
+        combinaciones = sorted(dividir_horas(horas), key=len)
+        asignado_ok = False
 
-                for cantidad in combo:
-                    dia_disponible = None
-                    bloques_asignables = []
+        for combo in combinaciones:
+            dias_usados = set()
+            asign_temp = []
 
-                    dias_shuffle = list(range(NUM_DIAS))
-                    random.shuffle(dias_shuffle)
+            for cantidad in combo:
+                dia_disponible = None
+                bloques_asignables = []
 
-                    for dia in dias_shuffle:
-                        if dia in dias_usados:
-                            continue
+                dias_shuffle = list(range(NUM_DIAS))
+                random.shuffle(dias_shuffle)
 
-                        dia_nombre = DIAS[dia]
-                        libres = [
-                            b for b in range(NUM_BLOQUES)
-                            if bloque_disponible(docente_id, dia_nombre, b)
-                            and (dia, b) not in bloques_ocupados[docente_id]
-                            and grado not in horario[dia][b]
-                        ]
-                        libres.sort()
+                for dia in dias_shuffle:
+                    if dia in dias_usados:
+                        continue
 
-                        for i in range(len(libres) - cantidad + 1):
-                            bloque_segmento = libres[i:i + cantidad]
-                            if son_consecutivos(bloque_segmento):
-                                bloques_asignables = [(dia, b) for b in bloque_segmento]
-                                dia_disponible = dia
-                                break
-                        if bloques_asignables:
+                    dia_nombre = DIAS[dia]
+                    libres = [
+                        b for b in range(NUM_BLOQUES)
+                        if bloque_disponible(docente_id, dia_nombre, b)
+                        and (dia, b) not in bloques_ocupados[docente_id]
+                        and grado not in horario[dia][b]
+                    ]
+                    libres.sort()
+
+                    for i in range(len(libres) - cantidad + 1):
+                        bloque_segmento = libres[i:i + cantidad]
+                        if son_consecutivos(bloque_segmento):
+                            bloques_asignables = [(dia, b) for b in bloque_segmento]
+                            dia_disponible = dia
                             break
-
                     if bloques_asignables:
-                        for dia, b in bloques_asignables:
-                            horario[dia][b][grado] = int(curso_id)
-                            bloques_ocupados[docente_id].add((dia, b))
-                            asign_temp.append((dia, b))
-                        dias_usados.add(dia_disponible)
-                    else:
-                        break  # no se pudo asignar este combo
+                        break
 
-                if len(asign_temp) == horas:
-                    asignado_ok = True
-                    horas_asignadas[(curso_id, grado)] = horas
-                    break  # combinación exitosa
+                if bloques_asignables:
+                    for dia, b in bloques_asignables:
+                        horario[dia][b][grado] = int(curso_id)
+                        bloques_ocupados[docente_id].add((dia, b))
+                        asign_temp.append((dia, b))
+                    dias_usados.add(dia_disponible)
+                else:
+                    break  # no se pudo asignar este combo
 
-            if not asignado_ok:
-                fallidos += 1
-                horas_asignadas[(curso_id, grado)] = 0
-                print(f"[!] No se pudo asignar: curso {curso_id}, grado {grado}")
+            if len(asign_temp) == horas:
+                asignado_ok = True
+                horas_asignadas[(curso_id, grado)] = horas
+                break  # combinación exitosa
 
-    # Informes
+        if not asignado_ok:
+            fallidos += 1
+            horas_asignadas[(curso_id, grado)] = 0
+            print(f"[!] No se pudo asignar: curso {curso_id}, grado {grado}")
+
+    # 🔸 Informes
     print(f"\n[INFO] Asignación completada.")
     print(f"[INFO] Cursos no asignados completamente: {fallidos}")
 

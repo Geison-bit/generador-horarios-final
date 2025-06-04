@@ -4,6 +4,7 @@ import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import Breadcrumbs from "../components/Breadcrumbs";
 
 const gradosPrimaria = ["1°", "2°", "3°", "4°", "5°", "6°"];
+const LIMITE_BLOQUES = 200;
 
 const AsignacionDocentePrimaria = () => {
   const { docentes, setDocentes } = useDocentes();
@@ -11,6 +12,7 @@ const AsignacionDocentePrimaria = () => {
   const [horasCursos, setHorasCursos] = useState({});
   const [nuevoCurso, setNuevoCurso] = useState("");
   const [asignaciones, setAsignaciones] = useState({});
+  const [bloquesUsados, setBloquesUsados] = useState(0);
   const nivel = "Primaria";
 
   useEffect(() => {
@@ -19,6 +21,16 @@ const AsignacionDocentePrimaria = () => {
     cargarHorasCursoGrado();
     cargarAsignacionesExistentes();
   }, []);
+
+  useEffect(() => {
+    let total = 0;
+    for (const cursoId in horasCursos) {
+      for (const gradoId in horasCursos[cursoId]) {
+        total += horasCursos[cursoId][gradoId];
+      }
+    }
+    setBloquesUsados(total);
+  }, [horasCursos]);
 
   const cargarDocentes = async () => {
     const { data } = await supabase.from("docentes").select("id, nombre").eq("nivel", nivel);
@@ -43,7 +55,7 @@ const AsignacionDocentePrimaria = () => {
   const cargarAsignacionesExistentes = async () => {
     const { data } = await supabase.from("asignaciones").select("*").eq("nivel", nivel);
     const map = {};
-    data?.forEach(({ curso_id, grado_id, docente_id }) => {
+    data?.forEach(({ grado_id, docente_id }) => {
       map[grado_id] = docente_id;
     });
     setAsignaciones(map);
@@ -116,10 +128,9 @@ const AsignacionDocentePrimaria = () => {
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
-
       <h2 className="text-2xl font-semibold mb-4">Asignación de Docentes y Horas - Primaria</h2>
 
-      <div className="flex items-center mb-6 gap-2">
+      <div className="flex items-center mb-6 gap-4">
         <input
           type="text"
           value={nuevoCurso}
@@ -130,6 +141,9 @@ const AsignacionDocentePrimaria = () => {
         <button onClick={agregarCurso} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
           Agregar
         </button>
+        <span className={`ml-2 font-semibold ${bloquesUsados > LIMITE_BLOQUES ? "text-red-600" : "text-gray-800"}`}>
+          Bloques usados: {bloquesUsados} / {LIMITE_BLOQUES}
+        </span>
       </div>
 
       <h3 className="text-lg font-bold mb-2">Horas programadas por curso y grado</h3>
@@ -211,3 +225,4 @@ const AsignacionDocentePrimaria = () => {
 };
 
 export default AsignacionDocentePrimaria;
+
