@@ -3,12 +3,14 @@ import { useLocation, useNavigate } from "react-router-dom";
 
 const rutas = [
   { label: "Registrar Docentes", path: "/docentes" },
+  { label: "Registrar Aulas", path: "/aulas" }, // ✅ agregado
   { label: "Asignar Materias", path: "/asignacion" },
   { label: "Franjas Horarias", path: "/franjas" },
   { label: "Restricciones", path: "/restricciones" },
   { label: "Horario General", path: "/horario" },
   { label: "Horario por Docente", path: "/horario-docente" }
 ];
+
 
 const Breadcrumbs = () => {
   const [nivel, setNivel] = useState("Primaria");

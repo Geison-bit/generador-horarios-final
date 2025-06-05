@@ -46,9 +46,14 @@ const AsignacionDocenteCurso = () => {
 
 
   const cargarDocentes = async () => {
-    const { data } = await supabase.from("docentes").select("id, nombre").eq("nivel", nivel);
-    setDocentes(data || []);
-  };
+  const { data } = await supabase
+    .from("docentes")
+    .select("id, nombre, jornada_total") // ← incluye jornada_total
+    .eq("nivel", nivel);
+
+  setDocentes(data || []);
+};
+
 
   const [resumenHoras, setResumenHoras] = useState({});
   useEffect(() => {
@@ -169,7 +174,17 @@ const AsignacionDocenteCurso = () => {
   const anteriorId = actual?.docente_id;
 
   // Calcula las horas que el nuevo docente ya tiene asignadas (sin contar esta si ya la tenía)
-  const horasActuales = resumenHoras[nuevoId] || 0;
+  let horasActuales = 0;
+
+for (const cId in asignaciones) {
+  for (const gId in asignaciones[cId]) {
+    const asignacion = asignaciones[cId][gId];
+    if (asignacion.docente_id === nuevoId && !(cId == cursoId && gId == gradoId)) {
+      horasActuales += horasCursos[cId]?.[gId] || 0;
+    }
+  }
+}
+
   const horasPrevias = (anteriorId === nuevoId) ? nuevaHora : 0;
   const nuevasHorasAsignadas = horasActuales - horasPrevias + nuevaHora;
 
@@ -196,13 +211,27 @@ const AsignacionDocenteCurso = () => {
 };
 
 
-  const eliminarAsignacion = (cursoId, gradoId) => {
-    setAsignaciones((prev) => {
-      const actualizado = { ...prev };
-      delete actualizado[cursoId]?.[gradoId];
-      return actualizado;
-    });
-  };
+  const eliminarAsignacion = async (cursoId, gradoId) => {
+  // 1. Elimina del estado local
+  setAsignaciones((prev) => {
+    const actualizado = { ...prev };
+    if (actualizado[cursoId]) {
+      delete actualizado[cursoId][gradoId];
+      if (Object.keys(actualizado[cursoId]).length === 0) {
+        delete actualizado[cursoId];
+      }
+    }
+    return actualizado;
+  });
+
+  // 2. Elimina en la base de datos
+  await supabase
+    .from("asignaciones")
+    .delete()
+    .eq("curso_id", cursoId)
+    .eq("grado_id", gradoId);
+};
+
 
   const asignarATodosLosGrados = (cursoId, docenteId) => {
     setAsignaciones((prev) => ({
@@ -223,7 +252,13 @@ const AsignacionDocenteCurso = () => {
       const item = asignaciones[cursoId][gradoId];
       const horas = horasCursos[cursoId]?.[gradoId] || 0;
       if (item?.docente_id && horas > 0) {
-        registros.push({ ...item, horas });
+        registros.push({
+          curso_id: parseInt(cursoId),
+          grado_id: parseInt(gradoId),
+          docente_id: parseInt(item.docente_id),
+          horas,
+        });
+
 
         // Sumar horas asignadas por docente
         if (!horasPorDocente[item.docente_id]) horasPorDocente[item.docente_id] = 0;
@@ -390,20 +425,26 @@ const AsignacionDocenteCurso = () => {
     <tr>
       <th className="border px-4 py-2">Docente</th>
       <th className="border px-4 py-2 text-center">Horas asignadas</th>
+      <th className="border px-4 py-2 text-center">Horas faltantes</th>
     </tr>
   </thead>
   <tbody>
-    {Object.entries(resumenHoras).map(([docenteId, horas]) => {
-      const docente = docentes.find(d => d.id === parseInt(docenteId));
+    {docentes.map((docente) => {
+      const asignadas = resumenHoras[docente.id] || 0;
+      const faltantes = Math.max(docente.jornada_total - asignadas, 0);
       return (
-        <tr key={docenteId}>
-          <td className="border px-4 py-2">{docente?.nombre || "Sin nombre"}</td>
-          <td className="border px-4 py-2 text-center">{horas}</td>
+        <tr key={docente.id}>
+          <td className="border px-4 py-2">{docente.nombre}</td>
+          <td className="border px-4 py-2 text-center">{asignadas}</td>
+          <td className={`border px-4 py-2 text-center ${faltantes > 0 ? 'text-red-600 font-semibold' : ''}`}>
+            {faltantes}
+          </td>
         </tr>
       );
     })}
   </tbody>
 </table>
+
 
     </div>
     

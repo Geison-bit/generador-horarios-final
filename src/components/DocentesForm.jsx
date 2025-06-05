@@ -109,12 +109,23 @@ const DocentesForm = () => {
   };
 
   const eliminarDocente = async (id) => {
-    const confirmar = window.confirm("¿Estás seguro de que deseas eliminar este docente?");
-    if (!confirmar) return;
+  const confirmar = window.confirm("¿Estás seguro de que deseas eliminar este docente?");
+  if (!confirmar) return;
 
-    const { error } = await supabase.from("docentes").delete().eq("id", id);
-    if (!error) cargarDocentes();
-  };
+  // Elimina primero las asignaciones del docente en la tabla intermedia
+  await supabase.from("docente_curso").delete().eq("docente_id", id);
+
+  // Luego elimina el docente
+  const { error } = await supabase.from("docentes").delete().eq("id", id);
+
+  if (error) {
+    alert("❌ Error al eliminar el docente.");
+    console.error(error);
+  } else {
+    alert("✅ Docente eliminado correctamente.");
+    cargarDocentes();
+  }
+};
 
   const editarDocente = (docente) => {
     setNombre(docente.nombre);
