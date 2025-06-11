@@ -5,7 +5,11 @@ import Breadcrumbs from "../components/Breadcrumbs";
 
 const DocentesForm = () => {
   const [nombre, setNombre] = useState("");
+  const [nombreInvalido, setNombreInvalido] = useState(false);
+
   const [jornada, setJornada] = useState("");
+  const [jornadaInvalida, setJornadaInvalida] = useState(false);
+
   const [aulaId, setAulaId] = useState("");
   const [cursosSeleccionados, setCursosSeleccionados] = useState([]);
 
@@ -49,9 +53,9 @@ const DocentesForm = () => {
   };
 
   const cargarAulas = async () => {
-  const { data } = await supabase.from("aulas").select().eq("nivel", nivelURL);
-  setAulas(data || []);
-};
+    const { data } = await supabase.from("aulas").select().eq("nivel", nivelURL);
+    setAulas(data || []);
+  };
 
   const cargarCursos = async () => {
     const { data } = await supabase.from("cursos").select("id, nombre").eq("nivel", nivelURL);
@@ -109,23 +113,20 @@ const DocentesForm = () => {
   };
 
   const eliminarDocente = async (id) => {
-  const confirmar = window.confirm("¿Estás seguro de que deseas eliminar este docente?");
-  if (!confirmar) return;
+    const confirmar = window.confirm("¿Estás seguro de que deseas eliminar este docente?");
+    if (!confirmar) return;
 
-  // Elimina primero las asignaciones del docente en la tabla intermedia
-  await supabase.from("docente_curso").delete().eq("docente_id", id);
+    await supabase.from("docente_curso").delete().eq("docente_id", id);
+    const { error } = await supabase.from("docentes").delete().eq("id", id);
 
-  // Luego elimina el docente
-  const { error } = await supabase.from("docentes").delete().eq("id", id);
-
-  if (error) {
-    alert("❌ Error al eliminar el docente.");
-    console.error(error);
-  } else {
-    alert("✅ Docente eliminado correctamente.");
-    cargarDocentes();
-  }
-};
+    if (error) {
+      alert("❌ Error al eliminar el docente.");
+      console.error(error);
+    } else {
+      alert("✅ Docente eliminado correctamente.");
+      cargarDocentes();
+    }
+  };
 
   const editarDocente = (docente) => {
     setNombre(docente.nombre);
@@ -142,20 +143,52 @@ const DocentesForm = () => {
       <h2 className="text-2xl font-bold mb-4">Registrar Docente - {nivelURL}</h2>
 
       <div className="flex flex-wrap gap-2 mb-4 items-start">
-        <input
-          type="text"
-          placeholder="Nombre del docente"
-          value={nombre}
-          onChange={(e) => setNombre(e.target.value)}
-          className="border px-4 py-2 rounded"
-        />
-        <input
-          type="number"
-          placeholder="Horas"
-          value={jornada}
-          onChange={(e) => setJornada(e.target.value)}
-          className="w-24 border px-2 py-2 rounded"
-        />
+        <div className="flex flex-col">
+          <input
+            type="text"
+            placeholder="Nombre del docente"
+            value={nombre}
+            onChange={(e) => {
+              const valor = e.target.value;
+              const esValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]{0,30}$/.test(valor);
+              if (esValido || valor === "") {
+                setNombre(valor);
+                setNombreInvalido(false);
+              } else {
+                setNombreInvalido(true);
+              }
+            }}
+            className="border px-4 py-2 rounded"
+          />
+          {nombreInvalido && (
+            <span className="text-red-600 text-xs mt-1">Solo letras y máximo 30 caracteres.</span>
+          )}
+        </div>
+
+        <div className="flex flex-col">
+          <input
+            type="number"
+            placeholder="Horas"
+            value={jornada}
+            onChange={(e) => {
+              const valor = parseInt(e.target.value);
+              if (!isNaN(valor) && valor <= 40) {
+                setJornada(valor.toString());
+                setJornadaInvalida(false);
+              } else if (e.target.value === "") {
+                setJornada("");
+                setJornadaInvalida(false);
+              } else {
+                setJornadaInvalida(true);
+              }
+            }}
+            className="w-24 border px-2 py-2 rounded"
+          />
+          {jornadaInvalida && (
+            <span className="text-red-600 text-xs mt-1">Máximo permitido: 40 horas.</span>
+          )}
+        </div>
+
         <select
           value={aulaId}
           onChange={(e) => setAulaId(e.target.value)}
@@ -173,7 +206,6 @@ const DocentesForm = () => {
           ))}
         </select>
 
-        {/* Dropdown personalizado */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setMostrarDropdown(!mostrarDropdown)}

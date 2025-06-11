@@ -338,11 +338,22 @@ for (const cId in asignaciones) {
                 <td key={idx} className="border px-2 py-1 text-center">
                   <input
                     type="number"
-                    min="0"
-                    value={horasCursos[curso.id]?.[idx + 1] || 0}
-                    onChange={(e) => editarHoras(curso.id, idx + 1, e.target.value)}
-                    className="w-14 px-1 text-center border rounded"
-                  />
+                    min="2"
+                    max="7"
+                    value={horasCursos[curso.id]?.[idx + 1] || ""}
+                    onChange={(e) => {
+                      const nuevaHora = parseInt(e.target.value);
+                      if (nuevaHora >= 2 && nuevaHora <= 7) {
+                        editarHoras(curso.id, idx + 1, nuevaHora);
+                      } else if (e.target.value === "") {
+                        editarHoras(curso.id, idx + 1, 0);
+                      } else {
+                        alert("⚠️ Las horas deben estar entre 2 y 7.");
+                }
+  }}
+  className="w-14 px-1 text-center border rounded"
+/>
+
                 </td>
               ))}
               <td className="border px-2 py-1 text-center">
