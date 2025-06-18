@@ -24,7 +24,8 @@ const getColorPorDocente = (nombreDocente) => {
     "Kevin": "bg-yellow-200",
     "Jhon": "bg-cyan-300",
     "Rolando": "bg-amber-700 text-white",
-    "Padre Otto": "bg-purple-700 text-white"
+    "Padre Otto": "bg-purple-700 text-white",
+    "yo": "bg-pink-500 text-white"
   };
   return mapa[nombreDocente] || "bg-gray-200";
 };
@@ -45,7 +46,9 @@ const HorarioTable = () => {
   const location = useLocation();
   const nivel = new URLSearchParams(location.search).get("nivel") || "Secundaria";
 
-  const grados = nivel === "Primaria" ? ["1°", "2°", "3°", "4°", "5°", "6°"] : ["1°", "2°", "3°", "4°", "5°"];
+  const grados = nivel === "Primaria"
+    ? ["1°", "2°", "3°", "4°", "5°", "6°"]
+    : ["1°", "2°", "3°", "4°", "5°"];
   const cursosOrdenados = Object.keys(asignaciones || {});
 
   useEffect(() => {
@@ -64,10 +67,10 @@ const HorarioTable = () => {
   }, [nivel]);
 
   const obtenerNombreDocente = (cursoId, gradoIndex) => {
-    const gradoId = gradoIndex + 1 + (nivel === "Primaria" ? 5 : 0);
+    const gradoId = gradoIndex + (nivel === "Primaria" ? 6 : 1);
     const asignacion = asignaciones?.[cursoId]?.[gradoId];
     if (!asignacion || !asignacion.docente_id) return "";
-    const docente = docentes.find(d => d.id === asignacion.docente_id);
+    const docente = docentes.find(d => d.id === asignacion.docente_id && d.nivel === nivel);
     return docente ? docente.nombre : "";
   };
 

@@ -420,15 +420,17 @@ const AsignacionDocenteCurso = () => {
           </tr>
         </thead>
         <tbody>
-          {docentes.map((docente) => {
-            const asignadas = resumenHoras[docente.id] || 0;
-            const faltantes = Math.max(docente.jornada_total - asignadas, 0);
-            return (
-              <tr key={docente.id}>
-                <td className="border px-4 py-2">{docente.nombre}</td>
-                <td className="border px-4 py-2 text-center">{asignadas}</td>
-                <td className={`border px-4 py-2 text-center ${faltantes > 0 ? 'text-red-600 font-semibold' : ''}`}>
-                  {faltantes}
+          {docentes
+            .filter((d) => d.nivel === nivel)
+            .map((docente) => {
+              const asignadas = resumenHoras[docente.id] || 0;
+              const faltantes = Math.max(docente.jornada_total - asignadas, 0);
+              return (
+                <tr key={docente.id}>
+                  <td className="border px-4 py-2">{docente.nombre}</td>
+                  <td className="border px-4 py-2 text-center">{asignadas}</td>
+                  <td className={`border px-4 py-2 text-center ${faltantes > 0 ? 'text-red-600 font-semibold' : ''}`}>
+                    {faltantes}
                 </td>
               </tr>
             );

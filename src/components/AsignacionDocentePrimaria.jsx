@@ -20,7 +20,7 @@ const AsignacionDocentePrimaria = () => {
     cargarCursos();
     cargarHorasCursoGrado();
     cargarAsignacionesExistentes();
-    cargarFranjasHorarias(); // 👈 nuevo
+    cargarFranjasHorarias();
   }, []);
 
   useEffect(() => {
@@ -71,10 +71,16 @@ const AsignacionDocentePrimaria = () => {
   };
 
   const editarHoras = async (cursoId, gradoId, horas) => {
+    const valor = parseInt(horas);
+    if (valor < 2 || valor > 7) {
+      alert("⚠️ Las horas deben estar entre 2 y 7.");
+      return;
+    }
+
     await supabase.from("horas_curso_grado").upsert({
       curso_id: cursoId,
       grado_id: gradoId,
-      horas: parseInt(horas),
+      horas: valor,
       nivel
     }, {
       onConflict: ["curso_id", "grado_id", "nivel"]
@@ -107,6 +113,20 @@ const AsignacionDocentePrimaria = () => {
     }
   };
 
+  const eliminarAsignacion = async (gradoId) => {
+    setAsignaciones((prev) => {
+      const actualizado = { ...prev };
+      delete actualizado[gradoId];
+      return actualizado;
+    });
+
+    await supabase
+      .from("asignaciones")
+      .delete()
+      .eq("grado_id", gradoId)
+      .eq("nivel", nivel);
+  };
+
   const guardarTodo = async () => {
     const registros = [];
 
@@ -134,7 +154,6 @@ const AsignacionDocentePrimaria = () => {
     alert(error ? "❌ Error al guardar" : "✅ Asignaciones guardadas correctamente.");
   };
 
-  // Límite dinámico según bloques x 5 días x 6 grados
   const limiteBloquesCalculado = franjas.length * 5 * gradosPrimaria.length;
 
   return (
@@ -181,8 +200,9 @@ const AsignacionDocentePrimaria = () => {
                 <td key={idx} className="border px-2 py-1 text-center">
                   <input
                     type="number"
-                    min="0"
-                    value={horasCursos[curso.id]?.[idx + 6] || 0}
+                    min="2"
+                    max="7"
+                    value={horasCursos[curso.id]?.[idx + 6] || ""}
                     onChange={(e) => editarHoras(curso.id, idx + 6, e.target.value)}
                     className="w-14 px-1 text-center border rounded"
                   />
@@ -226,6 +246,14 @@ const AsignacionDocentePrimaria = () => {
                       <option key={docente.id} value={docente.id}>{docente.nombre}</option>
                     ))}
                   </select>
+                  {asignaciones[gradoId] && (
+                    <button
+                      onClick={() => eliminarAsignacion(gradoId)}
+                      className="text-sm text-red-600 mt-1 hover:underline"
+                    >
+                      Eliminar asignación
+                    </button>
+                  )}
                 </td>
               </tr>
             );
