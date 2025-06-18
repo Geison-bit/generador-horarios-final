@@ -12,7 +12,8 @@ import Breadcrumbs from "../components/Breadcrumbs";
 const nombresCursos = {
   1: "Matemática", 2: "Comunicación", 3: "Arte", 4: "Tutoría", 5: "Inglés",
   6: "Ciencia y tecnología", 7: "Ciencias sociales", 8: "Desarrollo personal",
-  9: "Ed. Física", 10: "Ed. trabajo", 11: "Religión"
+  9: "Ed. Física", 10: "Ed. trabajo", 11: "Religión",
+  16: "Matemática", 17: "Comunicación", 18: "Arte", 19: "Tutoría", 20: "Ed. Física"
 };
 
 const getColorPorDocente = (nombreDocente) => {
@@ -42,6 +43,7 @@ const HorarioTable = () => {
   });
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
   const [cargando, setCargando] = useState(false);
+  const [asignacionesDesdeDB, setAsignacionesDesdeDB] = useState([]);
   const { docentes, restricciones, asignaciones, horasCursos, setHorarioGeneral } = useDocentes();
   const location = useLocation();
   const nivel = new URLSearchParams(location.search).get("nivel") || "Secundaria";
@@ -49,6 +51,7 @@ const HorarioTable = () => {
   const grados = nivel === "Primaria"
     ? ["1°", "2°", "3°", "4°", "5°", "6°"]
     : ["1°", "2°", "3°", "4°", "5°"];
+
   const cursosOrdenados = Object.keys(asignaciones || {});
 
   useEffect(() => {
@@ -66,11 +69,25 @@ const HorarioTable = () => {
     fetchBloques();
   }, [nivel]);
 
+  useEffect(() => {
+    const cargarAsignaciones = async () => {
+      const { data, error } = await supabase
+        .from("asignaciones")
+        .select("curso_id, grado_id, docente_id")
+        .eq("nivel", nivel);
+
+      if (!error && data) {
+        setAsignacionesDesdeDB(data);
+      }
+    };
+    cargarAsignaciones();
+  }, [nivel]);
+
   const obtenerNombreDocente = (cursoId, gradoIndex) => {
-    const gradoId = gradoIndex + (nivel === "Primaria" ? 6 : 1);
-    const asignacion = asignaciones?.[cursoId]?.[gradoId];
-    if (!asignacion || !asignacion.docente_id) return "";
-    const docente = docentes.find(d => d.id === asignacion.docente_id && d.nivel === nivel);
+    const gradoId = nivel === "Primaria" ? gradoIndex + 6 : gradoIndex + 1;
+    const asignacion = asignacionesDesdeDB.find(a => a.curso_id === cursoId && a.grado_id === gradoId);
+    if (!asignacion) return "";
+    const docente = docentes.find(d => d.id === asignacion.docente_id);
     return docente ? docente.nombre : "";
   };
 
@@ -99,9 +116,8 @@ const HorarioTable = () => {
         const fila = [hora];
         grados.forEach((_, gradoIndex) => {
           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
-          const cursoIdReal = parseInt(cursosOrdenados[cursoId - 1]);
-          const cursoNombre = nombresCursos[cursoIdReal] || "";
-          const docenteNombre = cursoId > 0 ? obtenerNombreDocente(cursoIdReal, gradoIndex) : "";
+          const cursoNombre = nombresCursos[cursoId] || "";
+          const docenteNombre = obtenerNombreDocente(cursoId, gradoIndex);
           fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre}` : "");
         });
         sheetData.push(fila);
@@ -161,12 +177,13 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto space-y-8">
       <Breadcrumbs />
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">🧱️ Generar Horario Escolar - {nivel}</h2>
+        <h2 className="text-2xl font-bold">🧱️ Generar Horario Escolar - {nivel}
+        </h2>
         <button
           onClick={generarHorario}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow"
         >
-          📅 Generar horario
+          🗓️ Generar horario
         </button>
       </div>
 
@@ -189,7 +206,7 @@ const HorarioTable = () => {
         </div>
       )}
 
-      {horarioSeleccionado && horarioSeleccionado.map((bloquesDia, diaIndex) => (
+      {Array.isArray(horarioSeleccionado) && horarioSeleccionado.map((bloquesDia, diaIndex) => (
         <div key={diaIndex} id={`dia-${diaIndex}`} className="mb-4">
           <h4 className="text-xl font-bold mb-2">{["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]}</h4>
           <div className="overflow-auto border shadow rounded">
@@ -208,9 +225,8 @@ const HorarioTable = () => {
                     <td className="border border-black px-2 py-1 font-medium">{horaLabel}</td>
                     {grados.map((_, gradoIndex) => {
                       const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
-                      const cursoIdReal = parseInt(cursosOrdenados[cursoId - 1]);
-                      const cursoNombre = nombresCursos[cursoIdReal] || "";
-                      const docenteNombre = cursoId > 0 ? obtenerNombreDocente(cursoIdReal, gradoIndex) : "";
+                      const cursoNombre = nombresCursos[cursoId] || "";
+                      const docenteNombre = obtenerNombreDocente(cursoId, gradoIndex);
                       return (
                         <td key={gradoIndex} className={`border border-black px-2 py-1 ${getColorPorDocente(docenteNombre)}`}>
                           <div className="font-semibold">{cursoNombre}</div>
