@@ -4,7 +4,6 @@ import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import Breadcrumbs from "../components/Breadcrumbs";
 
 const gradosPrimaria = ["1°", "2°", "3°", "4°", "5°", "6°"];
-const LIMITE_BLOQUES = 200;
 
 const AsignacionDocentePrimaria = () => {
   const { docentes, setDocentes } = useDocentes();
@@ -13,6 +12,7 @@ const AsignacionDocentePrimaria = () => {
   const [nuevoCurso, setNuevoCurso] = useState("");
   const [asignaciones, setAsignaciones] = useState({});
   const [bloquesUsados, setBloquesUsados] = useState(0);
+  const [franjas, setFranjas] = useState([]);
   const nivel = "Primaria";
 
   useEffect(() => {
@@ -20,6 +20,7 @@ const AsignacionDocentePrimaria = () => {
     cargarCursos();
     cargarHorasCursoGrado();
     cargarAsignacionesExistentes();
+    cargarFranjasHorarias(); // 👈 nuevo
   }, []);
 
   useEffect(() => {
@@ -50,6 +51,14 @@ const AsignacionDocentePrimaria = () => {
       map[curso_id][grado_id] = horas;
     });
     setHorasCursos(map);
+  };
+
+  const cargarFranjasHorarias = async () => {
+    const { data } = await supabase
+      .from("franjas_horarias")
+      .select("*")
+      .eq("nivel", nivel);
+    setFranjas(data || []);
   };
 
   const cargarAsignacionesExistentes = async () => {
@@ -125,6 +134,9 @@ const AsignacionDocentePrimaria = () => {
     alert(error ? "❌ Error al guardar" : "✅ Asignaciones guardadas correctamente.");
   };
 
+  // Límite dinámico según bloques x 5 días x 6 grados
+  const limiteBloquesCalculado = franjas.length * 5 * gradosPrimaria.length;
+
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
@@ -134,15 +146,21 @@ const AsignacionDocentePrimaria = () => {
         <input
           type="text"
           value={nuevoCurso}
-          onChange={(e) => setNuevoCurso(e.target.value)}
+          onChange={(e) => {
+            const valor = e.target.value;
+            if (/^[a-zA-ZáéíóúÁÉÍÓÚñÑ ]{0,30}$/.test(valor)) {
+              setNuevoCurso(valor);
+            }
+          }}
           placeholder="Nombre del curso"
+          maxLength={30}
           className="border px-3 py-2 rounded w-64"
         />
         <button onClick={agregarCurso} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
           Agregar
         </button>
-        <span className={`ml-2 font-semibold ${bloquesUsados > LIMITE_BLOQUES ? "text-red-600" : "text-gray-800"}`}>
-          Bloques usados: {bloquesUsados} / {LIMITE_BLOQUES}
+        <span className={`ml-2 font-semibold ${bloquesUsados > limiteBloquesCalculado ? "text-red-600" : "text-gray-800"}`}>
+          Bloques usados: {bloquesUsados} / {limiteBloquesCalculado}
         </span>
       </div>
 
@@ -225,4 +243,3 @@ const AsignacionDocentePrimaria = () => {
 };
 
 export default AsignacionDocentePrimaria;
-

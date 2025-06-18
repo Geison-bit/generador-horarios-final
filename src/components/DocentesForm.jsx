@@ -6,10 +6,8 @@ import Breadcrumbs from "../components/Breadcrumbs";
 const DocentesForm = () => {
   const [nombre, setNombre] = useState("");
   const [nombreInvalido, setNombreInvalido] = useState(false);
-
   const [jornada, setJornada] = useState("");
   const [jornadaInvalida, setJornadaInvalida] = useState(false);
-
   const [aulaId, setAulaId] = useState("");
   const [cursosSeleccionados, setCursosSeleccionados] = useState([]);
 
@@ -76,9 +74,16 @@ const DocentesForm = () => {
       return;
     }
 
+    const jornadaNum = parseInt(jornada);
+    if (isNaN(jornadaNum) || jornadaNum < 10 || jornadaNum > 40) {
+      setJornadaInvalida(true);
+      alert("La jornada debe estar entre 10 y 40 horas.");
+      return;
+    }
+
     const payload = {
       nombre,
-      jornada_total: parseInt(jornada),
+      jornada_total: jornadaNum,
       aula_id: parseInt(aulaId),
       nivel: nivelURL,
     };
@@ -167,25 +172,28 @@ const DocentesForm = () => {
 
         <div className="flex flex-col">
           <input
-            type="number"
-            placeholder="Horas"
-            value={jornada}
-            onChange={(e) => {
-              const valor = parseInt(e.target.value);
-              if (!isNaN(valor) && valor <= 40) {
-                setJornada(valor.toString());
-                setJornadaInvalida(false);
-              } else if (e.target.value === "") {
-                setJornada("");
-                setJornadaInvalida(false);
-              } else {
-                setJornadaInvalida(true);
-              }
-            }}
-            className="w-24 border px-2 py-2 rounded"
-          />
+  type="number"
+  placeholder="Horas"
+  value={jornada}
+  onChange={(e) => {
+    const valor = e.target.value.slice(0, 2); // 👈 limita a 2 dígitos
+    setJornada(valor);
+    setJornadaInvalida(false);
+  }}
+  onBlur={() => {
+    const valor = parseInt(jornada);
+    if (isNaN(valor) || valor < 10 || valor > 40) {
+      setJornadaInvalida(true);
+    } else {
+      setJornadaInvalida(false);
+    }
+  }}
+  className="w-24 border px-2 py-2 rounded"
+  maxLength={2} // 👈 para prevenir más de 2 caracteres visualmente
+/>
+
           {jornadaInvalida && (
-            <span className="text-red-600 text-xs mt-1">Máximo permitido: 40 horas.</span>
+            <span className="text-red-600 text-xs mt-1">Debe estar entre 10 y 40 horas.</span>
           )}
         </div>
 
@@ -235,9 +243,7 @@ const DocentesForm = () => {
 
         <button
           onClick={agregarDocente}
-          className={`${
-            modoEdicion ? "bg-yellow-600" : "bg-blue-600"
-          } text-white px-4 py-2 rounded`}
+          className={`${modoEdicion ? "bg-yellow-600" : "bg-blue-600"} text-white px-4 py-2 rounded`}
         >
           {modoEdicion ? "Guardar Cambios" : "Agregar"}
         </button>

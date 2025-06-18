@@ -28,8 +28,38 @@ const AulasForm = () => {
     setAulas(data || []);
   };
 
+  const verificarNombreDuplicado = async (nombreAula) => {
+    const { data, error } = await supabase
+      .from("aulas")
+      .select("id")
+      .eq("nivel", nivel)
+      .ilike("nombre", nombreAula); // sin distinguir mayúsculas
+
+    if (error) {
+      console.error("Error al verificar nombre:", error.message);
+      return false;
+    }
+
+    if (data.length === 0) return false;
+
+    // Si es edición y es el mismo ID, no es duplicado
+    if (modoEdicion && data[0].id === aulaEditandoId) return false;
+
+    return true;
+  };
+
   const agregarAula = async () => {
     if (!nombre || !tipo || !piso) return;
+    if (nombre.length > 10) {
+      alert("El nombre del aula no puede tener más de 10 caracteres.");
+      return;
+    }
+
+    const nombreExiste = await verificarNombreDuplicado(nombre);
+    if (nombreExiste) {
+      alert("Ya existe un aula con ese nombre.");
+      return;
+    }
 
     const payload = {
       nombre,
@@ -83,6 +113,7 @@ const AulasForm = () => {
           placeholder="Nombre del aula"
           value={nombre}
           onChange={(e) => setNombre(e.target.value)}
+          maxLength={10}
           className="border px-4 py-2 rounded"
         />
 

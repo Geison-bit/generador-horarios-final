@@ -15,6 +15,7 @@ const RestriccionesForm = () => {
   const [docentes, setDocentes] = useState([]);
   const [docenteSeleccionado, setDocenteSeleccionado] = useState("");
   const [eventos, setEventos] = useState([]);
+  const [bloquesHorario, setBloquesHorario] = useState([]);
   const { setRestricciones } = useDocentes();
 
   const location = useLocation();
@@ -23,6 +24,22 @@ const RestriccionesForm = () => {
 
   useEffect(() => {
     cargarDocentes();
+  }, [nivelURL]);
+
+  useEffect(() => {
+    const cargarBloques = async () => {
+      const { data, error } = await supabase
+        .from("franjas_horarias")
+        .select("bloque, hora_inicio, hora_fin")
+        .eq("nivel", nivelURL)
+        .order("bloque");
+
+      if (!error && data?.length) {
+        setBloquesHorario(data);
+      }
+    };
+
+    cargarBloques();
   }, [nivelURL]);
 
   useEffect(() => {
@@ -47,12 +64,18 @@ const RestriccionesForm = () => {
       .eq("docente_id", docente.id)
       .eq("nivel", nivelURL);
 
+    const diaSemana = ["lunes", "martes", "miércoles", "jueves", "viernes"];
+
     const nuevosEventos = (data || []).map((r) => {
-      const diaSemana = ["lunes", "martes", "miércoles", "jueves", "viernes"];
       const indiceDia = diaSemana.indexOf(r.dia);
-      const inicioBase = new Date(2024, 3, 22 + indiceDia, 7, 15);
-      const start = new Date(inicioBase.getTime() + r.bloque * 45 * 60000);
-      const end = new Date(start.getTime() + 45 * 60000);
+      const { hora_inicio, hora_fin } = bloquesHorario[r.bloque] || {};
+
+      const [hiH, hiM] = (hora_inicio || "07:15").split(":").map(Number);
+      const [hfH, hfM] = (hora_fin || "08:00").split(":").map(Number);
+
+      const start = new Date(2024, 3, 22 + indiceDia, hiH, hiM);
+      const end = new Date(2024, 3, 22 + indiceDia, hfH, hfM);
+
       return { title: "Disponible", start, end };
     });
 
@@ -90,7 +113,6 @@ const RestriccionesForm = () => {
     const docente = docentes.find((d) => d.nombre === docenteSeleccionado);
     if (!docente) return alert("Docente no encontrado.");
 
-    // Elimina solo restricciones del docente en ese nivel
     await supabase
       .from("restricciones_docente")
       .delete()
@@ -101,16 +123,19 @@ const RestriccionesForm = () => {
       const dia = start
         .toLocaleDateString("es-PE", { weekday: "long" })
         .toLowerCase();
+
       const horaInicio = start.getHours() + start.getMinutes() / 60;
       const horaFin = end.getHours() + end.getMinutes() / 60;
 
-      for (let i = 0; i < 8; i++) {
-        const inicioBloque = 7.25 + i * 0.75;
-        const finBloque = inicioBloque + 0.75;
+      bloquesHorario.forEach((b, i) => {
+        const [h1, m1] = b.hora_inicio.split(":").map(Number);
+        const [h2, m2] = b.hora_fin.split(":").map(Number);
+        const inicioBloque = h1 + m1 / 60;
+        const finBloque = h2 + m2 / 60;
         if (horaInicio < finBloque && horaFin > inicioBloque) {
           bloquesDisponibles.add(`${dia}-${i}`);
         }
-      }
+      });
     });
 
     const restricciones = [];
@@ -122,7 +147,7 @@ const RestriccionesForm = () => {
         docente_id: docente.id,
         dia,
         bloque,
-        nivel: nivelURL, // 👈 importante
+        nivel: nivelURL,
       });
       restriccionesMap[clave] = true;
     }
@@ -130,6 +155,7 @@ const RestriccionesForm = () => {
     const { error } = await supabase
       .from("restricciones_docente")
       .insert(restricciones);
+
     if (error) {
       alert("❌ Error al guardar restricciones");
       console.error(error);
@@ -143,6 +169,14 @@ const RestriccionesForm = () => {
       }
     }
   };
+
+  const minHora = bloquesHorario.length
+    ? new Date(1970, 0, 1, ...bloquesHorario[0].hora_inicio.split(":").map(Number))
+    : new Date(1970, 0, 1, 7, 15);
+
+  const maxHora = bloquesHorario.length
+    ? new Date(1970, 0, 1, ...bloquesHorario[bloquesHorario.length - 1].hora_fin.split(":").map(Number))
+    : new Date(1970, 0, 1, 13, 30);
 
   return (
     <div className="p-4 max-w-6xl mx-auto">
@@ -180,8 +214,8 @@ const RestriccionesForm = () => {
               onSelectSlot={manejarSeleccion}
               onDoubleClickEvent={manejarDobleClickEvento}
               defaultDate={new Date(2024, 3, 22)}
-              min={new Date(1970, 1, 1, 7, 15)}
-              max={new Date(1970, 1, 1, 13, 30)}
+              min={minHora}
+              max={maxHora}
               toolbar={false}
               formats={{
                 dayFormat: (date) =>

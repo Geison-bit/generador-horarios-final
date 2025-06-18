@@ -6,12 +6,8 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import { enviarDznAlServidor } from "../services/horarioService";
+import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-
-const bloques = [
-  "07:15 - 08:00", "08:00 - 08:45", "08:45 - 09:30", "09:30 - 10:15",
-  "10:30 - 11:15", "11:15 - 12:00", "12:00 - 12:45", "12:45 - 13:30"
-];
 
 const nombresCursos = {
   1: "Matemática", 2: "Comunicación", 3: "Arte", 4: "Tutoría", 5: "Inglés",
@@ -38,6 +34,7 @@ const esHorarioVacio = (horario) => {
 };
 
 const HorarioTable = () => {
+  const [bloquesHorario, setBloquesHorario] = useState([]);
   const [historial, setHistorial] = useState(() => {
     const almacenado = localStorage.getItem("historialHorarios");
     return almacenado ? JSON.parse(almacenado) : [];
@@ -50,6 +47,21 @@ const HorarioTable = () => {
 
   const grados = nivel === "Primaria" ? ["1°", "2°", "3°", "4°", "5°", "6°"] : ["1°", "2°", "3°", "4°", "5°"];
   const cursosOrdenados = Object.keys(asignaciones || {});
+
+  useEffect(() => {
+    const fetchBloques = async () => {
+      const { data, error } = await supabase
+        .from("franjas_horarias")
+        .select("hora_inicio, hora_fin")
+        .eq("nivel", nivel)
+        .order("bloque");
+
+      if (!error && data.length > 0) {
+        setBloquesHorario(data.map(b => `${b.hora_inicio} - ${b.hora_fin}`));
+      }
+    };
+    fetchBloques();
+  }, [nivel]);
 
   const obtenerNombreDocente = (cursoId, gradoIndex) => {
     const gradoId = gradoIndex + 1 + (nivel === "Primaria" ? 5 : 0);
@@ -80,7 +92,7 @@ const HorarioTable = () => {
     const horario = historial[indiceSeleccionado];
     horario.forEach((bloquesDia, diaIndex) => {
       const sheetData = [["Hora", ...grados]];
-      bloques.forEach((hora, bloqueIndex) => {
+      bloquesHorario.forEach((hora, bloqueIndex) => {
         const fila = [hora];
         grados.forEach((_, gradoIndex) => {
           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
@@ -113,14 +125,6 @@ const HorarioTable = () => {
           )
         ])
       );
-
-      console.log("📤 Datos que se enviarán:", {
-        docentes: docentesFiltrados,
-        asignaciones: asignacionesFiltradas,
-        restricciones,
-        horas_curso_grado: horasCursos,
-        nivel
-      });
 
       const resultado = await enviarDznAlServidor(
         docentesFiltrados,
@@ -196,7 +200,7 @@ const HorarioTable = () => {
                 </tr>
               </thead>
               <tbody>
-                {bloques.map((horaLabel, bloqueIndex) => (
+                {bloquesHorario.map((horaLabel, bloqueIndex) => (
                   <tr key={bloqueIndex}>
                     <td className="border border-black px-2 py-1 font-medium">{horaLabel}</td>
                     {grados.map((_, gradoIndex) => {

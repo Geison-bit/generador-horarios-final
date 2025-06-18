@@ -36,14 +36,13 @@ def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, ni
     def bloque_disponible(docente_id, dia_nombre, bloque):
         return restricciones.get(str(docente_id), {}).get(f"{dia_nombre}-{bloque}", False)
 
-    # 🔸 Ordenar asignaciones por horas (prioridad a cursos más largos)
     asignaciones_ordenadas = []
     for curso_id, grados in asignaciones.items():
         for grado_str, datos in grados.items():
             grado = int(grado_str)
             horas = horas_curso_grado.get(str(curso_id), {}).get(str(grado), 0)
             asignaciones_ordenadas.append((curso_id, grado_str, datos["docente_id"], horas))
-    asignaciones_ordenadas.sort(key=lambda x: -x[3])  # de mayor a menor
+    asignaciones_ordenadas.sort(key=lambda x: -x[3])
 
     for curso_id, grado_str, docente_id, horas in asignaciones_ordenadas:
         grado = int(grado_str)
@@ -72,18 +71,30 @@ def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, ni
                         continue
 
                     dia_nombre = DIAS[dia]
-                    libres = [
-                        b for b in range(NUM_BLOQUES)
-                        if bloque_disponible(docente_id, dia_nombre, b)
-                        and (dia, b) not in bloques_ocupados[docente_id]
-                        and grado not in horario[dia][b]
-                    ]
+                    libres = []
+                    for b in range(NUM_BLOQUES):
+                        if not bloque_disponible(docente_id, dia_nombre, b):
+                            continue
+                        if (dia, b) in bloques_ocupados[docente_id]:
+                            continue
+                        if grado in horario[dia][b]:
+                            continue
+                        # ⛔ Validar que el docente no esté ya asignado a otro grado en ese mismo bloque
+                        ya_asignado = any(
+                            asignaciones.get(str(c_existente), {}).get(str(g), {}).get("docente_id") == docente_id
+                            for g, c_existente in horario[dia][b].items()
+                            if c_existente
+                        )
+                        if ya_asignado:
+                            continue
+                        libres.append(b)
+
                     libres.sort()
 
                     for i in range(len(libres) - cantidad + 1):
-                        bloque_segmento = libres[i:i + cantidad]
-                        if son_consecutivos(bloque_segmento):
-                            bloques_asignables = [(dia, b) for b in bloque_segmento]
+                        segmento = libres[i:i + cantidad]
+                        if son_consecutivos(segmento):
+                            bloques_asignables = [(dia, b) for b in segmento]
                             dia_disponible = dia
                             break
                     if bloques_asignables:
@@ -96,19 +107,19 @@ def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, ni
                         asign_temp.append((dia, b))
                     dias_usados.add(dia_disponible)
                 else:
-                    break  # no se pudo asignar este combo
+                    break
 
             if len(asign_temp) == horas:
                 asignado_ok = True
                 horas_asignadas[(curso_id, grado)] = horas
-                break  # combinación exitosa
+                break
 
         if not asignado_ok:
             fallidos += 1
             horas_asignadas[(curso_id, grado)] = 0
             print(f"[!] No se pudo asignar: curso {curso_id}, grado {grado}")
 
-    # 🔸 Informes
+    # Reporte
     print(f"\n[INFO] Asignación completada.")
     print(f"[INFO] Cursos no asignados completamente: {fallidos}")
 
