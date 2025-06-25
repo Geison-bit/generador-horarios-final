@@ -179,7 +179,7 @@ const RestriccionesForm = () => {
     : new Date(1970, 0, 1, 13, 30);
 
   return (
-    <div className="p-4 max-w-6xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-xl font-semibold mb-4">
         Restricciones tipo calendario ({nivelURL})

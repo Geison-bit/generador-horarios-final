@@ -8,31 +8,23 @@ from generador_python import generar_horario
 
 # Inicializar Flask
 app = Flask(__name__)
-
-# ✅ Agrega el dominio real de Vercel para CORS
 CORS(app, origins=[
     "https://generador-horarios-final-git-main-galcantara2s-projects.vercel.app",
     "https://generador-horarios-final.vercel.app",
     "http://localhost:5173"
 ])
 
-
-# Cargar archivo .env desde la misma carpeta que app.py
+# Cargar .env
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# Obtener claves desde entorno
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
-
-# Validar existencia de las variables
 if not supabase_url or not supabase_key:
-    raise Exception("❌ Las variables SUPABASE_URL o SUPABASE_KEY no están definidas en el archivo .env")
+    raise Exception("❌ Las variables SUPABASE_URL o SUPABASE_KEY no están definidas.")
 
-# Conexión con Supabase
 supabase = create_client(supabase_url, supabase_key)
 
-# Constantes
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8
 
@@ -45,18 +37,15 @@ def obtener_nuevo_numero_horario(nivel):
         .select("horario") \
         .eq("nivel", nivel) \
         .execute()
-
     versiones = sorted({item["horario"] for item in response.data if item.get("horario") is not None})
-
     if len(versiones) >= 3:
         versiones_a_eliminar = versiones[:len(versiones) - 2]
         for version in versiones_a_eliminar:
             supabase.table("horarios").delete().eq("nivel", nivel).eq("horario", version).execute()
         versiones = versiones[-2:]
-
     return max(versiones, default=0) + 1
 
-@app.route('/generar-horario-general', methods=['POST'])
+@app.route("/generar-horario-general", methods=["POST"])
 def generar_horario_general():
     try:
         data = request.get_json()
@@ -103,25 +92,28 @@ def generar_horario_general():
             print("⚠ No se generaron registros para insertar.")
 
         grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
-        resultado = {
-            "horario": [
+        horario_lista = [
+            [
                 [
-                    [
-                        horario.get(dia, {}).get(bloque, {}).get(grado, 0)
-                        for grado in grados_ids
-                    ]
-                    for bloque in range(NUM_BLOQUES)
+                    horario.get(dia, {}).get(bloque, {}).get(grado, 0)
+                    for grado in grados_ids
                 ]
-                for dia in range(5)
+                for bloque in range(NUM_BLOQUES)
             ]
-        }
+            for dia in range(5)
+        ]
 
-        return jsonify(resultado)
+        return jsonify({
+            "horario": horario_lista,
+            "asignaciones_exitosas": resultado_python.get("asignaciones_exitosas", 0),
+            "asignaciones_fallidas": resultado_python.get("asignaciones_fallidas", 0),
+            "total_bloques_asignados": total_asignados
+        }), 200
 
     except Exception as e:
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# Ejecutar servidor
+# ✅ Esto es lo que permite ejecutar con `python app.py`
 if __name__ == "__main__":
     app.run(debug=True)

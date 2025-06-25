@@ -88,7 +88,7 @@ const FranjasHorariasForm = () => {
   };
 
   return (
-    <div className="p-4 max-w-3xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-xl font-semibold mb-4">Configuración de bloques horarios (lunes a viernes)</h2>
 

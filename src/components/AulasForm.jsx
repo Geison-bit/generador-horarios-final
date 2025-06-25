@@ -42,7 +42,6 @@ const AulasForm = () => {
 
     if (data.length === 0) return false;
 
-    // Si es edición y es el mismo ID, no es duplicado
     if (modoEdicion && data[0].id === aulaEditandoId) return false;
 
     return true;
@@ -50,8 +49,20 @@ const AulasForm = () => {
 
   const agregarAula = async () => {
     if (!nombre || !tipo || !piso) return;
+
     if (nombre.length > 10) {
       alert("El nombre del aula no puede tener más de 10 caracteres.");
+      return;
+    }
+
+    if (nombre.length < 3) {
+      alert("El nombre del aula debe tener al menos 3 caracteres.");
+      return;
+    }
+
+    const soloLetrasYEspacios = /^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/;
+    if (!soloLetrasYEspacios.test(nombre)) {
+      alert("El nombre del aula solo puede contener letras y espacios.");
       return;
     }
 
@@ -104,7 +115,7 @@ const AulasForm = () => {
   };
 
   return (
-    <div className="p-6 max-w-3xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-2xl font-bold mb-4">Registrar Aula - {nivel}</h2>
       <div className="flex gap-2 mb-4 flex-wrap">

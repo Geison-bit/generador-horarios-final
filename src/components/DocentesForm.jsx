@@ -25,6 +25,8 @@ const DocentesForm = () => {
   const params = new URLSearchParams(location.search);
   const nivelURL = params.get("nivel") || "Secundaria";
 
+  const esPrimaria = nivelURL === "Primaria";
+
   useEffect(() => {
     cargarDocentes();
     cargarAulas();
@@ -69,8 +71,16 @@ const DocentesForm = () => {
   };
 
   const agregarDocente = async () => {
-    if (!nombre || !jornada || !aulaId || cursosSeleccionados.length === 0) {
-      alert("Completa todos los campos y selecciona al menos una especialidad.");
+    const nombreLimpio = nombre.trim();
+    if (
+      !nombreLimpio ||
+      nombreLimpio.length < 3 ||
+      !jornada ||
+      !aulaId ||
+      cursosSeleccionados.length === 0
+    ) {
+      setNombreInvalido(true);
+      alert("Completa todos los campos correctamente y selecciona al menos una especialidad.");
       return;
     }
 
@@ -82,7 +92,7 @@ const DocentesForm = () => {
     }
 
     const payload = {
-      nombre,
+      nombre: nombreLimpio,
       jornada_total: jornadaNum,
       aula_id: parseInt(aulaId),
       nivel: nivelURL,
@@ -143,7 +153,7 @@ const DocentesForm = () => {
   };
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-2xl font-bold mb-4">Registrar Docente - {nivelURL}</h2>
 
@@ -163,37 +173,41 @@ const DocentesForm = () => {
                 setNombreInvalido(true);
               }
             }}
+            onBlur={() => {
+              if (nombre.trim().length < 3) setNombreInvalido(true);
+            }}
             className="border px-4 py-2 rounded"
           />
           {nombreInvalido && (
-            <span className="text-red-600 text-xs mt-1">Solo letras y máximo 30 caracteres.</span>
+            <span className="text-red-600 text-xs mt-1">
+              Solo letras, mínimo 3 y máximo 30 caracteres.
+            </span>
           )}
         </div>
 
         <div className="flex flex-col">
           <input
-  type="number"
-  placeholder="Horas"
-  value={jornada}
-  onChange={(e) => {
-    const valor = e.target.value.slice(0, 2); // 👈 limita a 2 dígitos
-    setJornada(valor);
-    setJornadaInvalida(false);
-  }}
-  onBlur={() => {
-    const valor = parseInt(jornada);
-    if (isNaN(valor) || valor < 10 || valor > 40) {
-      setJornadaInvalida(true);
-    } else {
-      setJornadaInvalida(false);
-    }
-  }}
-  className="w-24 border px-2 py-2 rounded"
-  maxLength={2} // 👈 para prevenir más de 2 caracteres visualmente
-/>
-
+            type="number"
+            placeholder="Horas"
+            value={jornada}
+            onChange={(e) => {
+              const valor = e.target.value.slice(0, 2);
+              setJornada(valor);
+              setJornadaInvalida(false);
+            }}
+            onBlur={() => {
+              const valor = parseInt(jornada);
+              if (isNaN(valor) || valor < 10 || valor > 40) {
+                setJornadaInvalida(true);
+              }
+            }}
+            className="w-24 border px-2 py-2 rounded"
+            maxLength={2}
+          />
           {jornadaInvalida && (
-            <span className="text-red-600 text-xs mt-1">Debe estar entre 10 y 40 horas.</span>
+            <span className="text-red-600 text-xs mt-1">
+              Debe estar entre 10 y 40 horas.
+            </span>
           )}
         </div>
 
@@ -226,6 +240,23 @@ const DocentesForm = () => {
 
           {mostrarDropdown && (
             <div className="absolute z-10 mt-1 max-h-52 overflow-auto border bg-white rounded shadow w-48">
+              {esPrimaria && (
+                <label className="block px-2 py-1 bg-gray-50 border-b font-semibold text-center">
+                  <input
+                    type="checkbox"
+                    checked={cursosSeleccionados.length === cursos.length}
+                    onChange={(e) => {
+                      if (e.target.checked) {
+                        setCursosSeleccionados(cursos.map((c) => c.id));
+                      } else {
+                        setCursosSeleccionados([]);
+                      }
+                    }}
+                    className="mr-2"
+                  />
+                  Seleccionar todos los cursos
+                </label>
+              )}
               {cursos.map((curso) => (
                 <label key={curso.id} className="flex items-center px-2 py-1 hover:bg-gray-100 cursor-pointer">
                   <input

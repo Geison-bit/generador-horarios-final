@@ -174,7 +174,7 @@ const HorarioTable = () => {
   const horarioSeleccionado = historial[indiceSeleccionado];
 
   return (
-    <div className="p-4 max-w-7xl mx-auto space-y-8">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="flex justify-between items-center">
         <h2 className="text-2xl font-bold">🧱️ Generar Horario Escolar - {nivel}

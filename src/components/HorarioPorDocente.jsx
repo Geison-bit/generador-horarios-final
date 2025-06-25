@@ -96,7 +96,7 @@ const HorarioPorDocente = () => {
   const horarioActual = horariosDocente[horarioSeleccionado] || [];
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-2xl font-bold mb-4">📅 Horario de Docente</h2>
 
