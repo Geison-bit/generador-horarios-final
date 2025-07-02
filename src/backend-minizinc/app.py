@@ -9,11 +9,15 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# ✅ Configurar correctamente CORS
-CORS(app, resources={r"/*": {"origins": [
-    "https://gestion-de-horarios.vercel.app",
-    "http://localhost:5173"
-]}}, supports_credentials=True)
+# ✅ Configurar correctamente CORS incluyendo OPTIONS y headers
+CORS(app, supports_credentials=True, resources={r"/*": {
+    "origins": [
+        "https://gestion-de-horarios.vercel.app",
+        "http://localhost:5173"
+    ],
+    "methods": ["GET", "POST", "OPTIONS"],
+    "allow_headers": ["Content-Type", "Authorization"]
+}})
 
 # Cargar .env
 env_path = Path(__file__).resolve().parent / ".env"
@@ -48,7 +52,7 @@ def obtener_nuevo_numero_horario(nivel):
         versiones = versiones[-2:]
     return max(versiones, default=0) + 1
 
-@app.route("/generar-horario-general", methods=["POST"])
+@app.route("/generar-horario-general", methods=["POST", "OPTIONS"])
 def generar_horario_general():
     try:
         data = request.get_json()
