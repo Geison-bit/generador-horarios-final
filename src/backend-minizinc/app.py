@@ -6,10 +6,9 @@ from pathlib import Path
 from supabase import create_client
 from generador_python import generar_horario
 
-# Inicializar Flask
 app = Flask(__name__)
 
-# ✅ Configurar CORS incluyendo methods y headers
+# CORS dinámico para desarrollo y producción
 CORS(app, supports_credentials=True, resources={r"/*": {
     "origins": [
         "https://gestion-de-horarios.vercel.app",
@@ -19,56 +18,64 @@ CORS(app, supports_credentials=True, resources={r"/*": {
     "allow_headers": ["Content-Type", "Authorization"]
 }})
 
-# ✅ Forzar headers CORS en TODAS las respuestas (incluso errores)
 @app.after_request
 def after_request(response):
-    response.headers.add('Access-Control-Allow-Origin', 'https://gestion-de-horarios.vercel.app')
-    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
-    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    origin = request.headers.get("Origin")
+    if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
 
-# Cargar .env
+# 🔁 Ruta explícita para OPTIONS (necesario para preflight en CORS)
+@app.route("/generar-horario-general", methods=["OPTIONS"])
+def preflight_horario():
+    response = jsonify({"message": "CORS preflight OK"})
+    origin = request.headers.get("Origin")
+    if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
+        response.headers["Access-Control-Allow-Origin"] = origin
+    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    return response, 200
+
+# .env
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
-# Inicializar Supabase
+# Supabase
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 if not supabase_url or not supabase_key:
     raise Exception("❌ Las variables SUPABASE_URL o SUPABASE_KEY no están definidas.")
-
 supabase = create_client(supabase_url, supabase_key)
 
 # Constantes
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8
 
-# Ruta de prueba
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "message": "Backend activo"}), 200
 
-# Obtener nuevo número de versión del horario
 def obtener_nuevo_numero_horario(nivel):
     response = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
     versiones = sorted({item["horario"] for item in response.data if item.get("horario") is not None})
     if len(versiones) >= 3:
-        versiones_a_eliminar = versiones[:len(versiones) - 2]
+        versiones_a_eliminar = versiones[:-2]
         for version in versiones_a_eliminar:
             supabase.table("horarios").delete().eq("nivel", nivel).eq("horario", version).execute()
         versiones = versiones[-2:]
     return max(versiones, default=0) + 1
 
-# Ruta para generar el horario general
-@app.route("/generar-horario-general", methods=["POST", "OPTIONS"])
+@app.route("/generar-horario-general", methods=["POST"])
 def generar_horario_general():
     try:
         data = request.get_json()
-        docentes = data.get('docentes', [])
-        asignaciones = data.get('asignaciones', {})
-        restricciones = data.get('restricciones', {})
-        horas_curso_grado = data.get('horas_curso_grado', {})
-        nivel = data.get('nivel', 'Secundaria')
+        docentes = data.get("docentes", [])
+        asignaciones = data.get("asignaciones", {})
+        restricciones = data.get("restricciones", {})
+        horas_curso_grado = data.get("horas_curso_grado", {})
+        nivel = data.get("nivel", "Secundaria")
 
         if not docentes or not asignaciones or not horas_curso_grado:
             raise ValueError("Faltan datos requeridos para generar el horario.")
@@ -77,7 +84,6 @@ def generar_horario_general():
         resultado_python = generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel=nivel)
         horario = resultado_python.get("horario", {})
         total_asignados = resultado_python.get("total_bloques_asignados", 0)
-        print(f"🔢 Total de bloques asignados por Python: {total_asignados}")
 
         nuevo_numero = obtener_nuevo_numero_horario(nivel)
 
@@ -129,6 +135,6 @@ def generar_horario_general():
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# Ejecutar localmente
+# Localhost
 if __name__ == "__main__":
     app.run(debug=True)
