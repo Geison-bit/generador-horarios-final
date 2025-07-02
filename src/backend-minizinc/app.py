@@ -10,8 +10,7 @@ from generador_python import generar_horario
 app = Flask(__name__)
 
 # CORRECCIÓN: Permitir solicitudes desde Vercel y localhost
-CORS(app, resources={r"/*": {"origins": [
-    "https://generador-horarios-final-git-main-galcantara2s-projects.vercel.app",
+CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
     "https://gestion-de-horarios.vercel.app",
     "http://localhost:5173"
 ]}})
