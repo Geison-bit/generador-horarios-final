@@ -9,16 +9,17 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# CORRECCIÓN: Permitir solicitudes desde Vercel y localhost
-CORS(app, supports_credentials=True, resources={r"/*": {"origins": [
+# ✅ Configurar correctamente CORS
+CORS(app, resources={r"/*": {"origins": [
     "https://gestion-de-horarios.vercel.app",
     "http://localhost:5173"
-]}})
+]}}, supports_credentials=True)
 
 # Cargar .env
 env_path = Path(__file__).resolve().parent / ".env"
 load_dotenv(dotenv_path=env_path)
 
+# Inicializar Supabase
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 if not supabase_url or not supabase_key:
@@ -26,6 +27,7 @@ if not supabase_url or not supabase_key:
 
 supabase = create_client(supabase_url, supabase_key)
 
+# Constantes
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8
 
@@ -115,6 +117,6 @@ def generar_horario_general():
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# Ejecutar si se corre directamente
+# Ejecutar localmente
 if __name__ == "__main__":
     app.run(debug=True)
