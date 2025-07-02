@@ -9,9 +9,12 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# ✅ CORS: Permitir todos los orígenes temporalmente (más seguro para pruebas)
-# En producción puedes especificar solo los dominios de Vercel
-CORS(app, resources={r"/*": {"origins": "*"}}, supports_credentials=True)
+# CORRECCIÓN: Permitir solicitudes desde Vercel y localhost
+CORS(app, resources={r"/*": {"origins": [
+    "https://generador-horarios-final-git-main-galcantara2s-projects.vercel.app",
+    "https://gestion-de-horarios.vercel.app",
+    "http://localhost:5173"
+]}})
 
 # Cargar .env
 env_path = Path(__file__).resolve().parent / ".env"
@@ -32,7 +35,10 @@ def health():
     return jsonify({"status": "ok", "message": "Backend activo"}), 200
 
 def obtener_nuevo_numero_horario(nivel):
-    response = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
+    response = supabase.table("horarios") \
+        .select("horario") \
+        .eq("nivel", nivel) \
+        .execute()
     versiones = sorted({item["horario"] for item in response.data if item.get("horario") is not None})
     if len(versiones) >= 3:
         versiones_a_eliminar = versiones[:len(versiones) - 2]
@@ -110,5 +116,6 @@ def generar_horario_general():
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
+# Ejecutar si se corre directamente
 if __name__ == "__main__":
     app.run(debug=True)
