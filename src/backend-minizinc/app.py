@@ -9,7 +9,7 @@ from generador_python import generar_horario
 # Inicializar Flask
 app = Flask(__name__)
 
-# ✅ Configurar correctamente CORS incluyendo OPTIONS y headers
+# ✅ Configurar CORS incluyendo methods y headers
 CORS(app, supports_credentials=True, resources={r"/*": {
     "origins": [
         "https://gestion-de-horarios.vercel.app",
@@ -18,6 +18,14 @@ CORS(app, supports_credentials=True, resources={r"/*": {
     "methods": ["GET", "POST", "OPTIONS"],
     "allow_headers": ["Content-Type", "Authorization"]
 }})
+
+# ✅ Forzar headers CORS en TODAS las respuestas (incluso errores)
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', 'https://gestion-de-horarios.vercel.app')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    return response
 
 # Cargar .env
 env_path = Path(__file__).resolve().parent / ".env"
@@ -35,15 +43,14 @@ supabase = create_client(supabase_url, supabase_key)
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8
 
+# Ruta de prueba
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "message": "Backend activo"}), 200
 
+# Obtener nuevo número de versión del horario
 def obtener_nuevo_numero_horario(nivel):
-    response = supabase.table("horarios") \
-        .select("horario") \
-        .eq("nivel", nivel) \
-        .execute()
+    response = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
     versiones = sorted({item["horario"] for item in response.data if item.get("horario") is not None})
     if len(versiones) >= 3:
         versiones_a_eliminar = versiones[:len(versiones) - 2]
@@ -52,6 +59,7 @@ def obtener_nuevo_numero_horario(nivel):
         versiones = versiones[-2:]
     return max(versiones, default=0) + 1
 
+# Ruta para generar el horario general
 @app.route("/generar-horario-general", methods=["POST", "OPTIONS"])
 def generar_horario_general():
     try:
