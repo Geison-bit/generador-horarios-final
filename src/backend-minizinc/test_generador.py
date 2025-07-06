@@ -9,16 +9,16 @@ def client():
 def test_generar_horario_exito_minimo(client):
     payload = {
         "docentes": [
-            {"id": 1, "nombre": "Docente A", "jornada_total": 30, "aula_id": 1}
+            {"id": 75, "nombre": "yodg", "jornada_total": 40, "aula_id": 9}
         ],
         "asignaciones": {
-            "1": {
-                "6": {"docente_id": 1, "curso_id": 1, "grado_id": 6}
+            "16": {
+                "6": {"docente_id": 75, "curso_id": 16, "grado_id": 6}
             }
         },
         "restricciones": {},
         "horas_curso_grado": {
-            "1": {
+            "16": {
                 "6": 2
             }
         },
@@ -33,17 +33,17 @@ def test_generar_horario_exito_minimo(client):
 def test_generar_horario_multiple_asignaciones(client):
     payload = {
         "docentes": [
-            {"id": 1, "nombre": "Docente A", "jornada_total": 30, "aula_id": 1},
-            {"id": 2, "nombre": "Docente B", "jornada_total": 30, "aula_id": 2}
+            {"id": 76, "nombre": "yefd", "jornada_total": 40, "aula_id": 10},
+            {"id": 80, "nombre": "geison", "jornada_total": 40, "aula_id": 12}
         ],
         "asignaciones": {
-            "1": {"6": {"docente_id": 1}},  # curso 1, grado 6
-            "2": {"6": {"docente_id": 2}},  # curso 2, grado 6
+            "16": {"6": {"docente_id": 76}},  # Tutoría al grado 6
+            "17": {"5": {"docente_id": 80}},  # Inglés al grado 5
         },
         "restricciones": {},
         "horas_curso_grado": {
-            "1": {"6": 2},
-            "2": {"6": 2},
+            "16": {"6": 2},
+            "17": {"5": 2},
         },
         "nivel": "Primaria"
     }
@@ -55,35 +55,35 @@ def test_generar_horario_multiple_asignaciones(client):
 def test_horario_con_restricciones(client):
     payload = {
         "docentes": [
-            {"id": 3, "nombre": "Docente C", "jornada_total": 30, "aula_id": 3}
+            {"id": 50, "nombre": "Javier Delgado", "jornada_total": 30, "aula_id": 1}
         ],
         "asignaciones": {
-            "3": {"6": {"docente_id": 3}}
+            "5": {"6": {"docente_id": 50}}  # curso_id 5 = Inglés (Secundaria)
         },
         "restricciones": {
-            "3": {"lunes-0": False, "lunes-1": False}
+            "50": {"lunes-0": False, "lunes-1": False}
         },
         "horas_curso_grado": {
-            "3": {"6": 2}
+            "5": {"6": 2}
         },
-        "nivel": "Primaria"
+        "nivel": "Secundaria"
     }
     response = client.post("/generar-horario-general", json=payload)
     assert response.status_code == 200
     data = response.get_json()
-    assert "horario" in data
+    assert data["total_bloques_asignados"] == 0
 
 def test_curso_con_solo_una_hora(client):
     payload = {
         "docentes": [
-            {"id": 4, "nombre": "Docente D", "jornada_total": 20, "aula_id": 4}
+            {"id": 76, "nombre": "yefd", "jornada_total": 40, "aula_id": 10}
         ],
         "asignaciones": {
-            "4": {"6": {"docente_id": 4}}
+            "16": {"6": {"docente_id": 76}}  # Tutoría
         },
         "restricciones": {},
         "horas_curso_grado": {
-            "4": {"6": 1}
+            "16": {"6": 1}  # Solo una hora → no se debe asignar
         },
         "nivel": "Primaria"
     }

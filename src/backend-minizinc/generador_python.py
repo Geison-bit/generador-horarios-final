@@ -33,7 +33,10 @@ def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, ni
     horas_asignadas = {}
     fallidos = 0
 
+    # ✅ Aquí corregimos: en Primaria ignoramos restricciones
     def bloque_disponible(docente_id, dia_nombre, bloque):
+        if nivel == "Primaria":
+            return True
         return restricciones.get(str(docente_id), {}).get(f"{dia_nombre}-{bloque}", False)
 
     asignaciones_ordenadas = []
