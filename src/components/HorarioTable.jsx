@@ -1,3 +1,4 @@
+
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
@@ -16,19 +17,30 @@ const nombresCursos = {
   16: "Matemática", 17: "Comunicación", 18: "Arte", 19: "Tutoría", 20: "Ed. Física"
 };
 
+// Paleta de colores suaves y distintos (puedes personalizar)
+const coloresDisponibles = [
+  "bg-red-300", "bg-blue-300", "bg-green-300", "bg-yellow-300", "bg-pink-300",
+  "bg-purple-300", "bg-indigo-300", "bg-orange-300", "bg-teal-300", "bg-lime-300",
+  "bg-cyan-300", "bg-amber-300", "bg-rose-300", "bg-fuchsia-300", "bg-sky-300"
+];
+
+// Mapa para recordar qué color se asignó a cada docente
+const mapaDocenteColor = {};
+
 const getColorPorDocente = (nombreDocente) => {
-  const mapa = {
-    "Javier Delgado": "bg-yellow-300",
-    "Omar Alcántara": "bg-blue-700 text-white",
-    "César Alcalde": "bg-red-600 text-white",
-    "Elmerí Salinas": "bg-green-700 text-white",
-    "Kevin": "bg-yellow-200",
-    "Jhon": "bg-cyan-300",
-    "Rolando": "bg-amber-700 text-white",
-    "Padre Otto": "bg-purple-700 text-white",
-    "yo": "bg-pink-500 text-white"
-  };
-  return mapa[nombreDocente] || "bg-gray-200";
+  if (!nombreDocente) return "bg-gray-200";
+
+  if (!mapaDocenteColor[nombreDocente]) {
+    const usados = Object.values(mapaDocenteColor);
+    const disponibles = coloresDisponibles.filter(c => !usados.includes(c));
+    const colorElegido = disponibles.length > 0
+      ? disponibles[Math.floor(Math.random() * disponibles.length)]
+      : coloresDisponibles[Math.floor(Math.random() * coloresDisponibles.length)];
+
+    mapaDocenteColor[nombreDocente] = colorElegido;
+  }
+
+  return mapaDocenteColor[nombreDocente];
 };
 
 const esHorarioVacio = (horario) => {

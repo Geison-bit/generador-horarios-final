@@ -226,50 +226,88 @@ const AsignacionDocenteCurso = () => {
     }));
   };
 
-  const guardarTodo = async () => {
-    const registros = [];
-    const horasPorDocente = {};
-    for (const cursoId in asignaciones) {
-      for (const gradoId in asignaciones[cursoId]) {
-        const item = asignaciones[cursoId][gradoId];
-        const horas = horasCursos[cursoId]?.[gradoId] || 0;
-        if (item?.docente_id && horas > 0) {
-          registros.push({
-            curso_id: parseInt(cursoId),
-            grado_id: parseInt(gradoId),
-            docente_id: parseInt(item.docente_id),
-            horas,
-          });
-          if (!horasPorDocente[item.docente_id]) horasPorDocente[item.docente_id] = 0;
-          horasPorDocente[item.docente_id] += horas;
-        }
-      }
+const guardarTodo = async () => {
+  const registros = [];
+  const horasPorDocente = {};
+
+  // Validar asignaciones
+  for (const cursoId in asignaciones) {
+    for (const gradoId in asignaciones[cursoId]) {
+      const item = asignaciones[cursoId][gradoId];
+      const horas = horasCursos[cursoId]?.[gradoId] || 0;
+
+      if (!item?.docente_id || isNaN(horas) || horas <= 0) continue;
+
+      registros.push({
+        curso_id: parseInt(cursoId),
+        grado_id: parseInt(gradoId),
+        docente_id: parseInt(item.docente_id),
+        horas,
+      });
+
+      if (!horasPorDocente[item.docente_id]) horasPorDocente[item.docente_id] = 0;
+      horasPorDocente[item.docente_id] += horas;
     }
+  }
 
-    const { data: docentesConHoras, error: errorDocentes } = await supabase
-      .from("docentes")
-      .select("id, jornada_total")
-      .eq("nivel", nivel);
+  // Validar jornada docente
+  const { data: docentesConHoras, error: errorDocentes } = await supabase
+    .from("docentes")
+    .select("id, jornada_total")
+    .eq("nivel", nivel);
 
-    if (errorDocentes) {
-      alert("❌ Error al verificar jornada de docentes.");
+  if (errorDocentes) {
+    alert("❌ Error al verificar jornada de docentes.");
+    return;
+  }
+
+  for (const docenteId in horasPorDocente) {
+    const docente = docentesConHoras.find((d) => d.id === parseInt(docenteId));
+    const disponible = docente?.jornada_total || 0;
+    const asignadas = horasPorDocente[docenteId];
+
+    if (asignadas > disponible) {
+      alert(`❌ El docente con ID ${docenteId} tiene asignadas ${asignadas} horas, pero su jornada es de ${disponible}.`);
       return;
     }
+  }
 
-    for (const docenteId in horasPorDocente) {
-      const docente = docentesConHoras.find((d) => d.id === parseInt(docenteId));
-      const disponible = docente?.jornada_total || 0;
-      const asignadas = horasPorDocente[docenteId];
-      if (asignadas > disponible) {
-        alert(`❌ El docente con ID ${docenteId} tiene asignadas ${asignadas} horas, pero su jornada es de ${disponible}.`);
-        return;
-      }
-    }
+  // Generar registros de horas válidos
+  const registrosHoras = [];
+for (const cursoId in horasCursos) {
+  for (const gradoId in horasCursos[cursoId]) {
+    const valor = horasCursos[cursoId][gradoId];
 
-    const registrosUnicos = Array.from(new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}`, r])).values());
-    const { error } = await supabase.from("asignaciones").upsert(registrosUnicos, { onConflict: ["curso_id", "grado_id"] });
-    alert(error ? "❌ Error al guardar" : "✅ Asignaciones guardadas correctamente.");
-  };
+    const horas = parseInt(valor);
+    if (isNaN(horas) || horas <= 0) continue;
+
+    registrosHoras.push({
+      curso_id: parseInt(cursoId),
+      grado_id: parseInt(gradoId),
+      horas: horas,
+    });
+  }
+}
+console.log("🟢 Enviando a horas_curso_grado:", registrosHoras); 
+const { error: errorHoras } = await supabase
+  .from("horas_curso_grado")
+  .upsert(registrosHoras, { onConflict: ["curso_id", "grado_id"] });
+
+  if (errorHoras) {
+  console.error("❌ Error al guardar horas:", errorHoras.message);
+}
+
+  // Guardar asignaciones sin duplicados
+  const registrosUnicos = Array.from(new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}`, r])).values());
+
+  const { error } = await supabase
+    .from("asignaciones")
+    .upsert(registrosUnicos, { onConflict: ["curso_id", "grado_id"] });
+
+  alert(error ? "❌ Error al guardar asignaciones." : "✅ Todo guardado correctamente.");
+};
+
+
 
   return (
     <div className="p-4 max-w-7xl mx-auto">

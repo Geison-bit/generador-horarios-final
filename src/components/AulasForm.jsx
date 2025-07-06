@@ -60,11 +60,12 @@ const AulasForm = () => {
       return;
     }
 
-    const soloLetrasYEspacios = /^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$/;
-    if (!soloLetrasYEspacios.test(nombre)) {
-      alert("El nombre del aula solo puede contener letras y espacios.");
-      return;
-    }
+    const formatoValido = /^[A-Za-z0-9ÁÉÍÓÚáéíóúÑñ\- ]+$/;
+if (!formatoValido.test(nombre)) {
+  alert("El nombre del aula solo puede contener letras, números, guiones y espacios.");
+  return;
+}
+
 
     const nombreExiste = await verificarNombreDuplicado(nombre);
     if (nombreExiste) {
