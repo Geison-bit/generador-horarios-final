@@ -27,7 +27,7 @@ def after_request(response):
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
 
-# 🔁 Ruta explícita para OPTIONS (necesario para preflight en CORS)
+# 🔁 Ruta explícita para OPTIONS (preflight CORS)
 @app.route("/generar-horario-general", methods=["OPTIONS"])
 def preflight_horario():
     response = jsonify({"message": "CORS preflight OK"})
@@ -135,6 +135,7 @@ def generar_horario_general():
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# Localhost
+# ✅ Configuración para Railway (producción) y local
 if __name__ == "__main__":
-    app.run(debug=True)
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
