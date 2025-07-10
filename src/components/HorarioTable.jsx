@@ -1,4 +1,3 @@
-
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
@@ -10,36 +9,24 @@ import { enviarDznAlServidor } from "../services/horarioService";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 
-const nombresCursos = {
-  1: "Matemática", 2: "Comunicación", 3: "Arte", 4: "Tutoría", 5: "Inglés",
-  6: "Ciencia y tecnología", 7: "Ciencias sociales", 8: "Desarrollo personal",
-  9: "Ed. Física", 10: "Ed. trabajo", 11: "Religión",
-  16: "Matemática", 17: "Comunicación", 18: "Arte", 19: "Tutoría", 20: "Ed. Física"
-};
-
-// Paleta de colores suaves y distintos (puedes personalizar)
 const coloresDisponibles = [
   "bg-red-300", "bg-blue-300", "bg-green-300", "bg-yellow-300", "bg-pink-300",
   "bg-purple-300", "bg-indigo-300", "bg-orange-300", "bg-teal-300", "bg-lime-300",
   "bg-cyan-300", "bg-amber-300", "bg-rose-300", "bg-fuchsia-300", "bg-sky-300"
 ];
 
-// Mapa para recordar qué color se asignó a cada docente
 const mapaDocenteColor = {};
 
 const getColorPorDocente = (nombreDocente) => {
   if (!nombreDocente) return "bg-gray-200";
-
   if (!mapaDocenteColor[nombreDocente]) {
     const usados = Object.values(mapaDocenteColor);
     const disponibles = coloresDisponibles.filter(c => !usados.includes(c));
     const colorElegido = disponibles.length > 0
       ? disponibles[Math.floor(Math.random() * disponibles.length)]
       : coloresDisponibles[Math.floor(Math.random() * coloresDisponibles.length)];
-
     mapaDocenteColor[nombreDocente] = colorElegido;
   }
-
   return mapaDocenteColor[nombreDocente];
 };
 
@@ -56,6 +43,9 @@ const HorarioTable = () => {
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
   const [cargando, setCargando] = useState(false);
   const [asignacionesDesdeDB, setAsignacionesDesdeDB] = useState([]);
+  const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
+  const [aulasDesdeDB, setAulasDesdeDB] = useState([]);
+
   const { docentes, restricciones, asignaciones, horasCursos, setHorarioGeneral } = useDocentes();
   const location = useLocation();
   const nivel = new URLSearchParams(location.search).get("nivel") || "Secundaria";
@@ -64,8 +54,6 @@ const HorarioTable = () => {
     ? ["1°", "2°", "3°", "4°", "5°", "6°"]
     : ["1°", "2°", "3°", "4°", "5°"];
 
-  const cursosOrdenados = Object.keys(asignaciones || {});
-
   useEffect(() => {
     const fetchBloques = async () => {
       const { data, error } = await supabase
@@ -73,7 +61,6 @@ const HorarioTable = () => {
         .select("hora_inicio, hora_fin")
         .eq("nivel", nivel)
         .order("bloque");
-
       if (!error && data.length > 0) {
         setBloquesHorario(data.map(b => `${b.hora_inicio} - ${b.hora_fin}`));
       }
@@ -87,7 +74,6 @@ const HorarioTable = () => {
         .from("asignaciones")
         .select("curso_id, grado_id, docente_id")
         .eq("nivel", nivel);
-
       if (!error && data) {
         setAsignacionesDesdeDB(data);
       }
@@ -95,12 +81,38 @@ const HorarioTable = () => {
     cargarAsignaciones();
   }, [nivel]);
 
-  const obtenerNombreDocente = (cursoId, gradoIndex) => {
+  useEffect(() => {
+    const cargarCursos = async () => {
+      const { data, error } = await supabase
+        .from("cursos")
+        .select("id, nombre");
+      if (!error && data) {
+        setCursosDesdeDB(data);
+      }
+    };
+    cargarCursos();
+  }, []);
+
+  useEffect(() => {
+    const cargarAulas = async () => {
+      const { data, error } = await supabase
+        .from("aulas")
+        .select("id, nombre");
+      if (!error && data) {
+        setAulasDesdeDB(data);
+      }
+    };
+    cargarAulas();
+  }, []);
+
+  const obtenerInfoDocente = (cursoId, gradoIndex) => {
     const gradoId = nivel === "Primaria" ? gradoIndex + 6 : gradoIndex + 1;
     const asignacion = asignacionesDesdeDB.find(a => a.curso_id === cursoId && a.grado_id === gradoId);
-    if (!asignacion) return "";
+    if (!asignacion) return { nombre: "", aula: "" };
     const docente = docentes.find(d => d.id === asignacion.docente_id);
-    return docente ? docente.nombre : "";
+    if (!docente) return { nombre: "", aula: "" };
+    const aulaNombre = aulasDesdeDB.find(a => a.id === docente.aula_id)?.nombre || docente.aula_id || "";
+    return { nombre: docente.nombre, aula: aulaNombre };
   };
 
   const exportarPDF = async () => {
@@ -128,9 +140,9 @@ const HorarioTable = () => {
         const fila = [hora];
         grados.forEach((_, gradoIndex) => {
           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
-          const cursoNombre = nombresCursos[cursoId] || "";
-          const docenteNombre = obtenerNombreDocente(cursoId, gradoIndex);
-          fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre}` : "");
+          const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
+          const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
+          fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre} (${aula})` : "");
         });
         sheetData.push(fila);
       });
@@ -189,8 +201,7 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="flex justify-between items-center">
-        <h2 className="text-2xl font-bold">🧱️ Generar Horario Escolar - {nivel}
-        </h2>
+        <h2 className="text-2xl font-bold">🧱️ Generar Horario Escolar - {nivel}</h2>
         <button
           onClick={generarHorario}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow"
@@ -202,7 +213,7 @@ const HorarioTable = () => {
       {cargando && <p className="text-gray-600">Generando horario, por favor espere...</p>}
 
       {historial.length > 0 && (
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-4 mt-2 mb-4">
           <label>Horario generado:</label>
           <select
             className="border px-2 py-1"
@@ -237,12 +248,12 @@ const HorarioTable = () => {
                     <td className="border border-black px-2 py-1 font-medium">{horaLabel}</td>
                     {grados.map((_, gradoIndex) => {
                       const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
-                      const cursoNombre = nombresCursos[cursoId] || "";
-                      const docenteNombre = obtenerNombreDocente(cursoId, gradoIndex);
+                      const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
+                      const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
                       return (
                         <td key={gradoIndex} className={`border border-black px-2 py-1 ${getColorPorDocente(docenteNombre)}`}>
                           <div className="font-semibold">{cursoNombre}</div>
-                          <div className="text-xs italic">{docenteNombre}</div>
+                          <div className="text-xs italic">{docenteNombre} {aula && <span>({aula})</span>}</div>
                         </td>
                       );
                     })}

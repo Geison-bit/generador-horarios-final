@@ -148,15 +148,22 @@ const AsignacionDocenteCurso = () => {
   };
 
   const eliminarCurso = async (cursoId) => {
-    const confirmar = window.confirm("¿Deseas eliminar este curso y todas sus asignaciones?");
-    if (!confirmar) return;
-    await supabase.from("horas_curso_grado").delete().eq("curso_id", cursoId);
-    await supabase.from("asignaciones").delete().eq("curso_id", cursoId);
-    await supabase.from("cursos").delete().eq("id", cursoId);
-    cargarCursos();
-    cargarHorasCursoGrado();
-    cargarAsignacionesExistentes();
-  };
+  const confirmar = window.confirm("¿Deseas eliminar este curso y todas sus asignaciones y horas? Esta acción es irreversible.");
+  if (!confirmar) return;
+
+  const { error } = await supabase.from("cursos").delete().eq("id", cursoId);
+  if (error) {
+    console.error("Error al eliminar el curso:", error);
+    alert("❌ No se pudo eliminar el curso.");
+    return;
+  }
+
+  alert("✅ Curso eliminado correctamente.");
+  cargarCursos();
+  cargarHorasCursoGrado();
+  cargarAsignacionesExistentes();
+};
+
 
   const handleAsignacion = (cursoId, gradoId, docenteId) => {
     const nuevaHora = horasCursos[cursoId]?.[gradoId] || 0;
