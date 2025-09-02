@@ -4,12 +4,18 @@ import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 
 const DocentesForm = () => {
+  // --- Estados para los nuevos campos ---
   const [nombre, setNombre] = useState("");
-  const [nombreInvalido, setNombreInvalido] = useState(false);
+  const [apellido, setApellido] = useState("");
+  const [tipoProfesor, setTipoProfesor] = useState(""); // Nuevo estado
   const [jornada, setJornada] = useState("");
-  const [jornadaInvalida, setJornadaInvalida] = useState(false);
   const [aulaId, setAulaId] = useState("");
   const [cursosSeleccionados, setCursosSeleccionados] = useState([]);
+
+  // --- Estados para validaciones y UI ---
+  const [nombreInvalido, setNombreInvalido] = useState(false);
+  const [apellidoInvalido, setApellidoInvalido] = useState(false); // Nueva validación
+  const [jornadaInvalida, setJornadaInvalida] = useState(false);
 
   const [aulas, setAulas] = useState([]);
   const [docentes, setDocentes] = useState([]);
@@ -70,16 +76,19 @@ const DocentesForm = () => {
     );
   };
 
+  // --- Función de guardado actualizada ---
   const agregarDocente = async () => {
     const nombreLimpio = nombre.trim();
+    const apellidoLimpio = apellido.trim();
+
     if (
-      !nombreLimpio ||
-      nombreLimpio.length < 3 ||
-      !jornada ||
-      !aulaId ||
-      cursosSeleccionados.length === 0
+      !nombreLimpio || nombreLimpio.length < 3 ||
+      !apellidoLimpio || apellidoLimpio.length < 3 || // Validación de apellido
+      !tipoProfesor || // Validación de tipo de profesor
+      !jornada || !aulaId || cursosSeleccionados.length === 0
     ) {
-      setNombreInvalido(true);
+      setNombreInvalido(!nombreLimpio || nombreLimpio.length < 3);
+      setApellidoInvalido(!apellidoLimpio || apellidoLimpio.length < 3);
       alert("Completa todos los campos correctamente y selecciona al menos una especialidad.");
       return;
     }
@@ -91,8 +100,11 @@ const DocentesForm = () => {
       return;
     }
 
+    // --- Payload actualizado con los nuevos campos ---
     const payload = {
       nombre: nombreLimpio,
+      apellido: apellidoLimpio,
+      tipo_profesor: tipoProfesor,
       jornada_total: jornadaNum,
       aula_id: parseInt(aulaId),
       nivel: nivelURL,
@@ -118,7 +130,10 @@ const DocentesForm = () => {
       await supabase.from("docente_curso").insert(registros);
     }
 
+    // --- Limpiar todos los campos del formulario ---
     setNombre("");
+    setApellido("");
+    setTipoProfesor("");
     setJornada("");
     setAulaId("");
     setCursosSeleccionados([]);
@@ -142,9 +157,12 @@ const DocentesForm = () => {
       cargarDocentes();
     }
   };
-
+  
+  // --- Función de edición actualizada ---
   const editarDocente = (docente) => {
     setNombre(docente.nombre);
+    setApellido(docente.apellido || ""); // Manejar posible valor nulo
+    setTipoProfesor(docente.tipo_profesor || ""); // Manejar posible valor nulo
     setJornada(docente.jornada_total.toString());
     setAulaId(docente.aula_id.toString());
     setCursosSeleccionados(docente.docente_curso?.map((dc) => dc.curso_id) || []);
@@ -157,7 +175,9 @@ const DocentesForm = () => {
       <Breadcrumbs />
       <h2 className="text-2xl font-bold mb-4">Registrar Docente - {nivelURL}</h2>
 
+      {/* --- FORMULARIO ACTUALIZADO --- */}
       <div className="flex flex-wrap gap-2 mb-4 items-start">
+        {/* Campo Nombre */}
         <div className="flex flex-col">
           <input
             type="text"
@@ -185,6 +205,46 @@ const DocentesForm = () => {
           )}
         </div>
 
+        {/* --- NUEVO: Campo Apellido --- */}
+        <div className="flex flex-col">
+          <input
+            type="text"
+            placeholder="Apellido del docente"
+            value={apellido}
+            onChange={(e) => {
+              const valor = e.target.value;
+              const esValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]{0,30}$/.test(valor);
+              if (esValido || valor === "") {
+                setApellido(valor);
+                setApellidoInvalido(false);
+              } else {
+                setApellidoInvalido(true);
+              }
+            }}
+            onBlur={() => {
+              if (apellido.trim().length < 3) setApellidoInvalido(true);
+            }}
+            className="border px-4 py-2 rounded"
+          />
+          {apellidoInvalido && (
+            <span className="text-red-600 text-xs mt-1">
+              Solo letras, mínimo 3 y máximo 30 caracteres.
+            </span>
+          )}
+        </div>
+        
+        {/* --- NUEVO: Campo Tipo de Profesor --- */}
+        <select
+          value={tipoProfesor}
+          onChange={(e) => setTipoProfesor(e.target.value)}
+          className="border px-3 py-2 rounded"
+        >
+          <option value="">Tipo de profesor</option>
+          <option value="Contratado">Contratado</option>
+          <option value="Nombrado">Nombrado</option>
+        </select>
+
+        {/* Campo Horas */}
         <div className="flex flex-col">
           <input
             type="number"
@@ -211,6 +271,7 @@ const DocentesForm = () => {
           )}
         </div>
 
+        {/* Campo Aula */}
         <select
           value={aulaId}
           onChange={(e) => setAulaId(e.target.value)}
@@ -228,6 +289,7 @@ const DocentesForm = () => {
           ))}
         </select>
 
+        {/* Campo Especialidades */}
         <div className="relative" ref={dropdownRef}>
           <button
             onClick={() => setMostrarDropdown(!mostrarDropdown)}
@@ -272,6 +334,7 @@ const DocentesForm = () => {
           )}
         </div>
 
+        {/* Botón de Acción */}
         <button
           onClick={agregarDocente}
           className={`${modoEdicion ? "bg-yellow-600" : "bg-blue-600"} text-white px-4 py-2 rounded`}
@@ -280,10 +343,13 @@ const DocentesForm = () => {
         </button>
       </div>
 
+      {/* --- TABLA ACTUALIZADA --- */}
       <table className="w-full text-sm border">
         <thead className="bg-gray-100">
           <tr>
             <th className="border px-4 py-2">Nombre</th>
+            <th className="border px-4 py-2">Apellido</th>
+            <th className="border px-4 py-2">Tipo</th>
             <th className="border px-4 py-2">Horas</th>
             <th className="border px-4 py-2">Aula</th>
             <th className="border px-4 py-2">Especialidades</th>
@@ -294,6 +360,8 @@ const DocentesForm = () => {
           {docentes.map((d) => (
             <tr key={d.id}>
               <td className="border px-4 py-2">{d.nombre}</td>
+              <td className="border px-4 py-2">{d.apellido}</td>
+              <td className="border px-4 py-2">{d.tipo_profesor}</td>
               <td className="border px-4 py-2">{d.jornada_total}</td>
               <td className="border px-4 py-2">{d.aulas?.nombre || ""}</td>
               <td className="border px-4 py-2 whitespace-pre-wrap text-sm">
