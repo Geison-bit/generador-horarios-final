@@ -391,7 +391,7 @@ const HorarioTable = () => {
           disabled={cargando}
           className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
         >
-          {cargando ? "Generating..." : "🗓️ Generate New Schedule"}
+          {cargando ? "Generating..." : "🗓️ Generate Schedule"}
         </button>
       </div>
 
