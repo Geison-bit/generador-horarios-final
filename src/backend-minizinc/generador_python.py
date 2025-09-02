@@ -1,25 +1,40 @@
 import random
+from itertools import permutations
 
+# Constantes del horario
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_DIAS = 5
 NUM_BLOQUES = 8
 
 def dividir_horas(horas):
-    if horas <= 1:
-        return []
-    if horas == 2:
-        return [[2]]
-    if horas == 3:
-        return [[3]]
-    if horas == 4:
-        return [[2, 2]]
+    """
+    Divide el total de horas en bloques pedagógicos.
+    """
+    if horas <= 1: return []
+    if horas == 2: return [[2]]
+    if horas == 3: return [[3], [2, 1]]
+    if horas == 4: return [[2, 2], [3, 1]]
     if horas == 5:
-        return [[2, 3], [3, 2]]
+        return [
+            [3, 2], [2, 3],
+            [2, 2, 1], [2, 1, 2], [1, 2, 2]
+        ]
     if horas == 6:
-        return [[3, 3], [2, 2, 2]]
+        return [
+            [3, 3], [2, 2, 2],
+            [3, 2, 1], [3, 1, 2], [2, 3, 1], [2, 1, 3], [1, 3, 2], [1, 2, 3]
+        ]
     if horas == 7:
-        return [[2, 2, 3], [2, 3, 2], [3, 2, 2]]
-    return [[horas]]  # fallback
+        return [
+            [3, 2, 2], [2, 3, 2], [2, 2, 3],
+            [3, 3, 1], [3, 1, 3], [1, 3, 3]
+        ]
+    if horas == 8:
+        return [
+            [3, 3, 2], [3, 2, 3], [2, 3, 3],
+            [2, 2, 2, 2]
+        ]
+    return [[horas]]
 
 def son_consecutivos(bloques):
     return all(b2 - b1 == 1 for b1, b2 in zip(bloques, bloques[1:]))

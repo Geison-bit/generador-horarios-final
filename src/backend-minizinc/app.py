@@ -6,6 +6,7 @@ from pathlib import Path
 from supabase import create_client
 from generador_python import generar_horario
 
+
 app = Flask(__name__)
 
 # CORS dinámico para desarrollo y producción
