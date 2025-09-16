@@ -9,6 +9,7 @@ import { enviarDznAlServidor } from "../services/horarioService";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
+import { CalendarRange } from "lucide-react"; // ⬅️ nuevo icono
 
 // Array of available colors for teachers
 const coloresDisponibles = [
@@ -385,7 +386,10 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <div className="flex justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold">🧱️ Generate School Schedule - {nivel}</h2>
+        <h2 className="text-2xl font-bold flex items-center gap-2">
+          <CalendarRange className="h-6 w-6 text-indigo-600" />
+          Generate School Schedule - {nivel}
+        </h2>
         <button
           onClick={generarHorario}
           disabled={cargando}

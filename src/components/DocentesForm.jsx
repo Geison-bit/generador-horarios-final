@@ -3,34 +3,44 @@ import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 
+// --- Componentes de Íconos (SVG) para un código más limpio ---
+const IconoEditar = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path d="M17.414 2.586a2 2 0 00-2.828 0L7 10.172V13h2.828l7.586-7.586a2 2 0 000-2.828z" />
+    <path fillRule="evenodd" d="M2 6a2 2 0 012-2h4a1 1 0 010 2H4v10h10v-4a1 1 0 112 0v4a2 2 0 01-2 2H4a2 2 0 01-2-2V6z" clipRule="evenodd" />
+  </svg>
+);
+
+const IconoEliminar = () => (
+  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
+  </svg>
+);
+
+
 const DocentesForm = () => {
-  // --- Estados para los nuevos campos ---
-  const [nombre, setNombre] = useState("");
-  const [apellido, setApellido] = useState("");
-  const [tipoProfesor, setTipoProfesor] = useState(""); // Nuevo estado
-  const [jornada, setJornada] = useState("");
-  const [aulaId, setAulaId] = useState("");
-  const [cursosSeleccionados, setCursosSeleccionados] = useState([]);
+  const initialState = {
+    nombre: "",
+    apellido: "",
+    tipoProfesor: "",
+    jornada: "",
+    aulaId: "",
+    cursosSeleccionados: [],
+  };
 
-  // --- Estados para validaciones y UI ---
-  const [nombreInvalido, setNombreInvalido] = useState(false);
-  const [apellidoInvalido, setApellidoInvalido] = useState(false); // Nueva validación
-  const [jornadaInvalida, setJornadaInvalida] = useState(false);
-
+  const [formData, setFormData] = useState(initialState);
+  const [errors, setErrors] = useState({});
   const [aulas, setAulas] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [cursos, setCursos] = useState([]);
-
   const [modoEdicion, setModoEdicion] = useState(false);
   const [docenteEditandoId, setDocenteEditandoId] = useState(null);
-
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const dropdownRef = useRef(null);
-
+  
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const nivelURL = params.get("nivel") || "Secundaria";
-
   const esPrimaria = nivelURL === "Primaria";
 
   useEffect(() => {
@@ -54,7 +64,8 @@ const DocentesForm = () => {
       .from("docentes")
       .select("*, aulas(nombre), docente_curso:docente_curso(curso_id, cursos(nombre))")
       .eq("nivel", nivelURL)
-      .order("id");
+      .order("apellido")
+      .order("nombre");
     setDocentes(data || []);
   };
 
@@ -69,44 +80,50 @@ const DocentesForm = () => {
   };
 
   const aulasOcupadas = docentes.map((d) => d.aula_id);
-
-  const toggleCursoSeleccionado = (id) => {
-    setCursosSeleccionados((prev) =>
-      prev.includes(id) ? prev.filter((c) => c !== id) : [...prev, id]
-    );
+  
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prev => ({ ...prev, [name]: value }));
+    if(errors[name]) setErrors(prev => ({...prev, [name]: null}));
   };
 
-  // --- Función de guardado actualizada ---
-  const agregarDocente = async () => {
-    const nombreLimpio = nombre.trim();
-    const apellidoLimpio = apellido.trim();
+  const toggleCursoSeleccionado = (id) => {
+    const { cursosSeleccionados } = formData;
+    const nuevosCursos = cursosSeleccionados.includes(id)
+      ? cursosSeleccionados.filter((c) => c !== id)
+      : [...cursosSeleccionados, id];
+    setFormData(prev => ({ ...prev, cursosSeleccionados: nuevosCursos }));
+    if(errors.cursosSeleccionados) setErrors(prev => ({...prev, cursosSeleccionados: null}));
+  };
 
-    if (
-      !nombreLimpio || nombreLimpio.length < 3 ||
-      !apellidoLimpio || apellidoLimpio.length < 3 || // Validación de apellido
-      !tipoProfesor || // Validación de tipo de profesor
-      !jornada || !aulaId || cursosSeleccionados.length === 0
-    ) {
-      setNombreInvalido(!nombreLimpio || nombreLimpio.length < 3);
-      setApellidoInvalido(!apellidoLimpio || apellidoLimpio.length < 3);
-      alert("Completa todos los campos correctamente y selecciona al menos una especialidad.");
-      return;
-    }
+  const validateForm = () => {
+      const newErrors = {};
+      if (formData.nombre.trim().length < 3) newErrors.nombre = "El nombre es muy corto.";
+      if (formData.apellido.trim().length < 3) newErrors.apellido = "El apellido es muy corto.";
+      if (!formData.tipoProfesor) newErrors.tipoProfesor = "Seleccione un tipo.";
+      
+      const jornadaNum = parseInt(formData.jornada);
+      if (isNaN(jornadaNum) || jornadaNum < 10 || jornadaNum > 40) {
+        newErrors.jornada = "Entre 10 y 40.";
+      }
+      
+      if (!formData.aulaId) newErrors.aulaId = "Seleccione un aula.";
+      if (formData.cursosSeleccionados.length === 0) newErrors.cursosSeleccionados = "Seleccione al menos un curso.";
 
-    const jornadaNum = parseInt(jornada);
-    if (isNaN(jornadaNum) || jornadaNum < 10 || jornadaNum > 40) {
-      setJornadaInvalida(true);
-      alert("La jornada debe estar entre 10 y 40 horas.");
-      return;
-    }
+      setErrors(newErrors);
+      return Object.keys(newErrors).length === 0;
+  }
 
-    // --- Payload actualizado con los nuevos campos ---
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
+
     const payload = {
-      nombre: nombreLimpio,
-      apellido: apellidoLimpio,
-      tipo_profesor: tipoProfesor,
-      jornada_total: jornadaNum,
-      aula_id: parseInt(aulaId),
+      nombre: formData.nombre.trim(),
+      apellido: formData.apellido.trim(),
+      tipo_profesor: formData.tipoProfesor,
+      jornada_total: parseInt(formData.jornada),
+      aula_id: parseInt(formData.aulaId),
       nivel: nivelURL,
     };
 
@@ -122,211 +139,110 @@ const DocentesForm = () => {
     }
 
     if (docenteId) {
-      const registros = cursosSeleccionados.map((cid) => ({
+      const registros = formData.cursosSeleccionados.map((cid) => ({
         docente_id: docenteId,
         curso_id: cid,
         nivel: nivelURL,
       }));
       await supabase.from("docente_curso").insert(registros);
     }
-
-    // --- Limpiar todos los campos del formulario ---
-    setNombre("");
-    setApellido("");
-    setTipoProfesor("");
-    setJornada("");
-    setAulaId("");
-    setCursosSeleccionados([]);
-    setModoEdicion(false);
-    setDocenteEditandoId(null);
+    
+    cancelarEdicion();
     cargarDocentes();
   };
 
-  const eliminarDocente = async (id) => {
-    const confirmar = window.confirm("¿Estás seguro de que deseas eliminar este docente?");
-    if (!confirmar) return;
+  const editarDocente = (docente) => {
+    setModoEdicion(true);
+    setDocenteEditandoId(docente.id);
+    setFormData({
+        nombre: docente.nombre,
+        apellido: docente.apellido || "",
+        tipoProfesor: docente.tipo_profesor || "",
+        jornada: docente.jornada_total.toString(),
+        aulaId: docente.aula_id.toString(),
+        cursosSeleccionados: docente.docente_curso?.map((dc) => dc.curso_id) || [],
+    });
+    setErrors({});
+  };
+  
+  const cancelarEdicion = () => {
+    setModoEdicion(false);
+    setDocenteEditandoId(null);
+    setFormData(initialState);
+    setErrors({});
+  };
 
+  const eliminarDocente = async (id) => {
+    if (!window.confirm("¿Seguro que deseas eliminar este docente y todos sus datos?")) return;
+    
     await supabase.from("docente_curso").delete().eq("docente_id", id);
     const { error } = await supabase.from("docentes").delete().eq("id", id);
 
     if (error) {
       alert("❌ Error al eliminar el docente.");
-      console.error(error);
     } else {
-      alert("✅ Docente eliminado correctamente.");
       cargarDocentes();
     }
   };
   
-  // --- Función de edición actualizada ---
-  const editarDocente = (docente) => {
-    setNombre(docente.nombre);
-    setApellido(docente.apellido || ""); // Manejar posible valor nulo
-    setTipoProfesor(docente.tipo_profesor || ""); // Manejar posible valor nulo
-    setJornada(docente.jornada_total.toString());
-    setAulaId(docente.aula_id.toString());
-    setCursosSeleccionados(docente.docente_curso?.map((dc) => dc.curso_id) || []);
-    setModoEdicion(true);
-    setDocenteEditandoId(docente.id);
-  };
-
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
       <h2 className="text-2xl font-bold mb-4">Registrar Docente - {nivelURL}</h2>
 
-      {/* --- FORMULARIO ACTUALIZADO --- */}
-      <div className="flex flex-wrap gap-2 mb-4 items-start">
-        {/* Campo Nombre */}
-        <div className="flex flex-col">
-          <input
-            type="text"
-            placeholder="Nombre del docente"
-            value={nombre}
-            onChange={(e) => {
-              const valor = e.target.value;
-              const esValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]{0,30}$/.test(valor);
-              if (esValido || valor === "") {
-                setNombre(valor);
-                setNombreInvalido(false);
-              } else {
-                setNombreInvalido(true);
-              }
-            }}
-            onBlur={() => {
-              if (nombre.trim().length < 3) setNombreInvalido(true);
-            }}
-            className="border px-4 py-2 rounded"
-          />
-          {nombreInvalido && (
-            <span className="text-red-600 text-xs mt-1">
-              Solo letras, mínimo 3 y máximo 30 caracteres.
-            </span>
-          )}
-        </div>
-
-        {/* --- NUEVO: Campo Apellido --- */}
-        <div className="flex flex-col">
-          <input
-            type="text"
-            placeholder="Apellido del docente"
-            value={apellido}
-            onChange={(e) => {
-              const valor = e.target.value;
-              const esValido = /^[a-zA-ZáéíóúÁÉÍÓÚüÜñÑ\s]{0,30}$/.test(valor);
-              if (esValido || valor === "") {
-                setApellido(valor);
-                setApellidoInvalido(false);
-              } else {
-                setApellidoInvalido(true);
-              }
-            }}
-            onBlur={() => {
-              if (apellido.trim().length < 3) setApellidoInvalido(true);
-            }}
-            className="border px-4 py-2 rounded"
-          />
-          {apellidoInvalido && (
-            <span className="text-red-600 text-xs mt-1">
-              Solo letras, mínimo 3 y máximo 30 caracteres.
-            </span>
-          )}
-        </div>
+      <form onSubmit={handleSubmit} className="bg-white p-4 rounded-lg border shadow-sm mb-6 flex flex-wrap gap-4 items-start">
+        {["nombre", "apellido"].map(field => (
+          <div key={field} className="flex flex-col">
+            <label htmlFor={field} className="mb-1 text-sm font-medium text-gray-700 capitalize">{field}</label>
+            <input
+              id={field} name={field} type="text" placeholder={`Ingrese ${field}`}
+              value={formData[field]} onChange={handleInputChange}
+              className={`border px-3 py-2 rounded-md w-48 ${errors[field] ? 'border-red-500' : 'border-gray-300'}`}
+            />
+            {errors[field] && <p className="text-red-600 text-xs mt-1">{errors[field]}</p>}
+          </div>
+        ))}
         
-        {/* --- NUEVO: Campo Tipo de Profesor --- */}
-        <select
-          value={tipoProfesor}
-          onChange={(e) => setTipoProfesor(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
-          <option value="">Tipo de profesor</option>
-          <option value="Contratado">Contratado</option>
-          <option value="Nombrado">Nombrado</option>
-        </select>
-
-        {/* Campo Horas */}
         <div className="flex flex-col">
-          <input
-            type="number"
-            placeholder="Horas"
-            value={jornada}
-            onChange={(e) => {
-              const valor = e.target.value.slice(0, 2);
-              setJornada(valor);
-              setJornadaInvalida(false);
-            }}
-            onBlur={() => {
-              const valor = parseInt(jornada);
-              if (isNaN(valor) || valor < 10 || valor > 40) {
-                setJornadaInvalida(true);
-              }
-            }}
-            className="w-24 border px-2 py-2 rounded"
-            maxLength={2}
-          />
-          {jornadaInvalida && (
-            <span className="text-red-600 text-xs mt-1">
-              Debe estar entre 10 y 40 horas.
-            </span>
-          )}
+            <label htmlFor="tipoProfesor" className="mb-1 text-sm font-medium text-gray-700">Tipo</label>
+            <select name="tipoProfesor" value={formData.tipoProfesor} onChange={handleInputChange} className={`border px-3 py-2 rounded-md w-48 ${errors.tipoProfesor ? 'border-red-500' : 'border-gray-300'}`}>
+                <option value="">Seleccione...</option>
+                <option value="Contratado">Contratado</option>
+                <option value="Nombrado">Nombrado</option>
+            </select>
+            {errors.tipoProfesor && <p className="text-red-600 text-xs mt-1">{errors.tipoProfesor}</p>}
         </div>
 
-        {/* Campo Aula */}
-        <select
-          value={aulaId}
-          onChange={(e) => setAulaId(e.target.value)}
-          className="border px-3 py-2 rounded"
-        >
-          <option value="">Seleccione un aula</option>
-          {aulas.map((a) => (
-            <option
-              key={a.id}
-              value={a.id}
-              disabled={aulaId !== a.id.toString() && aulasOcupadas.includes(a.id)}
-            >
-              {a.nombre}
-            </option>
-          ))}
-        </select>
+        <div className="flex flex-col">
+            <label htmlFor="jornada" className="mb-1 text-sm font-medium text-gray-700">Horas</label>
+            <input type="number" name="jornada" placeholder="Ej: 30" value={formData.jornada} onChange={handleInputChange} className={`border px-3 py-2 rounded-md w-24 ${errors.jornada ? 'border-red-500' : 'border-gray-300'}`} />
+            {errors.jornada && <p className="text-red-600 text-xs mt-1">{errors.jornada}</p>}
+        </div>
 
-        {/* Campo Especialidades */}
-        <div className="relative" ref={dropdownRef}>
-          <button
-            onClick={() => setMostrarDropdown(!mostrarDropdown)}
-            className="border px-4 py-2 rounded bg-white w-48 text-left"
-          >
-            {cursosSeleccionados.length > 0
-              ? cursos.filter((c) => cursosSeleccionados.includes(c.id)).map((c) => c.nombre).join(", ")
-              : "Especialidad de cursos"}
+        <div className="flex flex-col">
+            <label htmlFor="aulaId" className="mb-1 text-sm font-medium text-gray-700">Aula</label>
+            <select name="aulaId" value={formData.aulaId} onChange={handleInputChange} className={`border px-3 py-2 rounded-md w-48 ${errors.aulaId ? 'border-red-500' : 'border-gray-300'}`}>
+                <option value="">Seleccione...</option>
+                {aulas.map((a) => (
+                    <option key={a.id} value={a.id} disabled={formData.aulaId !== a.id.toString() && aulasOcupadas.includes(a.id)}>
+                        {a.nombre}
+                    </option>
+                ))}
+            </select>
+            {errors.aulaId && <p className="text-red-600 text-xs mt-1">{errors.aulaId}</p>}
+        </div>
+
+        <div className="relative flex flex-col" ref={dropdownRef}>
+          <label className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
+          <button type="button" onClick={() => setMostrarDropdown(!mostrarDropdown)} className={`border px-3 py-2 rounded-md w-48 text-left ${errors.cursosSeleccionados ? 'border-red-500' : 'border-gray-300'}`}>
+            {formData.cursosSeleccionados.length > 0 ? `${formData.cursosSeleccionados.length} seleccionados` : "Seleccione..."}
           </button>
-
+          {errors.cursosSeleccionados && <p className="text-red-600 text-xs mt-1">{errors.cursosSeleccionados}</p>}
           {mostrarDropdown && (
-            <div className="absolute z-10 mt-1 max-h-52 overflow-auto border bg-white rounded shadow w-48">
-              {esPrimaria && (
-                <label className="block px-2 py-1 bg-gray-50 border-b font-semibold text-center">
-                  <input
-                    type="checkbox"
-                    checked={cursosSeleccionados.length === cursos.length}
-                    onChange={(e) => {
-                      if (e.target.checked) {
-                        setCursosSeleccionados(cursos.map((c) => c.id));
-                      } else {
-                        setCursosSeleccionados([]);
-                      }
-                    }}
-                    className="mr-2"
-                  />
-                  Seleccionar todos los cursos
-                </label>
-              )}
+            <div className="absolute top-full z-10 mt-1 max-h-52 overflow-auto border bg-white rounded shadow w-48">
               {cursos.map((curso) => (
                 <label key={curso.id} className="flex items-center px-2 py-1 hover:bg-gray-100 cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="mr-2"
-                    checked={cursosSeleccionados.includes(curso.id)}
-                    onChange={() => toggleCursoSeleccionado(curso.id)}
-                  />
+                  <input type="checkbox" className="mr-2" checked={formData.cursosSeleccionados.includes(curso.id)} onChange={() => toggleCursoSeleccionado(curso.id)} />
                   {curso.nombre}
                 </label>
               ))}
@@ -334,59 +250,57 @@ const DocentesForm = () => {
           )}
         </div>
 
-        {/* Botón de Acción */}
-        <button
-          onClick={agregarDocente}
-          className={`${modoEdicion ? "bg-yellow-600" : "bg-blue-600"} text-white px-4 py-2 rounded`}
-        >
-          {modoEdicion ? "Guardar Cambios" : "Agregar"}
-        </button>
-      </div>
+        <div className="flex items-end gap-2 pt-6">
+          <button type="submit" className={`${modoEdicion ? "bg-yellow-500 hover:bg-yellow-600" : "bg-blue-600 hover:bg-blue-700"} text-white px-4 py-2 rounded-md font-semibold`}>
+            {modoEdicion ? "Guardar Cambios" : "Agregar Docente"}
+          </button>
+          {modoEdicion && (
+            <button type="button" onClick={cancelarEdicion} className="bg-gray-500 hover:bg-gray-600 text-white px-4 py-2 rounded-md font-semibold">
+              Cancelar
+            </button>
+          )}
+        </div>
+      </form>
 
-      {/* --- TABLA ACTUALIZADA --- */}
-      <table className="w-full text-sm border">
-        <thead className="bg-gray-100">
-          <tr>
-            <th className="border px-4 py-2">Nombre</th>
-            <th className="border px-4 py-2">Apellido</th>
-            <th className="border px-4 py-2">Tipo</th>
-            <th className="border px-4 py-2">Horas</th>
-            <th className="border px-4 py-2">Aula</th>
-            <th className="border px-4 py-2">Especialidades</th>
-            <th className="border px-4 py-2">Acciones</th>
-          </tr>
-        </thead>
-        <tbody>
-          {docentes.map((d) => (
-            <tr key={d.id}>
-              <td className="border px-4 py-2">{d.nombre}</td>
-              <td className="border px-4 py-2">{d.apellido}</td>
-              <td className="border px-4 py-2">{d.tipo_profesor}</td>
-              <td className="border px-4 py-2">{d.jornada_total}</td>
-              <td className="border px-4 py-2">{d.aulas?.nombre || ""}</td>
-              <td className="border px-4 py-2 whitespace-pre-wrap text-sm">
-                {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join("\n")}
-              </td>
-              <td className="border px-2 py-2">
-                <div className="flex justify-center gap-2 w-full">
-                  <button
-                    onClick={() => editarDocente(d)}
-                    className="text-blue-600 hover:underline text-sm"
-                  >
-                    Editar
-                  </button>
-                  <button
-                    onClick={() => eliminarDocente(d.id)}
-                    className="text-red-600 hover:underline text-sm"
-                  >
-                    Eliminar
-                  </button>
-                </div>
-              </td>
+      <div className="overflow-x-auto">
+        <table className="w-full text-sm border-collapse">
+          <thead className="bg-gray-100 text-left">
+            <tr>
+              <th className="border-b px-4 py-3">Nombre</th>
+              <th className="border-b px-4 py-3">Apellido</th>
+              <th className="border-b px-4 py-3">Tipo</th>
+              <th className="border-b px-4 py-3 text-center">Horas</th>
+              <th className="border-b px-4 py-3">Aula</th>
+              <th className="border-b px-4 py-3">Especialidades</th>
+              <th className="border-b px-4 py-3 text-center">Acciones</th>
             </tr>
-          ))}
-        </tbody>
-      </table>
+          </thead>
+          <tbody>
+            {docentes.map((d) => (
+              <tr key={d.id} className="hover:bg-gray-50">
+                <td className="border-b px-4 py-2">{d.nombre}</td>
+                <td className="border-b px-4 py-2">{d.apellido}</td>
+                <td className="border-b px-4 py-2">{d.tipo_profesor}</td>
+                <td className="border-b px-4 py-2 text-center">{d.jornada_total}</td>
+                <td className="border-b px-4 py-2">{d.aulas?.nombre || "N/A"}</td>
+                <td className="border-b px-4 py-2 text-xs">
+                  {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join(", ")}
+                </td>
+                <td className="border-b px-4 py-2">
+                  <div className="flex justify-center items-center gap-3">
+                    <button onClick={() => editarDocente(d)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Editar Docente">
+                      <IconoEditar />
+                    </button>
+                    <button onClick={() => eliminarDocente(d.id)} className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors" title="Eliminar Docente">
+                      <IconoEliminar />
+                    </button>
+                  </div>
+                </td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
     </div>
   );
 };

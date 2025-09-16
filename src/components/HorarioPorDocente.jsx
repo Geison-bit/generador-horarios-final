@@ -1,159 +1,276 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import Breadcrumbs from "../components/Breadcrumbs";
-import axios from "axios";
+import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { supabase } from "../supabaseClient";
+import { Download, FileSpreadsheet, Printer, User } from "lucide-react";
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL;
-const SUPABASE_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY;
+const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]; // L-V
 
-const bloques = [
-  "07:15 - 08:00", "08:00 - 08:45", "08:45 - 09:30", "09:30 - 10:15",
-  "10:30 - 11:15", "11:15 - 12:00", "12:00 - 12:45", "12:45 - 13:30"
-];
-
-const diasSemana = ["lunes", "martes", "miércoles", "jueves", "viernes"];
-
-const nombresCursos = {
-  1: "Matemática", 2: "Comunicación", 3: "Arte", 4: "Tutoría", 5: "Inglés",
-  6: "Ciencia y tecnología", 7: "Ciencias sociales", 8: "Desarrollo personal",
-  9: "Ed. Física", 10: "Ed. trabajo", 11: "Religión"
-};
-
-const HorarioPorDocente = () => {
+export default function HorarioPorDocente() {
   const { search } = useLocation();
   const nivel = new URLSearchParams(search).get("nivel") || "Secundaria";
-  const [docenteIdSeleccionado, setDocenteIdSeleccionado] = useState(null);
-  const [horariosDocente, setHorariosDocente] = useState([]);
-  const [horarioSeleccionado, setHorarioSeleccionado] = useState(1);
-  const tablaRef = useRef();
+
   const { docentes } = useDocentes();
+  const docentesFiltrados = (docentes || []).filter((d) => d.nivel === nivel);
 
-  const docentesFiltrados = docentes.filter(d => d.nivel === nivel);
-  const docenteNombre = docentesFiltrados.find(d => d.id === docenteIdSeleccionado)?.nombre;
+  const [docenteId, setDocenteId] = useState("");
+  const docenteNombre = useMemo(
+    () => docentesFiltrados.find((d) => d.id === Number(docenteId))?.nombre || "",
+    [docentesFiltrados, docenteId]
+  );
 
+  const [franjas, setFranjas] = useState([]); // [{bloque, hora_inicio, hora_fin}]
+  const [cursosMap, setCursosMap] = useState({}); // {id: nombre}
+  const [versiones, setVersiones] = useState([]); // [1,2,3,...]
+  const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version: rows[]}
+  const [versionActual, setVersionActual] = useState(1);
+  const [loading, setLoading] = useState(false);
+
+  const tablaRef = useRef(null);
+
+  // ------- Cargas iniciales -------
   useEffect(() => {
-    const fetchHorarios = async () => {
-      if (!docenteIdSeleccionado) return;
-      const res = await axios.get(
-        `${SUPABASE_URL}/rest/v1/horarios?docente_id=eq.${docenteIdSeleccionado}&nivel=eq.${nivel}&select=*`,
-        {
-          headers: {
-            apikey: SUPABASE_KEY,
-            Authorization: `Bearer ${SUPABASE_KEY}`
-          }
-        }
-      );
+    (async () => {
+      await Promise.all([cargarFranjas(), cargarCursos()]);
+    })();
+  }, [nivel]);
 
-      const agrupados = {};
-      res.data.forEach(row => {
-        const h = row.horario;
-        if (!agrupados[h]) agrupados[h] = [];
-        agrupados[h].push(row);
-      });
+  // Cargar franjas horarias por nivel (dinámicas)
+  async function cargarFranjas() {
+    const { data, error } = await supabase
+      .from("franjas_horarias")
+      .select("bloque, hora_inicio, hora_fin")
+      .eq("nivel", nivel)
+      .order("bloque");
+    if (!error && data) setFranjas(data);
+  }
 
-      const ordenados = Object.keys(agrupados).map(Number).sort((a, b) => a - b);
-      const mapeo = {};
-      ordenados.forEach((id, idx) => {
-        mapeo[id] = idx + 1;
-      });
+  // Mapa de cursos id -> nombre
+  async function cargarCursos() {
+    const { data, error } = await supabase
+      .from("cursos")
+      .select("id, nombre")
+      .eq("nivel", nivel);
+    if (!error) setCursosMap(Object.fromEntries((data || []).map((c) => [c.id, c.nombre])));
+  }
 
-      const renumerado = {};
-      for (const [originalId, datos] of Object.entries(agrupados)) {
-        const nuevoId = mapeo[parseInt(originalId)];
-        renumerado[nuevoId] = datos;
+  // Cargar horarios por docente
+  useEffect(() => {
+    (async () => {
+      if (!docenteId) return;
+      setLoading(true);
+      const { data, error } = await supabase
+        .from("horarios")
+        .select("horario, dia, bloque, curso_id, grado_id")
+        .eq("docente_id", Number(docenteId))
+        .eq("nivel", nivel);
+
+      if (error) {
+        console.error(error);
+        setLoading(false);
+        return;
       }
 
-      setHorariosDocente(renumerado);
-      setHorarioSeleccionado(1);
-    };
+      // Agrupar por campo "horario" y renumerar correlativamente 1..N
+      const grupos = {};
+      for (const row of data || []) {
+        const h = Number(row.horario) || 1;
+        if (!grupos[h]) grupos[h] = [];
+        grupos[h].push(row);
+      }
+      const ordenados = Object.keys(grupos)
+        .map(Number)
+        .sort((a, b) => a - b);
+      const mapeo = new Map(ordenados.map((v, i) => [v, i + 1]));
 
-    fetchHorarios();
-  }, [docenteIdSeleccionado]);
+      const renumerado = {};
+      for (const [k, arr] of Object.entries(grupos)) {
+        const nueva = mapeo.get(Number(k));
+        renumerado[nueva] = arr;
+      }
+      setHorariosPorVersion(renumerado);
+      setVersiones(Array.from({ length: Object.keys(renumerado).length }, (_, i) => i + 1));
+      setVersionActual(1);
+      setLoading(false);
+    })();
+  }, [docenteId, nivel]);
 
-  const exportarPDF = async () => {
-    const canvas = await html2canvas(tablaRef.current);
+  const horarioActual = horariosPorVersion[versionActual] || [];
+
+  // ------- Exportar -------
+  async function exportarPDF() {
+    if (!tablaRef.current) return;
+    const canvas = await html2canvas(tablaRef.current, { scale: 2 });
     const pdf = new jsPDF("landscape", "pt", "a4");
-    const imgData = canvas.toDataURL("image/png");
-    const props = pdf.getImageProperties(imgData);
-    const pdfWidth = pdf.internal.pageSize.getWidth();
-    const pdfHeight = (props.height * pdfWidth) / props.width;
-    pdf.addImage(imgData, "PNG", 20, 20, pdfWidth - 40, pdfHeight);
-    pdf.save(`Horario_${docenteNombre}_v${horarioSeleccionado}.pdf`);
-  };
+    const img = canvas.toDataURL("image/png");
+    const props = pdf.getImageProperties(img);
+    const pageW = pdf.internal.pageSize.getWidth();
+    const pageH = (props.height * pageW) / props.width;
+    pdf.addImage(img, "PNG", 20, 20, pageW - 40, pageH);
+    pdf.save(`Horario_${docenteNombre || docenteId}_v${versionActual}.pdf`);
+  }
 
-  const exportarExcel = () => {
-    const tabla = tablaRef.current;
-    const wb = XLSX.utils.table_to_book(tabla, { sheet: "Horario" });
+  function exportarExcel() {
+    if (!tablaRef.current) return;
+    const wb = XLSX.utils.table_to_book(tablaRef.current, { sheet: `Horario ${docenteNombre}` });
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${docenteNombre}_v${horarioSeleccionado}.xlsx`);
+    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${docenteNombre || docenteId}_v${versionActual}.xlsx`);
+  }
+
+  // ------- Helpers UI -------
+  const bloqueLabel = (idx) => {
+    // Si hay franjas de BD, usamos sus horas; si no, fallback 8 bloques típicos
+    if (franjas.length) {
+      const f = franjas[idx] || franjas.find((x) => x.bloque === idx || x.bloque === idx + 1);
+      if (f) return `${f.hora_inicio} - ${f.hora_fin}`;
+    }
+    const fallback = [
+      "07:15 - 08:00",
+      "08:00 - 08:45",
+      "08:45 - 09:30",
+      "09:30 - 10:15",
+      "10:30 - 11:15",
+      "11:15 - 12:00",
+      "12:00 - 12:45",
+      "12:45 - 13:30",
+    ];
+    return fallback[idx] || "";
   };
 
-  const horarioActual = horariosDocente[horarioSeleccionado] || [];
+  // Coincidencia flexible por bloque (acepta 0-based u 1-based)
+  function matchBloque(rowBloque, idx) {
+    const byIdx = rowBloque === idx;
+    const byNumero = franjas[idx]?.bloque != null && rowBloque === franjas[idx].bloque; // p.ej. 1..N
+    return byIdx || byNumero;
+  }
+
+  // Color estable por curso (hash hue)
+  function colorCurso(id) {
+    const h = (Number(id) * 47) % 360;
+    return `hsl(${h} 70% 92%)`;
+  }
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
-      <h2 className="text-2xl font-bold mb-4">📅 Horario de Docente</h2>
 
-      <select onChange={(e) => setDocenteIdSeleccionado(parseInt(e.target.value))} className="border rounded p-2 mb-4 w-full" defaultValue="">
+      <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+        <User className="size-6 text-blue-600" /> Horario de Docente
+      </h2>
+
+      {/* Selector de docente */}
+      <select
+        value={docenteId}
+        onChange={(e) => setDocenteId(e.target.value)}
+        className="border rounded px-3 py-2 mb-4 w-full max-w-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
+      >
         <option value="">-- Seleccione un docente --</option>
         {docentesFiltrados.map((d) => (
-          <option key={d.id} value={d.id}>{d.nombre}</option>
+          <option key={d.id} value={d.id}>
+            {d.nombre}
+          </option>
         ))}
       </select>
 
-      {docenteIdSeleccionado && Object.keys(horariosDocente).length > 0 && (
+      {docenteId && (
         <>
-          <div className="flex items-center gap-4 mb-4">
-            <label>Versión de horario:</label>
-            <select value={horarioSeleccionado} onChange={e => setHorarioSeleccionado(Number(e.target.value))} className="border p-1">
-              {Object.keys(horariosDocente).sort((a, b) => a - b).map(h => (
-                <option key={h} value={h}>Horario #{h}</option>
+          {/* Barra acciones */}
+          <div className="flex flex-wrap items-center gap-3 mb-4">
+            <label className="text-sm text-slate-700">Versión de horario:</label>
+            <select
+              value={versionActual}
+              onChange={(e) => setVersionActual(Number(e.target.value))}
+              className="border rounded px-2 py-1 text-sm"
+            >
+              {versiones.map((v) => (
+                <option key={v} value={v}>
+                  Horario #{v}
+                </option>
               ))}
             </select>
-            <button onClick={exportarPDF} className="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">Exportar PDF</button>
-            <button onClick={exportarExcel} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">Exportar Excel</button>
+            <button
+              onClick={exportarPDF}
+              className="inline-flex items-center gap-2 rounded bg-rose-600 px-3 py-2 text-white hover:bg-rose-700"
+            >
+              <Download className="size-4" /> Exportar PDF
+            </button>
+            <button
+              onClick={exportarExcel}
+              className="inline-flex items-center gap-2 rounded bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700"
+            >
+              <FileSpreadsheet className="size-4" /> Exportar Excel
+            </button>
+            <button
+              onClick={() => window.print()}
+              className="inline-flex items-center gap-2 rounded bg-slate-700 px-3 py-2 text-white hover:bg-slate-800"
+            >
+              <Printer className="size-4" /> Imprimir
+            </button>
           </div>
 
-          <div ref={tablaRef} className="overflow-auto border shadow rounded">
-            <table className="w-full text-sm text-center border-collapse border border-black">
-              <thead className="bg-gray-100">
+          {/* Tabla */}
+          <div ref={tablaRef} className="overflow-auto rounded-2xl border border-slate-300 bg-white shadow">
+            <table className="w-full text-sm text-center border-collapse">
+              <thead className="bg-slate-50">
                 <tr>
-                  <th className="border border-black px-2 py-1">Hora</th>
-                  {diasSemana.map((dia, i) => (
-                    <th key={i} className="border border-black px-2 py-1">{dia}</th>
+                  <th className="border border-slate-300 px-2 py-2 text-left">Hora</th>
+                  {DIAS.map((dia) => (
+                    <th key={dia} className="border border-slate-300 px-2 py-2 capitalize">
+                      {dia}
+                    </th>
                   ))}
                 </tr>
               </thead>
               <tbody>
-                {bloques.map((bloque, bloqueIdx) => (
-                  <tr key={bloqueIdx}>
-                    <td className="border border-black px-2 py-1 font-medium">{bloque}</td>
-                    {diasSemana.map((diaNombre, diaIndex) => {
-                      const celdasDelDia = horarioActual.filter(h => h.dia === diaNombre && h.bloque === bloqueIdx);
-                      const contenido = celdasDelDia.map(h => (
-                        <div key={`${h.curso_id}-${h.grado_id}`} className="mb-1">
-                          <div className="font-semibold">{nombresCursos[h.curso_id]}</div>
-                          <div className="text-xs italic">{docenteNombre}</div>
-                          <div className="text-xs text-gray-600">Grado: {nivel === "Primaria" ? h.grado_id - 5 : h.grado_id}°</div>
-                        </div>
-                      ));
-                      return <td key={diaIndex} className="border border-black px-2 py-1">{contenido}</td>;
+                {Array.from({ length: Math.max(franjas.length || 8, 8) }, (_, i) => i).map((idx) => (
+                  <tr key={idx}>
+                    <td className="border border-slate-300 px-2 py-2 font-medium text-left whitespace-nowrap">
+                      {bloqueLabel(idx)}
+                    </td>
+                    {DIAS.map((diaNombre) => {
+                      const celdas = horarioActual.filter(
+                        (h) => h.dia === diaNombre && matchBloque(h.bloque, idx)
+                      );
+                      return (
+                        <td key={`${diaNombre}-${idx}`} className="border border-slate-300 px-2 py-2 align-top">
+                          {celdas.length === 0 ? (
+                            <span className="text-xs text-slate-400">—</span>
+                          ) : (
+                            celdas.map((h) => (
+                              <div
+                                key={`${h.curso_id}-${h.grado_id}`}
+                                className="mb-1 rounded-lg px-2 py-1 text-left"
+                                style={{ background: colorCurso(h.curso_id) }}
+                              >
+                                <div className="font-semibold">{cursosMap[h.curso_id] || `Curso ${h.curso_id}`}</div>
+                                <div className="text-[11px] text-slate-600">
+                                  Docente: <span className="italic">{docenteNombre}</span>
+                                </div>
+                                <div className="text-[11px] text-slate-600">
+                                  Grado: {nivel === "Primaria" ? h.grado_id - 5 : h.grado_id}°
+                                </div>
+                              </div>
+                            ))
+                          )}
+                        </td>
+                      );
                     })}
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
+
+          {loading && (
+            <p className="mt-3 text-sm text-slate-600">Cargando horarios…</p>
+          )}
         </>
       )}
     </div>
   );
-};
-
-export default HorarioPorDocente;
+}
