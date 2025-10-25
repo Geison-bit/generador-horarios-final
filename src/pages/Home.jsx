@@ -10,15 +10,10 @@ import {
   BookOpen,
   CalendarDays,
   IdCard,
+  UserCog,
+  ShieldCheck,
 } from "lucide-react";
 
-/**
- * Home.jsx — Interfaz mejorada
- * - Encabezado con gradiente y micro-animaciones
- * - Tarjetas accesibles (foco visible, aria-label)
- * - Grid responsivo y limpio
- * - Reutiliza ActionCard para cada navegación
- */
 export default function Home() {
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
 
@@ -90,13 +85,24 @@ export default function Home() {
             accent="from-indigo-700/10 to-indigo-700/0"
           />
 
+          {/* 🔹 Formulario de disponibilidad (ruta existente) */}
           <ActionCard
             to={`/restricciones?nivel=${nivelSeleccionado}`}
             icon={Ban}
-            title="Restricciones"
-            desc="Define reglas duras y blandas: disponibilidad, solapes, etc."
-            ariaLabel="Ir a restricciones"
+            title="Disponibilidad del Profesor"
+            desc="Marca qué horas puede impartir clase cada docente."
+            ariaLabel="Ir al formulario de disponibilidad"
             accent="from-rose-600/10 to-rose-600/0"
+          />
+
+          {/* 🔹 NUEVO: Panel de restricciones (Aplica / No aplica) */}
+          <ActionCard
+            to={`/restricciones-panel?nivel=${nivelSeleccionado}`}
+            icon={Ban}
+            title="Panel de Restricciones"
+            desc="Visualiza todas las reglas y decide cuáles aplicar."
+            ariaLabel="Ir al panel de restricciones"
+            accent="from-fuchsia-600/10 to-fuchsia-600/0"
           />
 
           <ActionCard
@@ -133,6 +139,25 @@ export default function Home() {
             desc="Consulta y exporta la grilla individual por profesor."
             ariaLabel="Ir al horario por docente"
             accent="from-indigo-600/10 to-indigo-600/0"
+          />
+
+          {/* ======== Administración / Seguridad ======== */}
+          <ActionCard
+            to="/admin/docentes"
+            icon={UserCog}
+            title="Gestión de Docentes"
+            desc="Lista, crea/edita y activa/desactiva docentes."
+            ariaLabel="Ir a gestión de docentes"
+            accent="from-sky-600/10 to-sky-600/0"
+          />
+
+          <ActionCard
+            to="/admin/roles"
+            icon={ShieldCheck}
+            title="Gestión de Roles"
+            desc="Crea roles y asígnalos a docentes para controlar permisos."
+            ariaLabel="Ir a gestión de roles"
+            accent="from-teal-600/10 to-teal-600/0"
           />
         </div>
       </main>

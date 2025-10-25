@@ -6,18 +6,16 @@ from pathlib import Path
 from supabase import create_client
 from generador_python import generar_horario
 
-
 app = Flask(__name__)
 
-# CORS dinámico para desarrollo y producción
-CORS(app, supports_credentials=True, resources={r"/*": {
-    "origins": [
-        "https://gestion-de-horarios.vercel.app",
-        "http://localhost:5173"
-    ],
-    "methods": ["GET", "POST", "OPTIONS"],
-    "allow_headers": ["Content-Type", "Authorization"]
-}})
+# CORS dinámico para dev y prod
+CORS(app, supports_credentials=True, resources={
+    r"/*": {
+        "origins": ["https://gestion-de-horarios.vercel.app", "http://localhost:5173"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization"]
+    }
+})
 
 @app.after_request
 def after_request(response):
@@ -28,7 +26,7 @@ def after_request(response):
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
 
-# 🔁 Ruta explícita para OPTIONS (preflight CORS)
+# Preflight explícito
 @app.route("/generar-horario-general", methods=["OPTIONS"])
 def preflight_horario():
     response = jsonify({"message": "CORS preflight OK"})
@@ -47,96 +45,153 @@ load_dotenv(dotenv_path=env_path)
 supabase_url = os.getenv("SUPABASE_URL")
 supabase_key = os.getenv("SUPABASE_KEY")
 if not supabase_url or not supabase_key:
-    raise Exception("❌ Las variables SUPABASE_URL o SUPABASE_KEY no están definidas.")
+    raise Exception("❌ SUPABASE_URL o SUPABASE_KEY no están definidos.")
 supabase = create_client(supabase_url, supabase_key)
 
 # Constantes
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
-NUM_BLOQUES = 8
+NUM_BLOQUES = 8  # asegúrate que 'franjas_horarias' tenga bloques 0..7 por nivel
 
 @app.route("/health", methods=["GET"])
 def health():
     return jsonify({"status": "ok", "message": "Backend activo"}), 200
 
-def obtener_nuevo_numero_horario(nivel):
-    response = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
-    versiones = sorted({item["horario"] for item in response.data if item.get("horario") is not None})
-    if len(versiones) >= 3:
-        versiones_a_eliminar = versiones[:-2]
-        for version in versiones_a_eliminar:
-            supabase.table("horarios").delete().eq("nivel", nivel).eq("horario", version).execute()
-        versiones = versiones[-2:]
-    return max(versiones, default=0) + 1
+def obtener_nuevo_numero_horario(nivel: str) -> int:
+    """
+    Devuelve un número incremental de versión.
+    OJO: por el UNIQUE (grado_id, dia, bloque) no se guardan múltiples versiones en paralelo.
+    """
+    resp = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
+    versiones = sorted({item["horario"] for item in (resp.data or []) if item.get("horario") is not None})
+    return (max(versiones) + 1) if versiones else 1
 
 @app.route("/generar-horario-general", methods=["POST"])
 def generar_horario_general():
     try:
-        data = request.get_json()
+        # Lee body (si no viene JSON válido, esto levanta)
+        data = request.get_json(force=True, silent=False)
+
         docentes = data.get("docentes", [])
         asignaciones = data.get("asignaciones", {})
         restricciones = data.get("restricciones", {})
         horas_curso_grado = data.get("horas_curso_grado", {})
         nivel = data.get("nivel", "Secundaria")
+        overwrite = bool(data.get("overwrite", True))  # por defecto sobrescribe todo el nivel
 
         if not docentes or not asignaciones or not horas_curso_grado:
             raise ValueError("Faltan datos requeridos para generar el horario.")
 
         print(f"🔧 Generando horario para nivel: {nivel}")
-        resultado_python = generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel=nivel)
-        horario = resultado_python.get("horario", {})
-        total_asignados = resultado_python.get("total_bloques_asignados", 0)
+        resultado = generar_horario(
+            docentes,
+            asignaciones,
+            restricciones,
+            horas_curso_grado,
+            nivel=nivel
+        )
 
-        nuevo_numero = obtener_nuevo_numero_horario(nivel)
+        horario_dict = resultado.get("horario", {})  # {dia_idx: {bloque_idx: {grado_id: curso_id}}}
+        total_asignados = resultado.get("total_bloques_asignados", 0)
+        nueva_version = obtener_nuevo_numero_horario(nivel)
 
+        # Prepara registros para tabla 'horarios'
         registros = []
-        for dia_idx, bloques in horario.items():
-            dia_nombre = DIAS[int(dia_idx)]
-            for bloque_idx, grados in bloques.items():
-                for grado_idx, curso_id in grados.items():
-                    if isinstance(curso_id, int) and curso_id > 0:
-                        grado_id = int(grado_idx)
-                        docente_id = asignaciones.get(str(curso_id), {}).get(str(grado_id), {}).get("docente_id")
-                        if docente_id:
-                            registros.append({
-                                "docente_id": docente_id,
-                                "curso_id": curso_id,
-                                "grado_id": grado_id,
-                                "dia": dia_nombre,
-                                "bloque": int(bloque_idx),
-                                "nivel": nivel,
-                                "horario": nuevo_numero
-                            })
+        for dia_key, bloques in (horario_dict or {}).items():
+            try:
+                dia_idx = int(dia_key)
+            except Exception:
+                continue
+            if not (0 <= dia_idx < len(DIAS)):
+                continue
+            dia_nombre = DIAS[dia_idx]
 
+            for blq_key, grados in (bloques or {}).items():
+                try:
+                    bloque_idx = int(blq_key)
+                except Exception:
+                    continue
+                if not (0 <= bloque_idx < NUM_BLOQUES):
+                    continue
+
+                for grado_key, curso_id in (grados or {}).items():
+                    # 0 significa vacío
+                    if not isinstance(curso_id, int) or curso_id <= 0:
+                        continue
+                    try:
+                        grado_id = int(grado_key)
+                    except Exception:
+                        continue
+
+                    # asignaciones usa claves string
+                    docente_id = (
+                        asignaciones
+                        .get(str(curso_id), {})
+                        .get(str(grado_id), {})
+                        .get("docente_id")
+                    )
+                    if docente_id:
+                        registros.append({
+                            "docente_id": int(docente_id),
+                            "curso_id": int(curso_id),
+                            "grado_id": int(grado_id),
+                            "dia": dia_nombre,           # 'lunes'..'viernes'
+                            "bloque": int(bloque_idx),   # 0..7
+                            "nivel": nivel,
+                            "horario": int(nueva_version)
+                        })
+
+        # Persistencia robusta evitando duplicados
         if registros:
-            supabase.table("horarios").insert(registros).execute()
-            print(f"✅ Horario #{nuevo_numero} insertado correctamente.")
-        else:
-            print("⚠ No se generaron registros para insertar.")
+            # Si quieres intentar UPSERT primero (cuando tu UNIQUE sea (grado_id, dia, bloque)):
+            CONFLICT_COLS = ["grado_id", "dia", "bloque"]  # ⚠️ Si tu UNIQUE incluye nivel, agrega "nivel" aquí.
 
+            if overwrite:
+                # Estrategia clara y consistente: borra e inserta todo el nivel
+                supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                supabase.table("horarios").insert(registros).execute()
+                print(f"✅ Horario sobrescrito para {nivel}. Filas: {len(registros)}")
+            else:
+                # Intenta UPSERT; si tu índice no coincide (42P10) o hay 23505 por otro UNIQUE, cae a delete+insert
+                try:
+                    supabase.table("horarios").upsert(registros, on_conflict=CONFLICT_COLS).execute()
+                    print(f"✅ Horario cargado por UPSERT. Filas: {len(registros)}")
+                except Exception as e:
+                    msg = str(e)
+                    if "42P10" in msg or "23505" in msg:
+                        print("ℹ️ Fallback a delete+insert por conflicto de índice único.")
+                        supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                        supabase.table("horarios").insert(registros).execute()
+                    else:
+                        raise
+        else:
+            print("⚠ No se generaron registros (todo vacío).")
+
+        # Devuelve matriz para el front (5 días × NUM_BLOQUES × (5 ó 6 grados))
         grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
         horario_lista = [
             [
                 [
-                    horario.get(dia, {}).get(bloque, {}).get(grado, 0)
-                    for grado in grados_ids
+                    (horario_dict.get(d, {}).get(b, {}).get(g, 0))
+                    for g in grados_ids
                 ]
-                for bloque in range(NUM_BLOQUES)
+                for b in range(NUM_BLOQUES)
             ]
-            for dia in range(5)
+            for d in range(5)
         ]
 
         return jsonify({
             "horario": horario_lista,
-            "asignaciones_exitosas": resultado_python.get("asignaciones_exitosas", 0),
-            "asignaciones_fallidas": resultado_python.get("asignaciones_fallidas", 0),
-            "total_bloques_asignados": total_asignados
+            "asignaciones_exitosas": resultado.get("asignaciones_exitosas", 0),
+            "asignaciones_fallidas": resultado.get("asignaciones_fallidas", 0),
+            "total_bloques_asignados": total_asignados,
+            "version": nueva_version
         }), 200
 
     except Exception as e:
         print("❌ Excepción general:", str(e))
         return jsonify({"error": str(e)}), 500
 
-# ✅ Configuración para Railway (producción) y local
+# Run local / Railway
 if __name__ == "__main__":
     port = int(os.environ.get("PORT", 5000))
     app.run(host="0.0.0.0", port=port)

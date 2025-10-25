@@ -1,9 +1,23 @@
+// src/components/AsignacionDocenteCurso.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { AlertTriangle, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
+
+// 🔎 Iconografía coherente con tus otras vistas (lucide-react)
+import {
+  AlertTriangle,
+  BarChart3,
+  ClipboardList,
+  Clock8,
+  Loader2,
+  Plus,
+  Save,
+  Trash2,
+  Users2,
+  Users,
+} from "lucide-react";
 
 const grados = ["1°", "2°", "3°", "4°", "5°"]; // 1..5 (ids 1..5)
 
@@ -27,6 +41,7 @@ export default function AsignacionDocenteCurso() {
   const [error, setError] = useState("");
 
   const nivel = new URLSearchParams(useLocation().search).get("nivel") || "Secundaria";
+  const nivelSeguro = nivel || "Secundaria";
 
   // ------- Carga inicial -------
   useEffect(() => {
@@ -73,7 +88,6 @@ export default function AsignacionDocenteCurso() {
   }, [bloquesUsados, limiteBloques]);
 
   const { resumenHoras, docentesFiltrados } = useMemo(() => {
-    // Resumen de horas por docente
     const contador = {};
     for (const cursoId in asignaciones) {
       for (const gradoId in asignaciones[cursoId]) {
@@ -83,17 +97,16 @@ export default function AsignacionDocenteCurso() {
         contador[docente_id] += horas;
       }
     }
-    // Filtrar docentes por nivel (para la tabla final)
-    const filtrados = (docentes || []).filter((d) => d.nivel === nivel);
+    const filtrados = (docentes || []).filter((d) => d.nivel === nivelSeguro);
     return { resumenHoras: contador, docentesFiltrados: filtrados };
-  }, [asignaciones, horasCursos, docentes, nivel]);
+  }, [asignaciones, horasCursos, docentes, nivelSeguro]);
 
   // ------- Supabase fetchers -------
   async function cargarLimiteBloques() {
     const { data, error } = await supabase
       .from("franjas_horarias")
       .select("bloque")
-      .eq("nivel", nivel);
+      .eq("nivel", nivelSeguro);
     if (error) console.error(error);
     const bloquesPorDia = data?.length || 8; // fallback 8
     setLimiteBloques(bloquesPorDia * 5 * grados.length);
@@ -103,7 +116,8 @@ export default function AsignacionDocenteCurso() {
     const { data, error } = await supabase
       .from("docentes")
       .select("id, nombre, jornada_total, nivel")
-      .eq("nivel", nivel);
+      .eq("nivel", nivelSeguro)
+      .eq("activo", true);
     if (error) console.error(error);
     setDocentes(data || []);
   }
@@ -111,8 +125,9 @@ export default function AsignacionDocenteCurso() {
   async function cargarDocentesConEspecialidad() {
     const { data, error } = await supabase
       .from("docentes")
-      .select("id, nombre, docente_curso(curso_id)")
-      .eq("nivel", nivel);
+      .select("id, nombre, docente_curso(curso_id), nivel")
+      .eq("nivel", nivelSeguro)
+      .eq("activo", true);
     if (error) console.error(error);
     const mapa = {};
     for (const d of data || []) {
@@ -128,7 +143,7 @@ export default function AsignacionDocenteCurso() {
     const { data, error } = await supabase
       .from("cursos")
       .select("id, nombre, nivel")
-      .eq("nivel", nivel)
+      .eq("nivel", nivelSeguro)
       .order("nombre", { ascending: true });
     if (error) console.error(error);
     setCursos(data || []);
@@ -140,7 +155,7 @@ export default function AsignacionDocenteCurso() {
       .select("horas, curso_id, grado_id");
     if (error) console.error(error);
     const map = {};
-    data?.forEach(({ curso_id, grado_id, horas }) => {
+    (data || []).forEach(({ curso_id, grado_id, horas }) => {
       if (!map[curso_id]) map[curso_id] = {};
       map[curso_id][grado_id] = horas;
     });
@@ -150,10 +165,11 @@ export default function AsignacionDocenteCurso() {
   async function cargarAsignacionesExistentes() {
     const { data, error } = await supabase
       .from("asignaciones")
-      .select("curso_id, grado_id, docente_id");
+      .select("curso_id, grado_id, docente_id, nivel")
+      .eq("nivel", nivelSeguro);
     if (error) console.error(error);
     const map = {};
-    data?.forEach(({ curso_id, grado_id, docente_id }) => {
+    (data || []).forEach(({ curso_id, grado_id, docente_id }) => {
       if (!map[curso_id]) map[curso_id] = {};
       map[curso_id][grado_id] = { docente_id, curso_id, grado_id };
     });
@@ -166,7 +182,7 @@ export default function AsignacionDocenteCurso() {
     try {
       const { data, error } = await supabase
         .from("cursos")
-        .insert({ nombre: nuevoCurso.trim(), nivel })
+        .insert({ nombre: nuevoCurso.trim(), nivel: nivelSeguro })
         .select();
       if (error) throw error;
       if (data) {
@@ -229,7 +245,6 @@ export default function AsignacionDocenteCurso() {
     const actual = asignaciones[cursoId]?.[gradoId];
     const anteriorId = actual?.docente_id;
 
-    // Horas ya asignadas al docente en otros (curso,grado)
     let horasActuales = 0;
     for (const cId in asignaciones) {
       for (const gId in asignaciones[cId]) {
@@ -275,7 +290,12 @@ export default function AsignacionDocenteCurso() {
       return actualizado;
     });
 
-    await supabase.from("asignaciones").delete().eq("curso_id", cursoId).eq("grado_id", gradoId);
+    await supabase
+      .from("asignaciones")
+      .delete()
+      .eq("curso_id", cursoId)
+      .eq("grado_id", gradoId)
+      .eq("nivel", nivelSeguro);
   }
 
   function asignarATodosLosGrados(cursoId, docenteId) {
@@ -299,7 +319,6 @@ export default function AsignacionDocenteCurso() {
       const registros = [];
       const horasPorDocente = {};
 
-      // Construir asignaciones válidas
       for (const cursoId in asignaciones) {
         for (const gradoId in asignaciones[cursoId]) {
           const item = asignaciones[cursoId][gradoId];
@@ -309,18 +328,18 @@ export default function AsignacionDocenteCurso() {
             curso_id: parseInt(cursoId, 10),
             grado_id: parseInt(gradoId, 10),
             docente_id: parseInt(item.docente_id, 10),
-            horas,
+            nivel: nivelSeguro,
           });
           if (!horasPorDocente[item.docente_id]) horasPorDocente[item.docente_id] = 0;
           horasPorDocente[item.docente_id] += horas;
         }
       }
 
-      // Validar contra jornada
       const { data: docentesConHoras, error: errorDocentes } = await supabase
         .from("docentes")
         .select("id, jornada_total")
-        .eq("nivel", nivel);
+        .eq("nivel", nivelSeguro)
+        .eq("activo", true);
       if (errorDocentes) throw errorDocentes;
 
       for (const docenteId in horasPorDocente) {
@@ -336,7 +355,6 @@ export default function AsignacionDocenteCurso() {
         }
       }
 
-      // Upsert horas_curso_grado
       const registrosHoras = [];
       for (const cursoId in horasCursos) {
         for (const gradoId in horasCursos[cursoId]) {
@@ -352,13 +370,13 @@ export default function AsignacionDocenteCurso() {
         .upsert(registrosHoras, { onConflict: ["curso_id", "grado_id"] });
       if (errorHoras) throw errorHoras;
 
-      // Upsert asignaciones (sin duplicados)
       const registrosUnicos = Array.from(
-        new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}`, r])).values()
+        new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}-${r.nivel}`, r])).values()
       );
+
       const { error } = await supabase
         .from("asignaciones")
-        .upsert(registrosUnicos, { onConflict: ["curso_id", "grado_id"] });
+        .upsert(registrosUnicos, { onConflict: "curso_id,grado_id,nivel" });
       if (error) throw error;
 
       alert("✅ Todo guardado correctamente.");
@@ -376,26 +394,43 @@ export default function AsignacionDocenteCurso() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="flex items-center justify-between gap-4 mb-4">
-        <h2 className="text-xl md:text-2xl font-semibold text-slate-800">
-          Asignación de Docentes y Horas
-        </h2>
-        <button
-          onClick={guardarTodo}
-          disabled={saving || loading}
-          className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow disabled:opacity-70 hover:bg-blue-800"
-        >
-          {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
-          Guardar todo
-        </button>
+      {/* ======= Encabezado principal sticky con icono ======= */}
+      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
+        <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <ClipboardList className="size-6 text-blue-700" />
+              <div>
+                <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
+                  Asignación de Docentes y Horas
+                </h1>
+                <div className="mt-1">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                    <Users className="size-3.5" />
+                    Nivel — <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <button
+              onClick={guardarTodo}
+              disabled={saving || loading}
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-70"
+            >
+              {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+              Guardar todo
+            </button>
+          </div>
+        </div>
       </div>
 
       {/* Barra de estado */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-2 text-slate-700">
-            <Users className="size-5" />
-            <span className="text-sm">Docentes activos: </span>
+            <Users2 className="size-5" />
+            <span className="text-sm">Docentes activos:</span>
             <strong>{docentesFiltrados.length}</strong>
           </div>
           <div className="w-full md:w-1/2">
@@ -407,9 +442,7 @@ export default function AsignacionDocenteCurso() {
             </div>
             <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
               <div
-                className={`h-2 rounded-full ${
-                  progresoBloques >= 100 ? "bg-rose-500" : "bg-blue-600"
-                }`}
+                className={`h-2 rounded-full ${progresoBloques >= 100 ? "bg-rose-500" : "bg-blue-600"}`}
                 style={{ width: `${progresoBloques}%` }}
               />
             </div>
@@ -462,7 +495,8 @@ export default function AsignacionDocenteCurso() {
 
       {/* Tabla: Horas programadas */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto mb-8">
-        <header className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50">
+        <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
+          <Clock8 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Horas programadas por curso y grado</h3>
         </header>
         <table className="w-full text-sm">
@@ -517,7 +551,8 @@ export default function AsignacionDocenteCurso() {
 
       {/* Tabla: Asignación de docentes */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
-        <header className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50">
+        <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
+          <Users2 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Asignar docentes a cada curso y grado</h3>
         </header>
         <table className="w-full text-sm">
@@ -585,7 +620,8 @@ export default function AsignacionDocenteCurso() {
 
       {/* Resumen por docente */}
       <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
-        <header className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50">
+        <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
+          <BarChart3 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Resumen de horas asignadas por docente</h3>
         </header>
         <div className="overflow-x-auto">

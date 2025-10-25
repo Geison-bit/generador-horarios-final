@@ -27,19 +27,27 @@ const AsignacionDocentePrimaria = () => {
     let total = 0;
     for (const cursoId in horasCursos) {
       for (const gradoId in horasCursos[cursoId]) {
-        total += horasCursos[cursoId][gradoId];
+        total += horasCursos[cursoId][gradoId] || 0;
       }
     }
     setBloquesUsados(total);
   }, [horasCursos]);
 
   const cargarDocentes = async () => {
-    const { data } = await supabase.from("docentes").select("id, nombre").eq("nivel", nivel);
+    const { data } = await supabase
+      .from("docentes")
+      .select("id, nombre")
+      .eq("nivel", nivel)
+      .eq("activo", true); // ✅ Agregado
     setDocentes(data || []);
   };
 
   const cargarCursos = async () => {
-    const { data } = await supabase.from("cursos").select("id, nombre").eq("nivel", nivel);
+    const { data } = await supabase
+      .from("cursos")
+      .select("id, nombre")
+      .eq("nivel", nivel)
+      .eq("activo", true); // ✅ Agregado
     setCursos(data || []);
   };
 
@@ -72,7 +80,7 @@ const AsignacionDocentePrimaria = () => {
 
   const editarHoras = async (cursoId, gradoId, horas) => {
     const valor = parseInt(horas);
-    if (valor < 2 || valor > 7) {
+    if (isNaN(valor) || valor < 2 || valor > 7) {
       alert("⚠️ Las horas deben estar entre 2 y 7.");
       return;
     }
@@ -87,22 +95,39 @@ const AsignacionDocentePrimaria = () => {
     });
     cargarHorasCursoGrado();
   };
-
+  
+  // ✅ Modificado: Ahora es un "soft delete"
   const eliminarCurso = async (cursoId) => {
-    await supabase.from("cursos").delete().eq("id", cursoId);
-    await supabase.from("horas_curso_grado").delete().eq("curso_id", cursoId);
-    cargarCursos();
-    cargarHorasCursoGrado();
+    const confirmar = window.confirm("¿Estás seguro de que deseas desactivar este curso? No se eliminará permanentemente.");
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from("cursos")
+      .update({ activo: false })
+      .eq("id", cursoId);
+
+    if (error) {
+        alert("❌ Error al desactivar el curso.");
+    } else {
+        // Vuelve a cargar los cursos para que el desactivado desaparezca de la UI
+        cargarCursos();
+        cargarHorasCursoGrado();
+    }
   };
 
+  // ✅ Modificado: Se agrega 'activo: true' al crear un nuevo curso.
   const agregarCurso = async () => {
     if (!nuevoCurso.trim()) return;
-    const { data } = await supabase.from("cursos").insert({ nombre: nuevoCurso, nivel }).select();
+    const { data } = await supabase
+        .from("cursos")
+        .insert({ nombre: nuevoCurso, nivel, activo: true })
+        .select();
+
     if (data) {
       const cursoId = data[0].id;
       const nuevasHoras = gradosPrimaria.map((_, idx) => ({
         curso_id: cursoId,
-        grado_id: idx + 6,
+        grado_id: idx + 6, // IDs de grado para primaria (6 a 11)
         horas: 0,
         nivel
       }));

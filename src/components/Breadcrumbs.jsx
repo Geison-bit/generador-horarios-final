@@ -4,23 +4,30 @@ import { Home, ChevronRight, GraduationCap } from "lucide-react";
 
 /**
  * Breadcrumbs.jsx — Barra de navegación contextual mejorada
- *
- * Características:
- * - Muestra el nivel actual (persistente via query ?nivel= y localStorage)
- * - Breadcrumb accesible (Inicio > Sección actual)
- * - Navegación rápida con "chips" horizontales (scrollable en móvil)
- * - Botones con foco visible y estados activos
- * - Permite cambiar el nivel desde el propio breadcrumb sin perder la ruta actual
+ * - Persiste ?nivel= (también en localStorage)
+ * - Breadcrumb accesible + chips de navegación
+ * - Mantiene el nivel al cambiar de ruta
  */
 
+// 🔹 Catálogo de rutas visibles como chips
 const RUTAS = [
   { label: "Registrar Docentes", path: "/docentes" },
   { label: "Registrar Aulas", path: "/aulas" },
   { label: "Asignar Materias", path: "/asignacion" },
   { label: "Franjas Horarias", path: "/franjas" },
-  { label: "Restricciones", path: "/restricciones" },
+
+  // 👇 Mantén “Restricciones” como disponibilidad del profesor
+  { label: "Disponibilidad", path: "/restricciones" },
+
+  // 👇 Nuevo: Panel de reglas (no reemplaza a “Restricciones”)
+  { label: "Panel de restricciones", path: "/restricciones-panel" },
+
   { label: "Horario General", path: "/horario" },
   { label: "Horario por Docente", path: "/horario-docente" },
+
+  // ✅ Administración
+  { label: "Gestión de Docentes", path: "/admin/docentes" },
+  { label: "Gestión de Roles", path: "/admin/roles" },
 ];
 
 export default function Breadcrumbs() {
@@ -41,13 +48,13 @@ export default function Breadcrumbs() {
     }
   }, [location.search]);
 
-  // Cambiar nivel mantiene la ruta actual y reemplaza la URL
+  // Cambiar nivel mantiene la ruta actual
   const onNivelChange = (nuevo) => {
     setNivel(nuevo);
     localStorage.setItem("nivelSeleccionado", nuevo);
     const params = new URLSearchParams(location.search);
     params.set("nivel", nuevo);
-    navigate(`${location.pathname}?${params.toString()}` , { replace: true });
+    navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
   // Ruta actual (coincidencia por prefix)
@@ -63,12 +70,16 @@ export default function Breadcrumbs() {
     return items;
   }, [rutaActual]);
 
-  const irA = (path) => navigate(`${path}?nivel=${nivel}`);
+  const irA = (path) => {
+    const params = new URLSearchParams(location.search);
+    // asegura que el nivel viaje siempre
+    params.set("nivel", nivel);
+    navigate(`${path}?${params.toString()}`);
+  };
 
   return (
     <div className="w-full px-4">
       <div className="mx-auto max-w-7xl">
-        {/* Contenedor principal */}
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5">
           {/* Fila superior: Nivel + Breadcrumb */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -120,10 +131,7 @@ export default function Breadcrumbs() {
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wide text-slate-500">Módulos</span>
-              <button
-                onClick={() => irA("/")}
-                className="text-xs font-medium text-blue-700 hover:underline"
-              >
+              <button onClick={() => irA("/")} className="text-xs font-medium text-blue-700 hover:underline">
                 Ir al inicio
               </button>
             </div>

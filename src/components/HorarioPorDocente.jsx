@@ -15,8 +15,34 @@ export default function HorarioPorDocente() {
   const { search } = useLocation();
   const nivel = new URLSearchParams(search).get("nivel") || "Secundaria";
 
+  // 1) Intentamos usar docentes del Context
   const { docentes } = useDocentes();
-  const docentesFiltrados = (docentes || []).filter((d) => d.nivel === nivel);
+
+  // 2) Fallback local si el Context viene vacío: traemos solo ACTIVOS del nivel actual
+  const [docentesLocal, setDocentesLocal] = useState([]);
+  useEffect(() => {
+    if (!docentes || docentes.length === 0) {
+      (async () => {
+        const { data, error } = await supabase
+          .from("docentes")
+          .select("id, nombre, apellido, nivel, activo")
+          .eq("nivel", nivel)
+          .eq("activo", true)
+          .order("apellido", { ascending: true });
+        if (!error) setDocentesLocal(data || []);
+      })();
+    } else {
+      setDocentesLocal([]); // limpiamos fallback si el context trae datos
+    }
+  }, [nivel, docentes]);
+
+  const fuenteDocentes = (docentes && docentes.length > 0) ? docentes : docentesLocal;
+
+  // Aseguramos: nivel y solo activos (si el context no filtra ya)
+  const docentesFiltrados = useMemo(
+    () => (fuenteDocentes || []).filter((d) => d.nivel === nivel && (d.activo ?? true)),
+    [fuenteDocentes, nivel]
+  );
 
   const [docenteId, setDocenteId] = useState("");
   const docenteNombre = useMemo(
@@ -24,9 +50,9 @@ export default function HorarioPorDocente() {
     [docentesFiltrados, docenteId]
   );
 
-  const [franjas, setFranjas] = useState([]); // [{bloque, hora_inicio, hora_fin}]
-  const [cursosMap, setCursosMap] = useState({}); // {id: nombre}
-  const [versiones, setVersiones] = useState([]); // [1,2,3,...]
+  const [franjas, setFranjas] = useState([]);               // [{bloque, hora_inicio, hora_fin}]
+  const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
+  const [versiones, setVersiones] = useState([]);           // [1,2,3,...]
   const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version: rows[]}
   const [versionActual, setVersionActual] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -50,19 +76,24 @@ export default function HorarioPorDocente() {
     if (!error && data) setFranjas(data);
   }
 
-  // Mapa de cursos id -> nombre
+  // Mapa de cursos id -> nombre (solo cursos activos del nivel)
   async function cargarCursos() {
     const { data, error } = await supabase
       .from("cursos")
       .select("id, nombre")
-      .eq("nivel", nivel);
+      .eq("nivel", nivel)
+      .eq("activo", true); // ✅ solo cursos activos
     if (!error) setCursosMap(Object.fromEntries((data || []).map((c) => [c.id, c.nombre])));
   }
 
   // Cargar horarios por docente
   useEffect(() => {
     (async () => {
-      if (!docenteId) return;
+      if (!docenteId) {
+        setHorariosPorVersion({});
+        setVersiones([]);
+        return;
+      }
       setLoading(true);
       const { data, error } = await supabase
         .from("horarios")
@@ -83,9 +114,7 @@ export default function HorarioPorDocente() {
         if (!grupos[h]) grupos[h] = [];
         grupos[h].push(row);
       }
-      const ordenados = Object.keys(grupos)
-        .map(Number)
-        .sort((a, b) => a - b);
+      const ordenados = Object.keys(grupos).map(Number).sort((a, b) => a - b);
       const mapeo = new Map(ordenados.map((v, i) => [v, i + 1]));
 
       const renumerado = {};
@@ -94,8 +123,10 @@ export default function HorarioPorDocente() {
         renumerado[nueva] = arr;
       }
       setHorariosPorVersion(renumerado);
-      setVersiones(Array.from({ length: Object.keys(renumerado).length }, (_, i) => i + 1));
-      setVersionActual(1);
+
+      const nuevasVersiones = Array.from({ length: Object.keys(renumerado).length }, (_, i) => i + 1);
+      setVersiones(nuevasVersiones);
+      setVersionActual(nuevasVersiones.length > 0 ? 1 : 0);
       setLoading(false);
     })();
   }, [docenteId, nivel]);
@@ -126,6 +157,7 @@ export default function HorarioPorDocente() {
   const bloqueLabel = (idx) => {
     // Si hay franjas de BD, usamos sus horas; si no, fallback 8 bloques típicos
     if (franjas.length) {
+      // admite franja por índice o por número de bloque (1..N)
       const f = franjas[idx] || franjas.find((x) => x.bloque === idx || x.bloque === idx + 1);
       if (f) return `${f.hora_inicio} - ${f.hora_fin}`;
     }
@@ -144,8 +176,8 @@ export default function HorarioPorDocente() {
 
   // Coincidencia flexible por bloque (acepta 0-based u 1-based)
   function matchBloque(rowBloque, idx) {
-    const byIdx = rowBloque === idx;
-    const byNumero = franjas[idx]?.bloque != null && rowBloque === franjas[idx].bloque; // p.ej. 1..N
+    const byIdx = rowBloque === idx; // 0,1,2...
+    const byNumero = franjas[idx]?.bloque != null && rowBloque === franjas[idx].bloque; // 1..N
     return byIdx || byNumero;
   }
 
@@ -156,14 +188,14 @@ export default function HorarioPorDocente() {
   }
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
       <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
         <User className="size-6 text-blue-600" /> Horario de Docente
       </h2>
 
-      {/* Selector de docente */}
+      {/* Selector de docente (solo activos del nivel) */}
       <select
         value={docenteId}
         onChange={(e) => setDocenteId(e.target.value)}
@@ -186,12 +218,17 @@ export default function HorarioPorDocente() {
               value={versionActual}
               onChange={(e) => setVersionActual(Number(e.target.value))}
               className="border rounded px-2 py-1 text-sm"
+              disabled={versiones.length === 0}
             >
-              {versiones.map((v) => (
-                <option key={v} value={v}>
-                  Horario #{v}
-                </option>
-              ))}
+              {versiones.length > 0 ? (
+                versiones.map((v) => (
+                  <option key={v} value={v}>
+                    Horario #{v}
+                  </option>
+                ))
+              ) : (
+                <option>Sin versiones</option>
+              )}
             </select>
             <button
               onClick={exportarPDF}
@@ -241,13 +278,15 @@ export default function HorarioPorDocente() {
                           {celdas.length === 0 ? (
                             <span className="text-xs text-slate-400">—</span>
                           ) : (
-                            celdas.map((h) => (
+                            celdas.map((h, i2) => (
                               <div
-                                key={`${h.curso_id}-${h.grado_id}`}
+                                key={`${h.curso_id}-${h.grado_id}-${i2}`}
                                 className="mb-1 rounded-lg px-2 py-1 text-left"
                                 style={{ background: colorCurso(h.curso_id) }}
                               >
-                                <div className="font-semibold">{cursosMap[h.curso_id] || `Curso ${h.curso_id}`}</div>
+                                <div className="font-semibold">
+                                  {cursosMap[h.curso_id] || `Curso ${h.curso_id}`}
+                                </div>
                                 <div className="text-[11px] text-slate-600">
                                   Docente: <span className="italic">{docenteNombre}</span>
                                 </div>
@@ -266,8 +305,9 @@ export default function HorarioPorDocente() {
             </table>
           </div>
 
-          {loading && (
-            <p className="mt-3 text-sm text-slate-600">Cargando horarios…</p>
+          {loading && <p className="mt-3 text-sm text-slate-600">Cargando horarios…</p>}
+          {!loading && horarioActual.length === 0 && (
+            <p className="mt-3 text-sm text-slate-600">No se encontraron horarios para este docente.</p>
           )}
         </>
       )}

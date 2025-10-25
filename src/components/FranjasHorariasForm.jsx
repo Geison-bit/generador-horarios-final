@@ -1,46 +1,94 @@
+// src/components/FranjasHorariasForm.jsx
 import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { Clock8, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
 
-// --- Íconos SVG para una interfaz más limpia ---
-const IconoAgregar = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" viewBox="0 0 20 20" fill="currentColor">
-        <path fillRule="evenodd" d="M10 5a1 1 0 011 1v3h3a1 1 0 110 2h-3v3a1 1 0 11-2 0v-3H6a1 1 0 110-2h3V6a1 1 0 011-1z" clipRule="evenodd" />
-    </svg>
-);
-
-const IconoEliminar = () => (
-  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
-    <path fillRule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clipRule="evenodd" />
-  </svg>
-);
-
-const IconoGuardar = () => (
-    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-        <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-    </svg>
-);
+// Mini “pill” Last edit (coherente con otras pantallas)
+const LastEditPill = ({ edit }) => {
+  const email = edit?.actor_email || "unknown";
+  const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
+  return (
+    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
+      <History className="w-4 h-4" />
+      <span>
+        <span className="text-slate-600">Last edit:</span> <b>{email}</b> · {fecha}
+      </span>
+    </div>
+  );
+};
 
 const sumarMinutos = (horaStr, minutos) => {
   if (!horaStr) return "";
   const [h, m] = horaStr.split(":").map(Number);
   const fecha = new Date();
-  fecha.setHours(h, m + minutos, 0);
+  fecha.setHours(h, m + minutos, 0, 0);
   return fecha.toTimeString().slice(0, 5);
 };
 
 const FranjasHorariasForm = () => {
   const [bloques, setBloques] = useState([]);
-  const [saveStatus, setSaveStatus] = useState({ message: "", type: "" }); // Para notificaciones
+  const [saveStatus, setSaveStatus] = useState({ message: "", type: "" });
+  const [saving, setSaving] = useState(false);
+  const [cargando, setCargando] = useState(false);
+
+  // Auditoría
+  const [ultimaEdicion, setUltimaEdicion] = useState(null);
 
   const location = useLocation();
   const params = new URLSearchParams(location.search);
   const nivel = params.get("nivel") || "Secundaria";
 
   useEffect(() => {
-    cargarBloquesDesdeDB();
+    (async () => {
+      setCargando(true);
+      await cargarBloquesDesdeDB();
+      setCargando(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivel]);
+
+  // --- Auditoría: leer última edición de audit_logs para franjas_horarias ---
+  useEffect(() => {
+    const fetchUltima = async () => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("actor_email, created_at, operation")
+        .eq("table_name", "franjas_horarias")
+        .order("created_at", { ascending: false })
+        .limit(1);
+      if (!error && data?.length) setUltimaEdicion(data[0]);
+      else setUltimaEdicion(null);
+    };
+    fetchUltima();
+  }, [nivel, bloques.length]);
+
+  // Realtime: refrescar pill cuando haya nuevas escrituras en audit_logs
+  useEffect(() => {
+    const ch = supabase
+      .channel("audit_franjas")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.franjas_horarias" },
+        async () => {
+          const { data } = await supabase
+            .from("audit_logs")
+            .select("actor_email, created_at, operation")
+            .eq("table_name", "franjas_horarias")
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (data?.length) setUltimaEdicion(data[0]);
+        }
+      )
+      .subscribe();
+
+    return () => {
+      try {
+        supabase.removeChannel(ch);
+      } catch {}
+    };
+  }, []);
 
   const cargarBloquesDesdeDB = async () => {
     const { data, error } = await supabase
@@ -49,9 +97,10 @@ const FranjasHorariasForm = () => {
       .eq("nivel", nivel)
       .order("bloque");
 
-    if (!error && data.length > 0) {
-      setBloques(data.map(b => ({ inicio: b.hora_inicio, fin: b.hora_fin })));
+    if (!error && data && data.length > 0) {
+      setBloques(data.map((b) => ({ inicio: b.hora_inicio, fin: b.hora_fin })));
     } else {
+      // Defaults (8 bloques de 45 min desde 07:15)
       const bloquesIniciales = [];
       let inicio = "07:15";
       for (let i = 0; i < 8; i++) {
@@ -66,9 +115,7 @@ const FranjasHorariasForm = () => {
   const actualizarBloque = (index, campo, valor) => {
     const nuevos = [...bloques];
     nuevos[index][campo] = valor;
-    if (campo === "inicio") {
-      nuevos[index].fin = sumarMinutos(valor, 45);
-    }
+    if (campo === "inicio") nuevos[index].fin = sumarMinutos(valor, 45);
     setBloques(nuevos);
   };
 
@@ -84,98 +131,190 @@ const FranjasHorariasForm = () => {
     setBloques(bloques.filter((_, i) => i !== index));
   };
 
+  // =======================
+  //  GUARDAR (UPSERT + trim)
+  // =======================
   const guardarConfiguracion = async () => {
-    await supabase.from("franjas_horarias").delete().eq("nivel", nivel);
-    const nuevaConfiguracion = bloques.map((b, index) => ({
-      bloque: index + 1,
-      hora_inicio: b.inicio,
-      hora_fin: b.fin,
-      nivel: nivel,
-    }));
+    setSaving(true);
+    setSaveStatus({ message: "", type: "" });
 
-    const { error } = await supabase.from("franjas_horarias").insert(nuevaConfiguracion);
+    try {
+      // 1) UPSERT: inserta nuevos y actualiza existentes por (nivel, bloque)
+      const nuevaConfiguracion = bloques.map((b, index) => ({
+        nivel,
+        bloque: index + 1,
+        hora_inicio: b.inicio,
+        hora_fin: b.fin,
+      }));
 
-    if (error) {
-      setSaveStatus({ message: "Error al guardar la configuración.", type: "error" });
-    } else {
+      const { error: upsertErr } = await supabase
+        .from("franjas_horarias")
+        .upsert(nuevaConfiguracion, { onConflict: "nivel,bloque" });
+
+      if (upsertErr) {
+        console.error("Upsert error:", upsertErr);
+        setSaveStatus({ message: "Error al guardar la configuración.", type: "error" });
+        setSaving(false);
+        return;
+      }
+
+      // 2) Recorte opcional: elimina SOLO los bloques que sobren
+      const { error: deleteErr } = await supabase
+        .from("franjas_horarias")
+        .delete()
+        .eq("nivel", nivel)
+        .gt("bloque", bloques.length);
+
+      if (deleteErr) {
+        // No es crítico; lo avisamos en consola
+        console.warn("No se pudieron eliminar bloques sobrantes:", deleteErr);
+      }
+
       setSaveStatus({ message: "Configuración guardada exitosamente.", type: "success" });
+    } catch (e) {
+      console.error(e);
+      setSaveStatus({ message: "Error al guardar la configuración.", type: "error" });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus({ message: "", type: "" }), 3000);
     }
-    setTimeout(() => setSaveStatus({ message: "", type: "" }), 3000); // Ocultar mensaje después de 3 seg
   };
 
   return (
-    <div className="p-4 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
-      <h2 className="text-2xl font-bold mb-4">Configuración de Bloques Horarios</h2>
-      <p className="text-gray-600 mb-6">Define los bloques horarios de Lunes a Viernes para el nivel {nivel}.</p>
 
-      <div className="bg-white p-4 rounded-lg border shadow-sm mb-6">
-        <div className="overflow-x-auto">
-            <table className="w-full text-sm">
-                <thead className="bg-gray-100 text-left">
-                    <tr>
-                        <th className="px-4 py-3 font-medium">Bloque</th>
-                        <th className="px-4 py-3 font-medium">Hora de Inicio</th>
-                        <th className="px-4 py-3 font-medium">Hora de Fin (Automático)</th>
-                        <th className="px-4 py-3 font-medium text-center">Acción</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    {bloques.map((bloque, index) => (
-                    <tr key={index} className="hover:bg-gray-50 border-t">
-                        <td className="px-4 py-2 font-semibold text-gray-700">Bloque {index + 1}</td>
-                        <td className="px-4 py-2">
-                            <input
-                                type="time"
-                                value={bloque.inicio}
-                                onChange={(e) => actualizarBloque(index, "inicio", e.target.value)}
-                                className="border px-2 py-1 rounded-md"
-                            />
-                        </td>
-                        <td className="px-4 py-2">
-                            <input
-                                type="time"
-                                value={bloque.fin}
-                                readOnly
-                                className="border px-2 py-1 rounded-md bg-gray-100 cursor-not-allowed"
-                            />
-                        </td>
-                        <td className="px-4 py-2 text-center">
-                            <button
-                                onClick={() => eliminarBloque(index)}
-                                className="p-2 text-red-600 hover:bg-red-100 rounded-full transition-colors"
-                                title="Eliminar bloque"
-                            >
-                                <IconoEliminar />
-                            </button>
-                        </td>
-                    </tr>
-                    ))}
-                </tbody>
-            </table>
+      {/* ======= Encabezado principal sticky con icono ======= */}
+      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
+        <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
+          <div className="flex items-center justify-between gap-4">
+            <div className="flex items-center gap-3">
+              <Clock8 className="size-6 text-blue-700" />
+              <div>
+                <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
+                  Configuración de Bloques Horarios
+                </h1>
+                <div className="mt-1">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                    <Users className="size-3.5" />
+                    Nivel — <strong className="font-semibold text-slate-700">{nivel}</strong>
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2">
+              <LastEditPill edit={ultimaEdicion} />
+              <button
+                onClick={guardarConfiguracion}
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-70"
+                disabled={saving || cargando}
+              >
+                {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
+                Guardar
+              </button>
+            </div>
+          </div>
         </div>
       </div>
-      
-      <div className="flex flex-wrap gap-4 items-center">
+
+      {/* Descripción */}
+      <p className="text-slate-600 mb-6">
+        Define los bloques horarios de Lunes a Viernes para el nivel {nivel}. La hora de fin se calcula automáticamente a los{" "}
+        <b>45 min</b> del inicio.
+      </p>
+
+      {/* Tabla de bloques */}
+      <section className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 overflow-hidden">
+        <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
+          <Clock8 className="size-4 text-slate-700" />
+          <h3 className="text-sm font-semibold text-slate-800">Bloques configurados</h3>
+        </header>
+
+        <div className="overflow-x-auto">
+          <table className="w-full text-sm">
+            <thead className="bg-slate-50 text-left text-slate-700">
+              <tr>
+                <th className="px-4 py-3 font-medium border-b border-slate-200">Bloque</th>
+                <th className="px-4 py-3 font-medium border-b border-slate-200">Hora de inicio</th>
+                <th className="px-4 py-3 font-medium border-b border-slate-200">Hora de fin (automático)</th>
+                <th className="px-4 py-3 font-medium border-b border-slate-200 text-center">Acción</th>
+              </tr>
+            </thead>
+            <tbody>
+              {bloques.map((bloque, index) => (
+                <tr key={index} className="odd:bg-white even:bg-slate-50/40">
+                  <td className="px-4 py-2 font-medium text-slate-800 border-t border-slate-200">Bloque {index + 1}</td>
+                  <td className="px-4 py-2 border-t border-slate-200">
+                    <input
+                      type="time"
+                      value={bloque.inicio}
+                      onChange={(e) => actualizarBloque(index, "inicio", e.target.value)}
+                      className="border border-slate-300 px-2 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                    />
+                  </td>
+                  <td className="px-4 py-2 border-t border-slate-200">
+                    <input
+                      type="time"
+                      value={bloque.fin}
+                      readOnly
+                      className="border border-slate-300 px-2 py-1 rounded-md bg-slate-100 cursor-not-allowed"
+                    />
+                  </td>
+                  <td className="px-4 py-2 text-center border-t border-slate-200">
+                    <button
+                      onClick={() => eliminarBloque(index)}
+                      className="inline-flex items-center gap-1 text-rose-600 px-2 py-1 rounded hover:bg-rose-50"
+                      title="Eliminar bloque"
+                    >
+                      <Trash2 className="h-4 w-4" /> Eliminar
+                    </button>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      </section>
+
+      {/* Acciones inferiores */}
+      <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={agregarBloque}
           disabled={bloques.length >= 9}
-          className="bg-blue-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-blue-700 flex items-center disabled:bg-gray-400 disabled:cursor-not-allowed"
+          className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
         >
-          <IconoAgregar /> Añadir Bloque
+          <Plus className="h-4 w-4" /> Añadir bloque
         </button>
+
         <button
           onClick={guardarConfiguracion}
-          className="bg-green-600 text-white px-4 py-2 rounded-md font-semibold hover:bg-green-700 flex items-center"
+          disabled={saving || cargando}
+          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-70"
         >
-          <IconoGuardar /> Guardar Configuración
+          {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
+          Guardar configuración
         </button>
+
         {saveStatus.message && (
-            <span className={`text-sm font-medium ${saveStatus.type === 'success' ? 'text-green-700' : 'text-red-700'}`}>
-                {saveStatus.message}
-            </span>
+          <span
+            className={`text-sm font-medium ${
+              saveStatus.type === "success" ? "text-emerald-700" : "text-rose-700"
+            }`}
+          >
+            {saveStatus.message}
+          </span>
         )}
       </div>
+
+      {cargando && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-white/60">
+          <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
+            <Loader2 className="size-5 animate-spin" />
+            <span className="text-sm text-slate-700">Cargando…</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

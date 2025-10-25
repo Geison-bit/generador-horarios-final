@@ -1,8 +1,9 @@
+// src/components/AulasForm.jsx
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { Building2, Save, X, Pencil, Trash2, Search, Loader2 } from "lucide-react";
+import { Building2, Save, X, Pencil, Trash2, Search, Loader2, Clock3 } from "lucide-react";
 
 export default function AulasForm() {
   const [formData, setFormData] = useState({ nombre: "", piso: "", tipo: "" });
@@ -13,6 +14,9 @@ export default function AulasForm() {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+
+  // Auditoría: último cambio en la tabla aulas
+  const [ultimaEdicion, setUltimaEdicion] = useState(null);
 
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -29,7 +33,7 @@ export default function AulasForm() {
   const pisoToNum = (p) => {
     const m = String(p || "").match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 0;
-  };
+    };
 
   const sortAulas = (items) =>
     [...items].sort((a, b) => pisoToNum(a.piso) - pisoToNum(b.piso) || a.nombre.localeCompare(b.nombre));
@@ -67,7 +71,7 @@ export default function AulasForm() {
         .from("aulas")
         .select("id")
         .eq("nivel", nivel)
-        .ilike("nombre", nombreLimpio); // coincidencia exacta case-insensitive
+        .ilike("nombre", nombreLimpio); // sin comodines => comparación case-insensitive exacta
       if (!error && data && data.length > 0 && (!modoEdicion || data[0].id !== aulaEditandoId)) {
         newErrors.nombre = "Ya existe un aula con este nombre.";
       }
@@ -136,23 +140,65 @@ export default function AulasForm() {
     else cargarAulas();
   }
 
+  // --- Auditoría: “Last edit” de la tabla aulas ---
+  useEffect(() => {
+    const fetchUltima = async () => {
+      const { data, error } = await supabase
+        .from("audit_logs")
+        .select("actor_email, created_at, operation")
+        .eq("table_name", "aulas")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!error && data?.length) setUltimaEdicion(data[0]);
+      else setUltimaEdicion(null);
+    };
+    fetchUltima();
+  }, [nivel, aulas.length]); // refresca cuando cambia el nivel o la lista
+
+  // Realtime para refrescar el pill cuando haya cambios en audit_logs
+  useEffect(() => {
+    const ch = supabase
+      .channel("audit_aulas")
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.aulas" },
+        () => {
+          (async () => {
+            const { data } = await supabase
+              .from("audit_logs")
+              .select("actor_email, created_at, operation")
+              .eq("table_name", "aulas")
+              .order("created_at", { ascending: false })
+              .limit(1);
+            if (data?.length) setUltimaEdicion(data[0]);
+          })();
+        }
+      )
+      .subscribe();
+    return () => {
+      try { supabase.removeChannel(ch); } catch {}
+    };
+  }, []);
+
   // --- UI ---
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
+      {/* Header con título a la izquierda y “Last edit” a la derecha */}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
         </h2>
-        <div className="relative">
-          <Search className="size-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
-          <input
-            value={filter}
-            onChange={(e) => setFilter(e.target.value)}
-            placeholder="Buscar por nombre, piso o tipo…"
-            className="w-60 rounded-lg border border-slate-300 pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
-          />
+
+        <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
+          <Clock3 className="size-4" />
+          <span>
+            <span className="text-gray-600">Last edit:</span>{" "}
+            <b>{ultimaEdicion?.actor_email || "unknown"}</b> ·{" "}
+            {ultimaEdicion?.created_at ? new Date(ultimaEdicion.created_at).toLocaleString() : "—"}
+          </span>
         </div>
       </div>
 
