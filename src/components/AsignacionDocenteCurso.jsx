@@ -1,7 +1,8 @@
 // src/components/AsignacionDocenteCurso.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { useDocentes } from "../context/DocenteContext";
+
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 

@@ -1,11 +1,11 @@
 // src/components/FranjasHorariasForm.jsx
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { withAudit } from "../services/auditService";
 import { Clock8, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
 
-// Mini “pill” Last edit (coherente con otras pantallas)
 const LastEditPill = ({ edit }) => {
   const email = edit?.actor_email || "unknown";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
@@ -27,11 +27,45 @@ const sumarMinutos = (horaStr, minutos) => {
   return fecha.toTimeString().slice(0, 5);
 };
 
-const FranjasHorariasForm = () => {
+// --- helper local: busca último audit priorizando @gmail.com, luego cualquier email real, luego fallback
+const fetchUltimaEdicionPreferGmail = async (tableName) => {
+  const prefer = await supabase
+    .from("audit_logs")
+    .select("actor_email, created_at, operation")
+    .eq("table_name", tableName)
+    .neq("actor_email", "unknown")
+    .ilike("actor_email", "%@gmail.com")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (!prefer.error && prefer.data?.length) return prefer.data[0];
+
+  const anyReal = await supabase
+    .from("audit_logs")
+    .select("actor_email, created_at, operation")
+    .eq("table_name", tableName)
+    .neq("actor_email", "unknown")
+    .ilike("actor_email", "%@%")
+    .order("created_at", { ascending: false })
+    .limit(1);
+  if (!anyReal.error && anyReal.data?.length) return anyReal.data[0];
+
+  const fallback = await supabase
+    .from("audit_logs")
+    .select("actor_email, created_at, operation")
+    .eq("table_name", tableName)
+    .order("created_at", { ascending: false })
+    .limit(1);
+  return !fallback.error && fallback.data?.length ? fallback.data[0] : null;
+};
+
+export default function FranjasHorariasForm() {
   const [bloques, setBloques] = useState([]);
-  const [saveStatus, setSaveStatus] = useState({ message: "", type: "" });
   const [saving, setSaving] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [status, setStatus] = useState({ type: "", msg: "" });
+
+  // permisos UI
+  const [canWrite, setCanWrite] = useState(false);
 
   // Auditoría
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
@@ -40,6 +74,21 @@ const FranjasHorariasForm = () => {
   const params = new URLSearchParams(location.search);
   const nivel = params.get("nivel") || "Secundaria";
 
+  // ---------- Permisos (UI) ----------
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("v_user_permissions")
+        .select("permission_key");
+      if (!error) {
+        const keys = new Set((data || []).map((r) => r.permission_key));
+        // acepta cualquiera de estos permisos
+        setCanWrite(keys.has("franjas.write") || keys.has("horario.write"));
+      }
+    })();
+  }, []);
+
+  // ---------- Carga ----------
   useEffect(() => {
     (async () => {
       setCargando(true);
@@ -49,22 +98,14 @@ const FranjasHorariasForm = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivel]);
 
-  // --- Auditoría: leer última edición de audit_logs para franjas_horarias ---
+  // ---------- Auditoría (como AulasForm, pero con preferencia @gmail.com) ----------
   useEffect(() => {
-    const fetchUltima = async () => {
-      const { data, error } = await supabase
-        .from("audit_logs")
-        .select("actor_email, created_at, operation")
-        .eq("table_name", "franjas_horarias")
-        .order("created_at", { ascending: false })
-        .limit(1);
-      if (!error && data?.length) setUltimaEdicion(data[0]);
-      else setUltimaEdicion(null);
-    };
-    fetchUltima();
+    (async () => {
+      const last = await fetchUltimaEdicionPreferGmail("franjas_horarias");
+      setUltimaEdicion(last);
+    })();
   }, [nivel, bloques.length]);
 
-  // Realtime: refrescar pill cuando haya nuevas escrituras en audit_logs
   useEffect(() => {
     const ch = supabase
       .channel("audit_franjas")
@@ -72,22 +113,12 @@ const FranjasHorariasForm = () => {
         "postgres_changes",
         { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.franjas_horarias" },
         async () => {
-          const { data } = await supabase
-            .from("audit_logs")
-            .select("actor_email, created_at, operation")
-            .eq("table_name", "franjas_horarias")
-            .order("created_at", { ascending: false })
-            .limit(1);
-          if (data?.length) setUltimaEdicion(data[0]);
+          const last = await fetchUltimaEdicionPreferGmail("franjas_horarias");
+          setUltimaEdicion(last);
         }
       )
       .subscribe();
-
-    return () => {
-      try {
-        supabase.removeChannel(ch);
-      } catch {}
-    };
+    return () => { try { supabase.removeChannel(ch); } catch {} };
   }, []);
 
   const cargarBloquesDesdeDB = async () => {
@@ -97,26 +128,26 @@ const FranjasHorariasForm = () => {
       .eq("nivel", nivel)
       .order("bloque");
 
-    if (!error && data && data.length > 0) {
+    if (!error && data?.length) {
       setBloques(data.map((b) => ({ inicio: b.hora_inicio, fin: b.hora_fin })));
     } else {
-      // Defaults (8 bloques de 45 min desde 07:15)
-      const bloquesIniciales = [];
+      // defaults (8 x 45min)
+      const out = [];
       let inicio = "07:15";
       for (let i = 0; i < 8; i++) {
         const fin = sumarMinutos(inicio, 45);
-        bloquesIniciales.push({ inicio, fin });
+        out.push({ inicio, fin });
         inicio = fin;
       }
-      setBloques(bloquesIniciales);
+      setBloques(out);
     }
   };
 
-  const actualizarBloque = (index, campo, valor) => {
-    const nuevos = [...bloques];
-    nuevos[index][campo] = valor;
-    if (campo === "inicio") nuevos[index].fin = sumarMinutos(valor, 45);
-    setBloques(nuevos);
+  const actualizarBloque = (i, campo, valor) => {
+    const next = [...bloques];
+    next[i][campo] = valor;
+    if (campo === "inicio") next[i].fin = sumarMinutos(valor, 45);
+    setBloques(next);
   };
 
   const agregarBloque = () => {
@@ -131,60 +162,73 @@ const FranjasHorariasForm = () => {
     setBloques(bloques.filter((_, i) => i !== index));
   };
 
-  // =======================
-  //  GUARDAR (UPSERT + trim)
-  // =======================
+  // ---------- Guardar (con withAudit como AulasForm) ----------
   const guardarConfiguracion = async () => {
+    if (!canWrite) {
+      setStatus({ type: "error", msg: "No tienes permiso para editar las franjas (franjas.write / horario.write)." });
+      return;
+    }
+
     setSaving(true);
-    setSaveStatus({ message: "", type: "" });
+    setStatus({ type: "", msg: "" });
 
     try {
-      // 1) UPSERT: inserta nuevos y actualiza existentes por (nivel, bloque)
-      const nuevaConfiguracion = bloques.map((b, index) => ({
+      const nueva = bloques.map((b, i) => ({
         nivel,
-        bloque: index + 1,
+        bloque: i + 1,
         hora_inicio: b.inicio,
         hora_fin: b.fin,
       }));
 
-      const { error: upsertErr } = await supabase
-        .from("franjas_horarias")
-        .upsert(nuevaConfiguracion, { onConflict: "nivel,bloque" });
+      // operación compuesta: upsert + delete sobrantes, audit como en AulasForm
+      const op = async () => {
+        const up = await supabase
+          .from("franjas_horarias")
+          .upsert(nueva, { onConflict: "nivel,bloque" });
 
-      if (upsertErr) {
-        console.error("Upsert error:", upsertErr);
-        setSaveStatus({ message: "Error al guardar la configuración.", type: "error" });
-        setSaving(false);
-        return;
-      }
+        if (up.error) return up;
 
-      // 2) Recorte opcional: elimina SOLO los bloques que sobren
-      const { error: deleteErr } = await supabase
-        .from("franjas_horarias")
-        .delete()
-        .eq("nivel", nivel)
-        .gt("bloque", bloques.length);
+        const del = await supabase
+          .from("franjas_horarias")
+          .delete()
+          .eq("nivel", nivel)
+          .gt("bloque", bloques.length);
 
-      if (deleteErr) {
-        // No es crítico; lo avisamos en consola
-        console.warn("No se pudieron eliminar bloques sobrantes:", deleteErr);
-      }
+        // si del falla no cortamos el flujo; devolvemos el error para que withAudit lo refleje
+        if (del?.error) return del;
 
-      setSaveStatus({ message: "Configuración guardada exitosamente.", type: "success" });
+        // devolver una forma compatible con withAudit
+        return { data: { upserted: nueva.length }, error: null };
+      };
+
+      const res = await withAudit(op, {
+        action: "UPSERT",
+        entity: "franjas_horarias",
+        // Para identificar el conjunto editado
+        entityId: nivel,
+        details: () => ({ nivel, bloques: nueva }),
+        success: (r) => !r?.error,
+      });
+
+      if (res?.error) throw res.error;
+
+      setStatus({ type: "success", msg: "Configuración guardada." });
     } catch (e) {
-      console.error(e);
-      setSaveStatus({ message: "Error al guardar la configuración.", type: "error" });
+      setStatus({ type: "error", msg: e?.message || "Error al guardar la configuración." });
+      console.error("[franjas] save error:", e);
     } finally {
       setSaving(false);
-      setTimeout(() => setSaveStatus({ message: "", type: "" }), 3000);
+      setTimeout(() => setStatus({ type: "", msg: "" }), 3500);
     }
   };
+
+  const headerActionsDisabled = useMemo(() => saving || cargando || !canWrite, [saving, cargando, canWrite]);
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      {/* ======= Encabezado principal sticky con icono ======= */}
+      {/* Header sticky */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
         <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-4">
@@ -207,8 +251,10 @@ const FranjasHorariasForm = () => {
               <LastEditPill edit={ultimaEdicion} />
               <button
                 onClick={guardarConfiguracion}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-70"
-                disabled={saving || cargando}
+                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-white shadow-sm disabled:opacity-60
+                           bg-emerald-600 hover:bg-emerald-700"
+                disabled={headerActionsDisabled}
+                title={!canWrite ? "Sin permiso para editar" : "Guardar"}
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Guardar
@@ -218,13 +264,10 @@ const FranjasHorariasForm = () => {
         </div>
       </div>
 
-      {/* Descripción */}
       <p className="text-slate-600 mb-6">
-        Define los bloques horarios de Lunes a Viernes para el nivel {nivel}. La hora de fin se calcula automáticamente a los{" "}
-        <b>45 min</b> del inicio.
+        Define los bloques de Lunes a Viernes para el nivel {nivel}. La hora de fin se calcula automáticamente a los <b>45 min</b> del inicio.
       </p>
 
-      {/* Tabla de bloques */}
       <section className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 overflow-hidden">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Clock8 className="size-4 text-slate-700" />
@@ -251,6 +294,7 @@ const FranjasHorariasForm = () => {
                       value={bloque.inicio}
                       onChange={(e) => actualizarBloque(index, "inicio", e.target.value)}
                       className="border border-slate-300 px-2 py-1 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-600"
+                      disabled={!canWrite}
                     />
                   </td>
                   <td className="px-4 py-2 border-t border-slate-200">
@@ -258,14 +302,15 @@ const FranjasHorariasForm = () => {
                       type="time"
                       value={bloque.fin}
                       readOnly
-                      className="border border-slate-300 px-2 py-1 rounded-md bg-slate-100 cursor-not-allowed"
+                      className="border border-slate-300 px-2 py-1 rounded-md bg-slate-100"
                     />
                   </td>
                   <td className="px-4 py-2 text-center border-t border-slate-200">
                     <button
                       onClick={() => eliminarBloque(index)}
-                      className="inline-flex items-center gap-1 text-rose-600 px-2 py-1 rounded hover:bg-rose-50"
+                      className="inline-flex items-center gap-1 text-rose-600 px-2 py-1 rounded hover:bg-rose-50 disabled:opacity-40"
                       title="Eliminar bloque"
+                      disabled={!canWrite}
                     >
                       <Trash2 className="h-4 w-4" /> Eliminar
                     </button>
@@ -277,32 +322,27 @@ const FranjasHorariasForm = () => {
         </div>
       </section>
 
-      {/* Acciones inferiores */}
       <div className="flex flex-wrap items-center gap-3">
         <button
           onClick={agregarBloque}
-          disabled={bloques.length >= 9}
-          className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 disabled:bg-slate-300 disabled:cursor-not-allowed"
+          disabled={bloques.length >= 9 || !canWrite}
+          className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 disabled:bg-slate-300"
         >
           <Plus className="h-4 w-4" /> Añadir bloque
         </button>
 
         <button
           onClick={guardarConfiguracion}
-          disabled={saving || cargando}
-          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-70"
+          disabled={saving || cargando || !canWrite}
+          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Guardar configuración
         </button>
 
-        {saveStatus.message && (
-          <span
-            className={`text-sm font-medium ${
-              saveStatus.type === "success" ? "text-emerald-700" : "text-rose-700"
-            }`}
-          >
-            {saveStatus.message}
+        {status.msg && (
+          <span className={`text-sm font-medium ${status.type === "success" ? "text-emerald-700" : "text-rose-700"}`}>
+            {status.msg}
           </span>
         )}
       </div>
@@ -317,6 +357,4 @@ const FranjasHorariasForm = () => {
       )}
     </div>
   );
-};
-
-export default FranjasHorariasForm;
+}

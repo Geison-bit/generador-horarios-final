@@ -5,7 +5,8 @@ import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { useDocentes } from "../context/DocenteContext";
+
 import { enviarDznAlServidor } from "../services/horarioService";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
@@ -43,7 +44,7 @@ const normalize = (s) =>
   (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 // índice -> día en SQL (sin acentos)
-const diasSql = ["lunes", "martes", "miercoles", "jueves", "viernes"];
+const diasSql = ["lunes", "martes", "miércoles", "jueves", "viernes"];
 
 // Reglas por defecto
 const DEFAULT_REGLAS = {
@@ -635,7 +636,7 @@ const HorarioTable = () => {
       if (diaIndex > 0) pdf.addPage();
       pdf.addImage(imgData, "PNG", 20, 40, pdfWidth - 40, pdfHeight - 40);
       pdf.text(
-        `Schedule for ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]} - ${nivel}`,
+        `Schedule for ${["Monday", "Tuesday", "Miércoles", "Thursday", "Friday"][diaIndex]} - ${nivel}`,
         20, 20
       );
     }
@@ -662,7 +663,7 @@ const HorarioTable = () => {
         sheetData.push(fila);
       });
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(wb, ws, ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]);
+      XLSX.utils.book_append_sheet(wb, ws, ["Monday", "Tuesday", "Miércoles", "Thursday", "Friday"][diaIndex]);
     });
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${nivel}.xlsx`);
@@ -831,7 +832,7 @@ const HorarioTable = () => {
           {horarioVisible.map((bloquesDia, diaIndex) => (
             <div key={diaIndex} id={`dia-${diaIndex}`} className="mb-6">
               <h4 className="text-xl font-bold mb-2 text-gray-700">
-                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]}
+                {["Monday", "Tuesday", "Miércoles", "Thursday", "Friday"][diaIndex]}
               </h4>
 
               <div className="overflow-x-auto border shadow-md rounded-lg max-w-screen-xl mx-auto">

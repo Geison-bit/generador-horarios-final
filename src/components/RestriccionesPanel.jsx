@@ -3,7 +3,8 @@ import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { useDocentes } from "../context/DocenteContext";
+
 import {
   loadReglasParaNivel,
   saveReglasParaNivel,

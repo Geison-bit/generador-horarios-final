@@ -1,171 +1,297 @@
-import { useState } from "react";
-import { Link } from "react-router-dom";
-import SelectorNivel from "../components/SelectorNivel";
+// src/pages/Home.jsx
+import { useEffect, useState } from "react";
+import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
+import { supabase } from "../supabaseClient";
+import { useAuth } from "../auth/AuthContext";
+
+import SelectorNivel from "../components/SelectorNivel";
 import {
-  Users,
-  School,
-  Ban,
-  Clock3,
-  BookOpen,
-  CalendarDays,
-  IdCard,
-  UserCog,
-  ShieldCheck,
+  Users, School, Ban, Clock3, BookOpen, CalendarDays,
+  IdCard, UserCog, ShieldCheck, LogOut, UserPlus,
+  AtSign, User as UserIcon, BookCheck
 } from "lucide-react";
 
 export default function Home() {
+  console.log("[HOME] Render");
+
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
+  const [email, setEmail] = useState(null);
+  const [role, setRole] = useState(null);
+  const [loadingRole, setLoadingRole] = useState(true);
+
+  const { permissions } = useAuth();
+  const navigate = useNavigate();
+
+  // ============================================================
+  // CARGAR ROL DEL USUARIO
+  // ============================================================
+  useEffect(() => {
+    (async () => {
+      setLoadingRole(true);
+
+      const { data: userRes } = await supabase.auth.getUser();
+      const user = userRes?.user || null;
+
+      if (!user) {
+        navigate("/login", { replace: true });
+        return;
+      }
+
+      setEmail(user.email || null);
+
+      // rol inicial desde metadata
+      let resolvedRole =
+        user?.app_metadata?.role &&
+        String(user.app_metadata.role).toLowerCase();
+
+      // buscar en user_roles si no está
+      if (!resolvedRole) {
+        const { data: ur } = await supabase
+          .from("user_roles")
+          .select("roles(name)")
+          .eq("user_id", user.id);
+
+        if (ur?.length) {
+          resolvedRole = ur[0]?.roles?.name || "docente";
+        }
+      }
+
+      if (!resolvedRole) resolvedRole = "docente";
+
+      setRole(resolvedRole);
+      setLoadingRole(false);
+    })();
+  }, [navigate]);
+
+  const isAdmin = role === "admin";
+
+  // Permiso helper
+  const can = (perm) => {
+    if (isAdmin) return true;
+    if (!permissions) return false;
+    return permissions.includes(perm);
+  };
+
+  // logout
+  const handleLogout = async () => {
+    await supabase.auth.signOut();
+    navigate("/login", { replace: true });
+  };
+
+  if (loadingRole) {
+    return (
+      <div className="min-h-[100dvh] grid place-items-center text-slate-500">
+        Cargando…
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
       {/* Header */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(60%_60%_at_50%_-20%,#93c5fd33,transparent)]" />
-        <div className="mx-auto max-w-6xl px-6 pt-10 pb-4">
-          <motion.h1
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
+        <div className="mx-auto max-w-6xl px-6 pt-10 pb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+          <div>
+            <motion.h1
+              className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              Bienvenido al{" "}
+              <span className="text-blue-700">Generador de Horarios</span>
+            </motion.h1>
+
+            <motion.p
+              className="mt-2 text-slate-600 max-w-2xl"
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+            >
+              Selecciona un nivel y accede a los módulos para configurar docentes,
+              aulas, restricciones y construir tu horario óptimo.
+            </motion.p>
+          </div>
+
+          {/* Identidad + Logout */}
+          <motion.div
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            className="flex flex-col items-end gap-2"
           >
-            Bienvenido al <span className="text-blue-700">Generador de Horarios</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-2 text-slate-600 max-w-2xl"
-          >
-            Selecciona un nivel y accede a los módulos para configurar docentes, aulas,
-            restricciones y construir tu horario óptimo.
-          </motion.p>
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+              <UserIcon className="w-4 h-4 text-slate-700" />
+              <span className="text-sm font-semibold capitalize text-slate-800">
+                {role}
+              </span>
+              <span className="text-slate-300">·</span>
+              <AtSign className="w-4 h-4 text-slate-700" />
+              <span className="text-sm text-slate-700">{email || "—"}</span>
+            </div>
+
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm hover:bg-slate-100 transition"
+            >
+              <LogOut className="w-4 h-4" />
+              <span className="text-sm font-medium">Cerrar sesión</span>
+            </button>
+          </motion.div>
         </div>
       </header>
 
-      {/* Selector de nivel */}
+      {/* Selector */}
       <section className="mx-auto max-w-6xl px-6">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 sm:p-5">
+        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
-                <School className="size-5 text-blue-600" aria-hidden="true" />
+                <School className="size-5 text-blue-600" />
                 Nivel y sección
               </h2>
-              <p className="text-sm text-slate-600">Define el contexto antes de continuar.</p>
+              <p className="text-sm text-slate-600">
+                Define el contexto antes de continuar.
+              </p>
             </div>
-            <div className="w-full sm:w-auto">
-              <SelectorNivel
-                nivelSeleccionado={nivelSeleccionado}
-                setNivelSeleccionado={setNivelSeleccionado}
-              />
-            </div>
+            <SelectorNivel
+              nivelSeleccionado={nivelSeleccionado}
+              setNivelSeleccionado={setNivelSeleccionado}
+            />
           </div>
         </div>
       </section>
 
-      {/* Grid de acciones */}
+      {/* Grid */}
       <main className="mx-auto max-w-6xl px-6 py-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 md:gap-5">
-          <ActionCard
-            to={`/docentes?nivel=${nivelSeleccionado}`}
-            icon={Users}
-            title="Registrar Docentes"
-            desc="Crea y edita el staff docente, carga horas y especialidades."
-            ariaLabel="Ir a registro de docentes"
-            accent="from-blue-600/10 to-blue-600/0"
-          />
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+          
+          {can("ui.restric.docente") && (
+            <ActionCard
+              to={`/restricciones?nivel=${nivelSeleccionado}`}
+              icon={Ban}
+              title="Disponibilidad del Profesor"
+              desc="Marca qué horas puede impartir clase cada docente."
+              accent="from-rose-600/10 to-rose-600/0"
+            />
+          )}
 
-          <ActionCard
-            to={`/aulas?nivel=${nivelSeleccionado}`}
-            icon={School}
-            title="Registrar Aulas"
-            desc="Gestiona salones, laboratorios y capacidad por ambiente."
-            ariaLabel="Ir a registro de aulas"
-            accent="from-indigo-700/10 to-indigo-700/0"
-          />
+          {can("ui.horario.docente") && (
+            <ActionCard
+              to={`/horario-docente?nivel=${nivelSeleccionado}`}
+              icon={IdCard}
+              title="Mi Horario"
+              desc="Consulta y exporta tu grilla."
+              accent="from-indigo-600/10 to-indigo-600/0"
+            />
+          )}
 
-          {/* 🔹 Formulario de disponibilidad (ruta existente) */}
-          <ActionCard
-            to={`/restricciones?nivel=${nivelSeleccionado}`}
-            icon={Ban}
-            title="Disponibilidad del Profesor"
-            desc="Marca qué horas puede impartir clase cada docente."
-            ariaLabel="Ir al formulario de disponibilidad"
-            accent="from-rose-600/10 to-rose-600/0"
-          />
+          {can("ui.horario.general") && (
+            <ActionCard
+              to={`/horario?nivel=${nivelSeleccionado}`}
+              icon={CalendarDays}
+              title="Horario General"
+              desc="Mapa completo por días, aulas y secciones."
+              accent="from-violet-600/10 to-violet-600/0"
+            />
+          )}
 
-          {/* 🔹 NUEVO: Panel de restricciones (Aplica / No aplica) */}
-          <ActionCard
-            to={`/restricciones-panel?nivel=${nivelSeleccionado}`}
-            icon={Ban}
-            title="Panel de Restricciones"
-            desc="Visualiza todas las reglas y decide cuáles aplicar."
-            ariaLabel="Ir al panel de restricciones"
-            accent="from-fuchsia-600/10 to-fuchsia-600/0"
-          />
+          {can("ui.docentes") && (
+            <ActionCard
+              to={`/docentes?nivel=${nivelSeleccionado}`}
+              icon={Users}
+              title="Registrar Docentes"
+              desc="Crea y edita el staff docente."
+              accent="from-blue-600/10 to-blue-600/0"
+            />
+          )}
 
-          <ActionCard
-            to={`/franjas?nivel=${nivelSeleccionado}`}
-            icon={Clock3}
-            title="Franjas Horarias"
-            desc="Configura turnos, bloques pedagógicos y jornadas."
-            ariaLabel="Ir a franjas horarias"
-            accent="from-amber-500/10 to-amber-500/0"
-          />
+          {can("ui.aulas") && (
+            <ActionCard
+              to={`/aulas?nivel=${nivelSeleccionado}`}
+              icon={School}
+              title="Registrar Aulas"
+              desc="Gestiona salones y laboratorios."
+              accent="from-indigo-700/10 to-indigo-700/0"
+            />
+          )}
 
-          <ActionCard
-            to={`/asignacion?nivel=${nivelSeleccionado}`}
-            icon={BookOpen}
-            title="Asignar Materias"
-            desc="Vincula cursos con docentes y grupos según carga horaria."
-            ariaLabel="Ir a asignación de materias"
-            accent="from-emerald-600/10 to-emerald-600/0"
-          />
+          {can("ui.restricciones.panel") && (
+            <ActionCard
+              to={`/restricciones-panel?nivel=${nivelSeleccionado}`}
+              icon={Ban}
+              title="Panel de Restricciones"
+              desc="Visualiza y controla las reglas."
+              accent="from-fuchsia-600/10 to-fuchsia-600/0"
+            />
+          )}
 
-          <ActionCard
-            to={`/horario?nivel=${nivelSeleccionado}`}
-            icon={CalendarDays}
-            title="Horario General"
-            desc="Visualiza el mapa completo por días, aulas y secciones."
-            ariaLabel="Ir al horario general"
-            accent="from-violet-600/10 to-violet-600/0"
-          />
+          {can("ui.franjas") && (
+            <ActionCard
+              to={`/franjas?nivel=${nivelSeleccionado}`}
+              icon={Clock3}
+              title="Franjas Horarias"
+              desc="Configura turnos y bloques pedagógicos."
+              accent="from-amber-500/10 to-amber-500/0"
+            />
+          )}
 
-          <ActionCard
-            to={`/horario-docente?nivel=${nivelSeleccionado}`}
-            icon={IdCard}
-            title="Horario por Docente"
-            desc="Consulta y exporta la grilla individual por profesor."
-            ariaLabel="Ir al horario por docente"
-            accent="from-indigo-600/10 to-indigo-600/0"
-          />
+          {can("ui.asignacion") && (
+            <ActionCard
+              to={`/asignacion?nivel=${nivelSeleccionado}`}
+              icon={BookOpen}
+              title="Asignar Materias"
+              desc="Vincula cursos con docentes."
+              accent="from-emerald-600/10 to-emerald-600/0"
+            />
+          )}
 
-          {/* ======== Administración / Seguridad ======== */}
-          <ActionCard
-            to="/admin/docentes"
-            icon={UserCog}
-            title="Gestión de Docentes"
-            desc="Lista, crea/edita y activa/desactiva docentes."
-            ariaLabel="Ir a gestión de docentes"
-            accent="from-sky-600/10 to-sky-600/0"
-          />
+          {can("ui.admin.docentes") && (
+            <ActionCard
+              to="/admin/docentes"
+              icon={UserCog}
+              title="Gestión de Docentes"
+              desc="Lista, crea y edita docentes."
+              accent="from-sky-600/10 to-sky-600/0"
+            />
+          )}
 
-          <ActionCard
-            to="/admin/roles"
-            icon={ShieldCheck}
-            title="Gestión de Roles"
-            desc="Crea roles y asígnalos a docentes para controlar permisos."
-            ariaLabel="Ir a gestión de roles"
-            accent="from-teal-600/10 to-teal-600/0"
-          />
+          {can("ui.admin.roles") && (
+            <ActionCard
+              to="/admin/roles"
+              icon={ShieldCheck}
+              title="Gestión de Roles"
+              desc="Configura roles y permisos."
+              accent="from-teal-600/10 to-teal-600/0"
+            />
+          )}
+
+          {can("ui.admin.cuentas") && (
+            <ActionCard
+              to="/admin/cuentas"
+              icon={UserPlus}
+              title="Gestión de Cuentas"
+              desc="Crea y activa usuarios."
+              accent="from-cyan-600/10 to-cyan-600/0"
+            />
+          )}
+
+          {can("ui.auditoria") && (
+            <ActionCard
+              to={`/auditoria?nivel=${nivelSeleccionado}`}
+              icon={BookCheck}
+              title="Bitácora de Auditoría"
+              desc="Registros completos del sistema."
+              accent="from-purple-600/10 to-purple-600/0"
+            />
+          )}
         </div>
       </main>
     </div>
   );
 }
 
-function ActionCard({ to, icon: Icon, title, desc, ariaLabel, accent }) {
+// Tarjeta estándar
+function ActionCard({ to, icon: Icon, title, desc, accent }) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 8 }}
@@ -176,26 +302,24 @@ function ActionCard({ to, icon: Icon, title, desc, ariaLabel, accent }) {
     >
       <Link
         to={to}
-        aria-label={ariaLabel}
-        className="group block h-full rounded-2xl border border-slate-200 bg-white shadow-sm ring-1 ring-transparent transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600/60 hover:shadow-md"
+        className="group block h-full rounded-2xl border border-slate-200 bg-white shadow-sm hover:shadow-md transition"
       >
         <div className={`rounded-t-2xl bg-gradient-to-b ${accent} p-4`}>
           <div className="flex items-center gap-3">
             <div className="inline-flex rounded-xl bg-white/70 p-2 ring-1 ring-slate-200">
-              <Icon className="size-5 text-slate-800" aria-hidden="true" />
+              <Icon className="size-5 text-slate-800" />
             </div>
             <h3 className="text-base font-semibold text-slate-800">{title}</h3>
           </div>
         </div>
         <div className="p-4">
-          <p className="text-sm leading-6 text-slate-600">{desc}</p>
+          <p className="text-sm text-slate-600">{desc}</p>
           <div className="mt-4 inline-flex items-center gap-2 text-sm font-medium text-blue-700">
             <span>Entrar</span>
             <svg
-              className="size-4 transition-transform group-hover:translate-x-0.5"
+              className="size-4 group-hover:translate-x-0.5 transition-transform"
               viewBox="0 0 20 20"
               fill="currentColor"
-              aria-hidden="true"
             >
               <path d="M12.293 3.293a1 1 0 011.414 0l4.999 5a1 1 0 010 1.414l-5 5a1 1 0 01-1.414-1.414L15.586 11H3a1 1 0 110-2h12.586l-3.293-3.293a1 1 0 010-1.414z" />
             </svg>

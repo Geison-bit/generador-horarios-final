@@ -1,3 +1,4 @@
+// src/components/Breadcrumbs.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ChevronRight, GraduationCap } from "lucide-react";
@@ -15,19 +16,17 @@ const RUTAS = [
   { label: "Registrar Aulas", path: "/aulas" },
   { label: "Asignar Materias", path: "/asignacion" },
   { label: "Franjas Horarias", path: "/franjas" },
-
   // 👇 Mantén “Restricciones” como disponibilidad del profesor
   { label: "Disponibilidad", path: "/restricciones" },
-
-  // 👇 Nuevo: Panel de reglas (no reemplaza a “Restricciones”)
+  // 👇 Panel de reglas (no reemplaza a “Restricciones”)
   { label: "Panel de restricciones", path: "/restricciones-panel" },
-
   { label: "Horario General", path: "/horario" },
   { label: "Horario por Docente", path: "/horario-docente" },
-
   // ✅ Administración
   { label: "Gestión de Docentes", path: "/admin/docentes" },
   { label: "Gestión de Roles", path: "/admin/roles" },
+  // ✅ Nueva: Bitácora
+  { label: "Bitácora", path: "/auditoria" },
 ];
 
 export default function Breadcrumbs() {

@@ -3,7 +3,8 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { Building2, Save, X, Pencil, Trash2, Search, Loader2, Clock3 } from "lucide-react";
+import { withAudit } from "../services/auditService";
+import { Building2, Save, X, Pencil, Trash2, Loader2, Clock3, Search } from "lucide-react";
 
 export default function AulasForm() {
   const [formData, setFormData] = useState({ nombre: "", piso: "", tipo: "" });
@@ -29,14 +30,16 @@ export default function AulasForm() {
   }, [nivel]);
 
   // --- Helpers ---
-  const norm = (s) => s.trim().replace(/\s+/g, " ");
+  const norm = (s) => String(s || "").trim().replace(/\s+/g, " ");
   const pisoToNum = (p) => {
     const m = String(p || "").match(/(\d+)/);
     return m ? parseInt(m[1], 10) : 0;
-    };
+  };
 
   const sortAulas = (items) =>
-    [...items].sort((a, b) => pisoToNum(a.piso) - pisoToNum(b.piso) || a.nombre.localeCompare(b.nombre));
+    [...(items || [])].sort(
+      (a, b) => pisoToNum(a.piso) - pisoToNum(b.piso) || String(a.nombre).localeCompare(String(b.nombre))
+    );
 
   const aulasFiltradas = useMemo(() => {
     const q = norm(filter).toLowerCase();
@@ -51,9 +54,10 @@ export default function AulasForm() {
     setLoading(true);
     const { data, error } = await supabase
       .from("aulas")
-      .select()
+      .select("id,nombre,piso,tipo,nivel")
       .eq("nivel", nivel);
-    if (error) console.error(error);
+
+    if (error) console.error("[aulas] load error:", error);
     setAulas(sortAulas(data || []));
     setLoading(false);
   }
@@ -67,11 +71,13 @@ export default function AulasForm() {
     if (!nombreLimpio) newErrors.nombre = "El nombre es obligatorio.";
     else if (nombreLimpio.length < 3) newErrors.nombre = "Debe tener al menos 3 caracteres.";
     else {
+      // Duplicado exacto (case-insensitive) en el mismo nivel
       const { data, error } = await supabase
         .from("aulas")
         .select("id")
         .eq("nivel", nivel)
-        .ilike("nombre", nombreLimpio); // sin comodines => comparación case-insensitive exacta
+        .ilike("nombre", nombreLimpio);
+
       if (!error && data && data.length > 0 && (!modoEdicion || data[0].id !== aulaEditandoId)) {
         newErrors.nombre = "Ya existe un aula con este nombre.";
       }
@@ -105,12 +111,48 @@ export default function AulasForm() {
       nivel,
     };
 
-    if (modoEdicion && aulaEditandoId) {
-      const { error } = await supabase.from("aulas").update(payload).eq("id", aulaEditandoId);
-      if (error) alert("❌ No se pudo actualizar el aula.");
-    } else {
-      const { error } = await supabase.from("aulas").insert(payload);
-      if (error) alert("❌ No se pudo crear el aula.");
+    try {
+      if (modoEdicion && aulaEditandoId) {
+        const op = () =>
+          supabase
+            .from("aulas")
+            .update(payload)
+            .eq("id", aulaEditandoId)
+            .select("id,nombre,piso,tipo")
+            .single();
+
+        const res = await withAudit(op, {
+          action: "UPDATE",
+          entity: "aulas",
+          getEntityId: (r) => r?.data?.id,
+          details: () => ({ ...payload, id: aulaEditandoId }),
+          success: (r) => !r?.error,
+        });
+
+        if (res.error) throw res.error;
+      } else {
+        const op = () =>
+          supabase
+            .from("aulas")
+            .insert(payload)
+            .select("id,nombre,piso,tipo")
+            .single();
+
+        const res = await withAudit(op, {
+          action: "INSERT",
+          entity: "aulas",
+          getEntityId: (r) => r?.data?.id,
+          details: () => payload,
+          success: (r) => !r?.error,
+        });
+
+        if (res.error) throw res.error;
+      }
+    } catch (err) {
+      console.error("[aulas] save error:", err);
+      alert(`❌ No se pudo guardar el aula.\n\nDetalle: ${err?.message || err}`);
+      setSaving(false);
+      return;
     }
 
     setSaving(false);
@@ -121,7 +163,11 @@ export default function AulasForm() {
   function editarAula(aula) {
     setModoEdicion(true);
     setAulaEditandoId(aula.id);
-    setFormData({ nombre: aula.nombre, piso: aula.piso.replace("Piso ", "").trim(), tipo: aula.tipo });
+    setFormData({
+      nombre: aula.nombre,
+      piso: String(aula.piso || "").replace("Piso ", "").trim(),
+      tipo: aula.tipo,
+    });
     setErrors({});
     setTimeout(() => inputNombreRef.current?.focus(), 0);
   }
@@ -135,49 +181,83 @@ export default function AulasForm() {
 
   async function eliminarAula(id) {
     if (!window.confirm("¿Estás seguro de que deseas eliminar esta aula?")) return;
-    const { error } = await supabase.from("aulas").delete().eq("id", id);
-    if (error) alert("No se pudo eliminar el aula. Revise si está relacionada a horarios o asignaciones.");
-    else cargarAulas();
+
+    try {
+      const op = () =>
+        supabase.from("aulas").delete().eq("id", id).select("id").single();
+
+      const res = await withAudit(op, {
+        action: "DELETE",
+        entity: "aulas",
+        entityId: id,
+        details: () => ({ id }),
+        success: (r) => !r?.error,
+      });
+
+      if (res.error) throw res.error;
+      cargarAulas();
+    } catch (err) {
+      console.error("[aulas] delete error:", err);
+      alert(
+        `❌ No se pudo eliminar el aula.\n` +
+          `• Verifica si está relacionada a horarios o asignaciones.\n\nDetalle: ${err?.message || err}`
+      );
+    }
   }
 
-  // --- Auditoría: “Last edit” de la tabla aulas ---
+  // --- Auditoría: “Last edit” (prefiere email válido) ---
   useEffect(() => {
     const fetchUltima = async () => {
-      const { data, error } = await supabase
+      // 1) último con email real
+      const prefer = await supabase
+        .from("audit_logs")
+        .select("actor_email, created_at, operation")
+        .eq("table_name", "aulas")
+        .neq("actor_email", "unknown")
+        .order("created_at", { ascending: false })
+        .limit(1);
+
+      if (!prefer.error && prefer.data?.length) {
+        setUltimaEdicion(prefer.data[0]);
+        return;
+      }
+      // 2) fallback
+      const fallback = await supabase
         .from("audit_logs")
         .select("actor_email, created_at, operation")
         .eq("table_name", "aulas")
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (!error && data?.length) setUltimaEdicion(data[0]);
+      if (!fallback.error && fallback.data?.length) setUltimaEdicion(fallback.data[0]);
       else setUltimaEdicion(null);
     };
     fetchUltima();
-  }, [nivel, aulas.length]); // refresca cuando cambia el nivel o la lista
+  }, [nivel, aulas.length]);
 
-  // Realtime para refrescar el pill cuando haya cambios en audit_logs
+  // Realtime para refrescar el “Last edit”
   useEffect(() => {
     const ch = supabase
       .channel("audit_aulas")
       .on(
         "postgres_changes",
         { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.aulas" },
-        () => {
-          (async () => {
-            const { data } = await supabase
-              .from("audit_logs")
-              .select("actor_email, created_at, operation")
-              .eq("table_name", "aulas")
-              .order("created_at", { ascending: false })
-              .limit(1);
-            if (data?.length) setUltimaEdicion(data[0]);
-          })();
+        async () => {
+          const { data } = await supabase
+            .from("audit_logs")
+            .select("actor_email, created_at, operation")
+            .eq("table_name", "aulas")
+            .order("created_at", { ascending: false })
+            .limit(1);
+          if (data?.length) setUltimaEdicion(data[0]);
         }
       )
       .subscribe();
+
     return () => {
-      try { supabase.removeChannel(ch); } catch {}
+      try {
+        supabase.removeChannel(ch);
+      } catch {}
     };
   }, []);
 
@@ -186,8 +266,8 @@ export default function AulasForm() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      {/* Header con título a la izquierda y “Last edit” a la derecha */}
-      <div className="mb-4 flex items-center justify-between">
+      {/* Header */}
+      <div className="mb-4 flex items-center justify-between gap-4">
         <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
         </h2>
@@ -199,6 +279,19 @@ export default function AulasForm() {
             <b>{ultimaEdicion?.actor_email || "unknown"}</b> ·{" "}
             {ultimaEdicion?.created_at ? new Date(ultimaEdicion.created_at).toLocaleString() : "—"}
           </span>
+        </div>
+      </div>
+
+      {/* Búsqueda */}
+      <div className="mb-3">
+        <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 shadow-sm max-w-md">
+          <Search className="size-4 text-slate-500" />
+          <input
+            value={filter}
+            onChange={(e) => setFilter(e.target.value)}
+            placeholder="Buscar por nombre, piso o tipo…"
+            className="w-full outline-none text-sm"
+          />
         </div>
       </div>
 
@@ -220,7 +313,9 @@ export default function AulasForm() {
             value={formData.nombre}
             onChange={handleInputChange}
             maxLength={15}
-            className={`rounded-lg border px-3 py-2 text-sm ${errors.nombre ? "border-rose-500" : "border-slate-300"} focus:outline-none focus:ring-2 focus:ring-blue-600`}
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              errors.nombre ? "border-rose-500" : "border-slate-300"
+            } focus:outline-none focus:ring-2 focus:ring-blue-600`}
           />
           {errors.nombre && <p className="text-rose-600 text-xs mt-1">{errors.nombre}</p>}
         </div>
@@ -237,7 +332,9 @@ export default function AulasForm() {
             value={formData.piso}
             onChange={handleInputChange}
             min="1"
-            className={`rounded-lg border px-3 py-2 text-sm ${errors.piso ? "border-rose-500" : "border-slate-300"} focus:outline-none focus:ring-2 focus:ring-blue-600 w-28`}
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              errors.piso ? "border-rose-500" : "border-slate-300"
+            } focus:outline-none focus:ring-2 focus:ring-blue-600 w-28`}
           />
           {errors.piso && <p className="text-rose-600 text-xs mt-1">{errors.piso}</p>}
         </div>
@@ -251,7 +348,9 @@ export default function AulasForm() {
             name="tipo"
             value={formData.tipo}
             onChange={handleInputChange}
-            className={`rounded-lg border px-3 py-2 text-sm ${errors.tipo ? "border-rose-500" : "border-slate-300"} focus:outline-none focus:ring-2 focus:ring-blue-600`}
+            className={`rounded-lg border px-3 py-2 text-sm ${
+              errors.tipo ? "border-rose-500" : "border-slate-300"
+            } focus:outline-none focus:ring-2 focus:ring-blue-600`}
           >
             <option value="">Seleccione…</option>
             <option value="Teórica">Teórica</option>

@@ -1,120 +1,210 @@
-import { useEffect, useMemo, useState } from "react";
+// src/modals/RolePermsModal.jsx
+import { useEffect, useState, useMemo } from "react";
 import { supabase } from "../supabaseClient";
 
-/**
- * Modal para gestionar permisos de un rol (checklist).
- * Requisitos en BD:
- *  - permisos(id, codigo, nombre, descripcion)
- *  - rol_permisos(rol_id, permiso_id) PK compuesta
- */
 export default function RolePermsModal({ role, onClose }) {
-  const [permisos, setPermisos] = useState([]);          // catálogo completo
-  const [rolePerms, setRolePerms] = useState(new Set()); // ids activos para el rol
+  const [allPerms, setAllPerms] = useState([]);
+  const [assigned, setAssigned] = useState(new Set());
+  const [loading, setLoading] = useState(false);
   const [q, setQ] = useState("");
 
+  // --------------------------------------------------
+  // 1. Cargar permisos del sistema + permisos del rol
+  // --------------------------------------------------
   useEffect(() => {
+    if (!role?.id) return;
     (async () => {
-      const [p1, p2] = await Promise.all([
-        supabase.from("permisos")
-          .select("id,codigo,nombre,descripcion")
-          .order("nombre"),
-        supabase.from("rol_permisos")
-          .select("permiso_id")
-          .eq("rol_id", role.id),
+      setLoading(true);
+
+      const [{ data: perms }, { data: rp }] = await Promise.all([
+        supabase.from("permissions").select("key, description").order("key"),
+        supabase
+          .from("role_permissions")
+          .select("permission_key")
+          .eq("role_id", role.id),
       ]);
-      if (!p1.error) setPermisos(p1.data || []);
-      if (!p2.error) setRolePerms(new Set((p2.data || []).map(r => r.permiso_id)));
+
+      setAllPerms(perms ?? []);
+      setAssigned(new Set((rp ?? []).map((x) => x.permission_key)));
+      setLoading(false);
     })();
-  }, [role.id]);
+  }, [role?.id]);
 
-  const list = useMemo(() => {
-    const s = q.trim().toLowerCase();
-    if (!s) return permisos;
-    return permisos.filter(p =>
-      `${p.nombre} ${p.codigo} ${p.descripcion || ""}`.toLowerCase().includes(s)
-    );
-  }, [permisos, q]);
+  const isOn = (key) => assigned.has(key);
 
-  const toggle = async (permisoId) => {
-    const had = rolePerms.has(permisoId);
-    // Optimista
-    const next = new Set(rolePerms);
-    if (had) next.delete(permisoId); else next.add(permisoId);
-    setRolePerms(next);
+  // --------------------------------------------------
+  // 2. Guardar cambios
+  // --------------------------------------------------
+  async function toggle(key) {
+    if (!role?.id) return;
 
-    if (had) {
-      const { error } = await supabase
-        .from("rol_permisos")
-        .delete()
-        .match({ rol_id: role.id, permiso_id: permisoId });
-      if (error) {
-        alert("No se pudo quitar el permiso: " + error.message);
-        setRolePerms(rolePerms); // revertir
+    try {
+      if (isOn(key)) {
+        const { error } = await supabase
+          .from("role_permissions")
+          .delete()
+          .match({ role_id: role.id, permission_key: key });
+
+        if (error) throw error;
+        setAssigned((prev) => {
+          const next = new Set(prev);
+          next.delete(key);
+          return next;
+        });
+      } else {
+        const { error } = await supabase
+          .from("role_permissions")
+          .insert({ role_id: role.id, permission_key: key });
+
+        if (error) throw error;
+        setAssigned((prev) => new Set(prev).add(key));
       }
-    } else {
-      const { error } = await supabase
-        .from("rol_permisos")
-        .insert({ rol_id: role.id, permiso_id: permisoId });
-      if (error) {
-        alert("No se pudo asignar el permiso: " + error.message);
-        setRolePerms(rolePerms); // revertir
-      }
+    } catch (e) {
+      alert("❌ No se pudo actualizar: " + (e?.message || e));
     }
+  }
+
+  // --------------------------------------------------
+  // 3. GRUPOS (Permisos técnicos + Interfaces)
+  // --------------------------------------------------
+
+  const SYSTEM_PERMS = {
+    "Usuarios": ["user.read", "user.write", "user.status.write"],
+    "Roles": ["role.read", "role.write", "perm.read", "perm.write"],
+    "Horarios": ["horario.read", "horario.write"],
+    "Restricciones": ["restric.read", "restric.write"],
+    "Auditoría": ["audit.read"],
   };
 
-  return (
-    <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4 z-50">
-      <div className="bg-white rounded-2xl w-full max-w-2xl shadow-xl">
-        <div className="p-4 border-b">
-          <h2 className="text-lg font-semibold">Permisos del rol: {role.nombre}</h2>
-          <p className="text-sm text-slate-500">Marca qué acciones puede realizar este rol.</p>
+  const UI_PERMS = {
+    "Interfaces Docente": [
+      "ui.restric.docente",
+      "ui.horario.docente",
+      "ui.horario.general",
+    ],
+    "Interfaces Gestión": [
+      "ui.docentes",
+      "ui.aulas",
+      "ui.franjas",
+      "ui.asignacion",
+      "ui.restricciones.panel",
+    ],
+    "Interfaces Admin": [
+      "ui.admin.docentes",
+      "ui.admin.roles",
+      "ui.admin.cuentas",
+      "ui.audit",
+    ],
+  };
+
+  // --------------------------------------------------
+  // 4. Render por grupo
+  // --------------------------------------------------
+  function renderGroup(title, items) {
+    const filtered = items.filter((k) => {
+      if (!q.trim()) return true;
+      return k.toLowerCase().includes(q.toLowerCase());
+    });
+
+    if (filtered.length === 0) return null;
+
+    return (
+      <div className="mb-3 rounded-xl border bg-white shadow-sm">
+        <div className="px-3 py-2 border-b bg-slate-50 font-semibold text-sm">
+          {title}
         </div>
 
+        <div className="divide-y">
+          {filtered.map((key) => {
+            const perm = allPerms.find((p) => p.key === key);
+            const desc = perm?.description || "—";
+
+            return (
+              <div key={key} className="flex items-center justify-between p-2">
+                <div>
+                  <div className="font-mono text-xs">{key}</div>
+                  <div className="text-xs text-gray-500">{desc}</div>
+                </div>
+
+                <button
+                  onClick={() => toggle(key)}
+                  className={
+                    "px-3 py-1 rounded-lg text-sm " +
+                    (isOn(key)
+                      ? "bg-green-100 text-green-700"
+                      : "bg-gray-200 text-gray-700")
+                  }
+                >
+                  {isOn(key) ? "✓" : "—"}
+                </button>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // --------------------------------------------------
+  // 5. UI
+  // --------------------------------------------------
+  return (
+    <div className="fixed inset-0 z-50 bg-black/30 grid place-items-center p-4">
+      <div className="w-full max-w-5xl rounded-2xl bg-white shadow-xl border overflow-hidden">
+
+        {/* Header */}
+        <div className="p-4 border-b flex items-center justify-between">
+          <h3 className="text-lg font-semibold">
+            Configuración del rol:{" "}
+            <span className="text-violet-700">{role?.nombre}</span>
+          </h3>
+
+          <button
+            onClick={onClose}
+            className="px-3 py-1.5 rounded-md border bg-white"
+          >
+            Cerrar
+          </button>
+        </div>
+
+        {/* Buscador */}
         <div className="p-4">
           <input
             value={q}
             onChange={(e) => setQ(e.target.value)}
-            placeholder="Buscar permiso…"
-            className="w-full px-3 py-2 border rounded-xl"
+            placeholder="Buscar permiso o interfaz…"
+            className="w-full px-3 py-2 border rounded-xl mb-4"
           />
-        </div>
 
-        <div className="max-h-[55vh] overflow-auto px-4 pb-4">
-          <ul className="divide-y">
-            {list.map((p) => {
-              const on = rolePerms.has(p.id);
-              return (
-                <li key={p.id} className="py-3 flex items-start justify-between gap-4">
-                  <div>
-                    <div className="font-medium">{p.nombre}</div>
-                    <div className="text-xs text-slate-500">{p.codigo}</div>
-                    {p.descripcion && (
-                      <div className="text-sm text-slate-600">{p.descripcion}</div>
-                    )}
-                  </div>
-                  <label className="inline-flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      checked={on}
-                      onChange={() => toggle(p.id)}
-                    />
-                    <span className={`text-sm ${on ? "text-green-700" : "text-slate-500"}`}>
-                      {on ? "Permitido" : "No permitido"}
-                    </span>
-                  </label>
-                </li>
-              );
-            })}
-            {list.length === 0 && (
-              <li className="py-6 text-center text-slate-500">Sin resultados</li>
-            )}
-          </ul>
-        </div>
+          {loading ? (
+            <div className="p-4 text-gray-500">Cargando permisos…</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 max-h-[65vh] overflow-auto">
 
-        <div className="p-4 border-t flex justify-end">
-          <button onClick={onClose} className="px-3 py-2 rounded-xl border">
-            Cerrar
-          </button>
+              {/* Columna izquierda */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-600 mb-2">
+                  🔧 Permisos Técnicos
+                </h4>
+
+                {Object.entries(SYSTEM_PERMS).map(([title, items]) =>
+                  renderGroup(title, items)
+                )}
+              </div>
+
+              {/* Columna derecha */}
+              <div>
+                <h4 className="text-sm font-bold text-slate-600 mb-2">
+                  🖥 Interfaces Visibles
+                </h4>
+
+                {Object.entries(UI_PERMS).map(([title, items]) =>
+                  renderGroup(title, items)
+                )}
+              </div>
+
+            </div>
+          )}
         </div>
       </div>
     </div>

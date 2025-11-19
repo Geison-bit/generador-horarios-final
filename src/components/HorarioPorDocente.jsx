@@ -5,7 +5,8 @@ import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { useDocentes } from "../context/DocenteContext";
+
 import { supabase } from "../supabaseClient";
 import { Download, FileSpreadsheet, Printer, User } from "lucide-react";
 

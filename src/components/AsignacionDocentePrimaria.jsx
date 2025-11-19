@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
-import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { useDocentes } from "../context/DocenteContext";
+
 import Breadcrumbs from "../components/Breadcrumbs";
 
 const gradosPrimaria = ["1°", "2°", "3°", "4°", "5°", "6°"];
