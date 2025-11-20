@@ -1,4 +1,7 @@
-// src/pages/Home.jsx
+// ============================================================
+// src/pages/Home.jsx  — versión COMPLETA y CORREGIDA
+// ============================================================
+
 import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { motion } from "framer-motion";
@@ -20,7 +23,7 @@ export default function Home() {
   const [role, setRole] = useState(null);
   const [loadingRole, setLoadingRole] = useState(true);
 
-  const { permissions } = useAuth();
+  const { permissions, setIsLoggingOut } = useAuth();
   const navigate = useNavigate();
 
   // ============================================================
@@ -73,8 +76,11 @@ export default function Home() {
     return permissions.includes(perm);
   };
 
-  // logout
+  // ============================================================
+  // LOGOUT PROFESIONAL — CORREGIDO
+  // ============================================================
   const handleLogout = async () => {
+    setIsLoggingOut(true);        // 🔥 evita re-render loops en ProtectedRoute
     await supabase.auth.signOut();
     navigate("/login", { replace: true });
   };
@@ -164,7 +170,7 @@ export default function Home() {
       {/* Grid */}
       <main className="mx-auto max-w-6xl px-6 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          
+
           {can("ui.restric.docente") && (
             <ActionCard
               to={`/restricciones?nivel=${nivelSeleccionado}`}
@@ -284,6 +290,7 @@ export default function Home() {
               accent="from-purple-600/10 to-purple-600/0"
             />
           )}
+
         </div>
       </main>
     </div>

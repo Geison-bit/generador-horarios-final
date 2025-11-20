@@ -1,4 +1,7 @@
-// src/auth/Login.jsx
+// ============================================================
+// src/auth/Login.jsx — VERSIÓN FINAL
+// ============================================================
+
 import { useEffect, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { supabase } from "../supabaseClient";
@@ -7,20 +10,18 @@ import { useAuth } from "./AuthContext";
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
-
-  // Redirección a donde quería entrar antes
   const from = location.state?.from?.pathname || "/";
 
-  const { bannedMessage, setBannedMessage, user } = useAuth();
+  const { bannedMessage, setBannedMessage, user, initializedSession } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
-  /* ============================================================
-        Mostrar mensaje si el admin desactivó la cuenta
-  ============================================================ */
+  // ============================================================
+  // Mostrar mensaje global (ban)
+  // ============================================================
   useEffect(() => {
     if (bannedMessage) {
       setError(bannedMessage);
@@ -28,18 +29,19 @@ export default function Login() {
     }
   }, [bannedMessage]);
 
-  /* ============================================================
-        Si ya hay usuario → NO dejar entrar al login
-  ============================================================ */
+  // ============================================================
+  // SI YA HAY SESIÓN → NO MOSTRAR LOGIN (pero solo cuando esté cargada)
+  // ============================================================
   useEffect(() => {
+    if (!initializedSession) return; // evita loop
     if (user) {
-      navigate("/", { replace: true });
+      navigate(from, { replace: true });
     }
-  }, [user]);
+  }, [initializedSession, user, navigate, from]);
 
-  /* ============================================================
-        LOGIN
-  ============================================================ */
+  // ============================================================
+  // LOGIN
+  // ============================================================
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError("");
@@ -73,20 +75,17 @@ export default function Login() {
 
     if (profile?.status?.toLowerCase() === "banned") {
       await supabase.auth.signOut();
-      setError(
-        "Acceso denegado: tu cuenta ha sido desactivada por el administrador."
-      );
+      setError("Acceso denegado: tu cuenta ha sido desactivada por el administrador.");
       setLoading(false);
       return;
     }
 
-    // Login correcto
     navigate(from, { replace: true });
   };
 
-  /* ============================================================
-        RENDER
-  ============================================================ */
+  // ============================================================
+  // RENDER
+  // ============================================================
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
       <form

@@ -1,9 +1,18 @@
+// ============================================================
 // src/auth/ProtectedRoute.jsx
+// ============================================================
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 
 export default function ProtectedRoute({ children, need = [] }) {
-  const { initializedSession, loading, user, permissions } = useAuth();
+  const {
+    initializedSession,
+    loading,
+    user,
+    permissions,
+    isLoggingOut,
+  } = useAuth();
+
   const location = useLocation();
 
   console.groupCollapsed(
@@ -12,12 +21,20 @@ export default function ProtectedRoute({ children, need = [] }) {
   );
   console.log("initializedSession:", initializedSession);
   console.log("loading:", loading);
+  console.log("isLoggingOut:", isLoggingOut);
   console.log("user:", user);
   console.log("required perms:", need);
   console.log("user perms:", permissions);
   console.groupEnd();
 
-  // 1) Esperando carga inicial de sesión
+  // 🔥 0) Logout en proceso → no validar nada
+  if (isLoggingOut) {
+    return (
+      <div style={{ padding: 40, fontSize: 18 }}>Cerrando sesión…</div>
+    );
+  }
+
+  // 1) Sesión inicial cargando
   if (!initializedSession) {
     return (
       <div style={{ padding: 40, fontSize: 18 }}>Cargando… (session)</div>
@@ -37,7 +54,7 @@ export default function ProtectedRoute({ children, need = [] }) {
     return <Navigate to="/login" replace />;
   }
 
-  // 4) Validar permisos
+  // 4) Validación de permisos
   if (need.length > 0) {
     const ok = need.every((p) => permissions.includes(p));
     if (!ok) {
@@ -46,6 +63,6 @@ export default function ProtectedRoute({ children, need = [] }) {
     }
   }
 
-  console.log("[ROUTE] ✔ Acceso permitido");
+  // TODO OK
   return children;
 }

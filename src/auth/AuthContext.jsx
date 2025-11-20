@@ -1,4 +1,6 @@
+// ============================================================
 // src/auth/AuthContext.jsx
+// ============================================================
 import {
   createContext,
   useContext,
@@ -21,25 +23,11 @@ export function AuthProvider({ children }) {
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // ============================================================
-  // 🔥 LIMPIEZA REAL del cache (solo si hay sesión corrupta)
-  // ============================================================
-  async function resetSupabaseCache() {
-    console.warn("%c[AUTH] Cache corrupto detectado → limpiando", "color:red");
-    try {
-      Object.keys(localStorage)
-        .filter((k) => k.startsWith("sb-"))
-        .forEach((k) => localStorage.removeItem(k));
-
-      sessionStorage.clear();
-      await indexedDB.deleteDatabase("supabase-auth");
-    } catch (e) {
-      console.error("Error al limpiar cache:", e);
-    }
-  }
+  // 🔥 NUEVO — controla logout suave
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
 
   // ============================================================
-  // 🔥 VALIDAR BAN
+  // VALIDAR BAN
   // ============================================================
   async function validateBan(u) {
     const { data, error } = await supabase
@@ -65,12 +53,10 @@ export function AuthProvider({ children }) {
   }
 
   // ============================================================
-  // CARGAR ROLES + PERMISOS
+  // CARGAR ROLES Y PERMISOS
   // ============================================================
   async function fetchPermsAndRoles(u) {
     try {
-      console.log("[AUTH] Cargando roles/permisos…");
-
       const { data: rData } = await supabase
         .from("user_roles")
         .select("roles(name)")
@@ -92,12 +78,12 @@ export function AuthProvider({ children }) {
 
       setPermissions((pData || []).map((r) => r.permission_key));
     } catch (e) {
-      console.error("Error roles/permisos:", e);
+      console.error("[AUTH] Error roles/permisos:", e);
     }
   }
 
   // ============================================================
-  // 🔥 CARGA INICIAL DE SESIÓN — CORREGIDA
+  // CARGA INICIAL — estable sin loops
   // ============================================================
   useEffect(() => {
     if (initialized.current) return;
@@ -108,34 +94,23 @@ export function AuthProvider({ children }) {
     supabase.auth.getSession().then(async ({ data }) => {
       const s = data.session;
 
-      // ⚠ Supabase a veces devuelve session.user=null. NO limpiar aquí.
-      if (s) {
-        if (!s.user) {
-          console.log(
-            "%c[AUTH] Usuario aún no cargado (rehidratación).",
-            "color:gray"
-          );
-        } else {
-          console.log("[AUTH] Usuario inicial:", s.user.email);
-
-          // Validar BAN
-          const allowed = await validateBan(s.user);
-          if (!allowed) {
-            setInitializedSession(true);
-            return;
-          }
-
-          setSession(s);
-          setUser(s.user);
-          await fetchPermsAndRoles(s.user);
+      if (s?.user) {
+        const allowed = await validateBan(s.user);
+        if (!allowed) {
+          setInitializedSession(true);
+          return;
         }
+
+        setSession(s);
+        setUser(s.user);
+        await fetchPermsAndRoles(s.user);
       }
 
       setInitializedSession(true);
     });
 
     // ============================================================
-    // 🔥 ESCUCHAR EVENTOS DE AUTH
+    // EVENTOS DE SUPABASE
     // ============================================================
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, s) => {
@@ -143,18 +118,10 @@ export function AuthProvider({ children }) {
 
         const u = s?.user || null;
 
-        // ------------------------------------------------------------
-        // 🔥 CASO REAL de sesión corrupta (session=null + sb-tokens)
-        // ------------------------------------------------------------
-        if (!u && event !== "SIGNED_OUT") {
-          return; // Supabase rehidratará user luego
-        }
-
-        // ===============================
         // LOGOUT
-        // ===============================
         if (event === "SIGNED_OUT") {
           console.log("[AUTH] Sesión cerrada");
+          setIsLoggingOut(false); // 🔥 terminar estado logout
           setUser(null);
           setSession(null);
           setRoles([]);
@@ -163,12 +130,8 @@ export function AuthProvider({ children }) {
           return;
         }
 
-        // ===============================
-        // SIGNED_IN o REFRESH
-        // ===============================
+        // SIGNED_IN / REFRESH
         if (u) {
-          console.log("[AUTH] Usuario activo:", u.email);
-
           const allowed = await validateBan(u);
           if (!allowed) return;
 
@@ -185,16 +148,19 @@ export function AuthProvider({ children }) {
   }, []);
 
   // ============================================================
-  // 🔥 CONTROL FINAL DE LOADING
+  // CONTROL FINAL DE LOADING
   // ============================================================
   useEffect(() => {
-    // No usuario → listo para redirigir a login
     if (initializedSession && !user) {
       setLoading(false);
       return;
     }
 
-    if (initializedSession && user && (roles.length > 0 || permissions.length > 0)) {
+    if (
+      initializedSession &&
+      user &&
+      (roles.length > 0 || permissions.length > 0)
+    ) {
       setLoading(false);
     }
   }, [initializedSession, user, roles, permissions]);
@@ -210,8 +176,18 @@ export function AuthProvider({ children }) {
       permissions,
       loading,
       initializedSession,
+      isLoggingOut,
+      setIsLoggingOut,
     }),
-    [session, user, roles, permissions, loading, initializedSession]
+    [
+      session,
+      user,
+      roles,
+      permissions,
+      loading,
+      initializedSession,
+      isLoggingOut,
+    ]
   );
 
   return <authCtx.Provider value={value}>{children}</authCtx.Provider>;
