@@ -1,81 +1,87 @@
 // src/auth/AuthContext.jsx
-import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
 import { supabase } from "../supabaseClient";
 
 export const authCtx = createContext(null);
 
 export function AuthProvider({ children }) {
+  const initialized = useRef(false);
+
+  const [initializedSession, setInitializedSession] = useState(false);
   const [session, setSession] = useState(null);
   const [user, setUser] = useState(null);
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // 🔥 NUEVO: mensaje global para usuario baneado
-  const [bannedMessage, setBannedMessage] = useState("");
-
-  /* ================================
-      VALIDAR ESTADO DEL PERFIL
-  ================================= */
-  async function checkProfileStatus(u) {
+  // ============================================================
+  // 🔥 LIMPIEZA REAL del cache (solo si hay sesión corrupta)
+  // ============================================================
+  async function resetSupabaseCache() {
+    console.warn("%c[AUTH] Cache corrupto detectado → limpiando", "color:red");
     try {
-      const { data, error } = await supabase
-        .from("profiles")
-        .select("status")
-        .eq("id", u.id)
-        .single();
+      Object.keys(localStorage)
+        .filter((k) => k.startsWith("sb-"))
+        .forEach((k) => localStorage.removeItem(k));
 
-      if (error) {
-        console.warn("[AUTH] No se pudo leer perfil:", error);
-        return true;
-      }
-
-      if (!data) return true;
-
-      console.log("[AUTH] Estado del usuario:", data.status);
-
-      // ⛔ Usuario marcado como BANNED
-      if (data.status?.toLowerCase() === "banned") {
-        console.log("⛔ Usuario BANNED → cerrando sesión…");
-
-        // Guardamos mensaje
-        setBannedMessage(
-          "Acceso denegado: tu cuenta ha sido desactivada por el administrador."
-        );
-
-        await supabase.auth.signOut();
-        return false;
-      }
-
-      return true;
+      sessionStorage.clear();
+      await indexedDB.deleteDatabase("supabase-auth");
     } catch (e) {
-      console.error("[AUTH] Error validando perfil:", e);
-      return true;
+      console.error("Error al limpiar cache:", e);
     }
   }
 
-  /* ================================
-      CARGAR ROLES Y PERMISOS
-  ================================= */
-  async function fetchPermsAndRoles(u) {
-    if (!u) return;
+  // ============================================================
+  // 🔥 VALIDAR BAN
+  // ============================================================
+  async function validateBan(u) {
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("status")
+      .eq("id", u.id)
+      .single();
 
+    if (error) {
+      console.warn("[AUTH] Error leyendo perfil:", error);
+      return true;
+    }
+
+    if (!data) return true;
+
+    if (data.status?.toLowerCase() === "banned") {
+      console.warn("⛔ Usuario BANNED → cerrando sesión");
+      await supabase.auth.signOut();
+      return false;
+    }
+
+    return true;
+  }
+
+  // ============================================================
+  // CARGAR ROLES + PERMISOS
+  // ============================================================
+  async function fetchPermsAndRoles(u) {
     try {
+      console.log("[AUTH] Cargando roles/permisos…");
+
       const { data: rData } = await supabase
         .from("user_roles")
         .select("roles(name)")
         .eq("user_id", u.id);
 
-      const roleNames = [...new Set(rData?.map((r) => r.roles?.name))];
-      setRoles(roleNames || []);
+      const roleNames = (rData || []).map((r) => r.roles?.name);
+      setRoles(roleNames);
 
-      // Si es ADMIN → permisos completos
       if (roleNames.includes("admin")) {
-        const { data: allPerms } = await supabase
-          .from("permissions")
-          .select("key");
-
-        setPermissions(allPerms?.map((p) => p.key) || []);
+        const { data: all } = await supabase.from("permissions").select("key");
+        setPermissions(all.map((p) => p.key));
         return;
       }
 
@@ -84,110 +90,118 @@ export function AuthProvider({ children }) {
         .select("permission_key")
         .eq("user_id", u.id);
 
-      setPermissions(pData?.map((r) => r.permission_key) || []);
+      setPermissions((pData || []).map((r) => r.permission_key));
     } catch (e) {
-      console.error("[AUTH] Error roles/permisos:", e);
+      console.error("Error roles/permisos:", e);
     }
   }
 
-  /* ================================
-      CARGA INICIAL DE SESIÓN
-  ================================= */
+  // ============================================================
+  // 🔥 CARGA INICIAL DE SESIÓN — CORREGIDA
+  // ============================================================
   useEffect(() => {
-    let cancelled = false;
+    if (initialized.current) return;
+    initialized.current = true;
 
-    async function loadInitialSession() {
-      try {
-        const {
-          data: { session: s },
-        } = await supabase.auth.getSession();
+    console.log("%c[AUTH] === CARGA INICIAL ===", "color:green");
 
-        if (cancelled) return;
+    supabase.auth.getSession().then(async ({ data }) => {
+      const s = data.session;
 
-        setSession(s);
-        const u = s?.user ?? null;
-        setUser(u);
+      // ⚠ Supabase a veces devuelve session.user=null. NO limpiar aquí.
+      if (s) {
+        if (!s.user) {
+          console.log(
+            "%c[AUTH] Usuario aún no cargado (rehidratación).",
+            "color:gray"
+          );
+        } else {
+          console.log("[AUTH] Usuario inicial:", s.user.email);
 
-        if (u) {
-          const allowed = await checkProfileStatus(u);
+          // Validar BAN
+          const allowed = await validateBan(s.user);
           if (!allowed) {
-            if (!cancelled) setLoading(false);
+            setInitializedSession(true);
             return;
           }
 
-          await fetchPermsAndRoles(u);
+          setSession(s);
+          setUser(s.user);
+          await fetchPermsAndRoles(s.user);
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
-    }
 
-    loadInitialSession();
+      setInitializedSession(true);
+    });
 
-    /* ================================
-        LISTENER DE SESIÓN
-    ================================= */
+    // ============================================================
+    // 🔥 ESCUCHAR EVENTOS DE AUTH
+    // ============================================================
     const { data: listener } = supabase.auth.onAuthStateChange(
-      async (event, currentSession) => {
-        console.log("[AUTH] Evento auth:", event);
+      async (event, s) => {
+        console.log(`%c[AUTH EVENT] ${event}`, "color:orange");
 
-        if (event === "SIGNED_IN") {
-          setLoading(true);
+        const u = s?.user || null;
 
-          const {
-            data: { session: fresh },
-          } = await supabase.auth.getSession();
-
-          if (cancelled) return;
-
-          setSession(fresh);
-          const u = fresh?.user ?? null;
-          setUser(u);
-
-          if (u) {
-            const allowed = await checkProfileStatus(u);
-            if (!allowed) {
-              if (!cancelled) setLoading(false);
-              return;
-            }
-
-            await fetchPermsAndRoles(u);
-          }
-
-          if (!cancelled) setLoading(false);
-          return;
+        // ------------------------------------------------------------
+        // 🔥 CASO REAL de sesión corrupta (session=null + sb-tokens)
+        // ------------------------------------------------------------
+        if (!u && event !== "SIGNED_OUT") {
+          return; // Supabase rehidratará user luego
         }
 
+        // ===============================
+        // LOGOUT
+        // ===============================
         if (event === "SIGNED_OUT") {
-          setSession(null);
+          console.log("[AUTH] Sesión cerrada");
           setUser(null);
+          setSession(null);
           setRoles([]);
           setPermissions([]);
-
+          setLoading(false);
           return;
         }
 
-        if (currentSession) {
-          setSession(currentSession);
-          const u = currentSession?.user ?? null;
+        // ===============================
+        // SIGNED_IN o REFRESH
+        // ===============================
+        if (u) {
+          console.log("[AUTH] Usuario activo:", u.email);
+
+          const allowed = await validateBan(u);
+          if (!allowed) return;
+
+          setSession(s);
           setUser(u);
-
-          if (u) await fetchPermsAndRoles(u);
-
-          setLoading(false);
+          await fetchPermsAndRoles(u);
         }
+
+        setLoading(false);
       }
     );
 
-    return () => {
-      cancelled = true;
-      listener.subscription.unsubscribe();
-    };
+    return () => listener.subscription.unsubscribe();
   }, []);
 
-  /* ================================
-      CONTEXTO MEMOIZADO
-  ================================= */
+  // ============================================================
+  // 🔥 CONTROL FINAL DE LOADING
+  // ============================================================
+  useEffect(() => {
+    // No usuario → listo para redirigir a login
+    if (initializedSession && !user) {
+      setLoading(false);
+      return;
+    }
+
+    if (initializedSession && user && (roles.length > 0 || permissions.length > 0)) {
+      setLoading(false);
+    }
+  }, [initializedSession, user, roles, permissions]);
+
+  // ============================================================
+  // CONTEXTO FINAL
+  // ============================================================
   const value = useMemo(
     () => ({
       session,
@@ -195,10 +209,9 @@ export function AuthProvider({ children }) {
       roles,
       permissions,
       loading,
-      bannedMessage, // 👉 Agregado
-      setBannedMessage,
+      initializedSession,
     }),
-    [session, user, roles, permissions, loading, bannedMessage]
+    [session, user, roles, permissions, loading, initializedSession]
   );
 
   return <authCtx.Provider value={value}>{children}</authCtx.Provider>;

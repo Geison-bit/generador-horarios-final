@@ -7,9 +7,11 @@ import { useAuth } from "./AuthContext";
 export default function Login() {
   const navigate = useNavigate();
   const location = useLocation();
+
+  // Redirección a donde quería entrar antes
   const from = location.state?.from?.pathname || "/";
 
-  const { bannedMessage, setBannedMessage } = useAuth();
+  const { bannedMessage, setBannedMessage, user } = useAuth();
 
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -17,27 +19,23 @@ export default function Login() {
   const [loading, setLoading] = useState(false);
 
   /* ============================================================
-        🔥 Mostrar mensaje si el usuario fue desactivado
+        Mostrar mensaje si el admin desactivó la cuenta
   ============================================================ */
   useEffect(() => {
     if (bannedMessage) {
       setError(bannedMessage);
-      setBannedMessage(""); // limpiar mensaje global
+      setBannedMessage("");
     }
   }, [bannedMessage]);
 
   /* ============================================================
-        Detectar sesión real → redirigir si ya está logueado
+        Si ya hay usuario → NO dejar entrar al login
   ============================================================ */
   useEffect(() => {
-    async function checkSession() {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session?.user) {
-        navigate(from, { replace: true });
-      }
+    if (user) {
+      navigate("/", { replace: true });
     }
-    checkSession();
-  }, []);
+  }, [user]);
 
   /* ============================================================
         LOGIN
@@ -64,11 +62,13 @@ export default function Login() {
       return;
     }
 
-    // ⚠️ Validar si su perfil está desactivado
+    const user = data.user;
+
+    // Verificar BAN
     const { data: profile } = await supabase
       .from("profiles")
       .select("status")
-      .eq("id", data.user.id)
+      .eq("id", user.id)
       .single();
 
     if (profile?.status?.toLowerCase() === "banned") {
@@ -80,7 +80,7 @@ export default function Login() {
       return;
     }
 
-    // 🚀 Login correcto → redirigir
+    // Login correcto
     navigate(from, { replace: true });
   };
 
@@ -89,8 +89,10 @@ export default function Login() {
   ============================================================ */
   return (
     <div className="min-h-screen flex items-center justify-center bg-gray-50 p-4">
-      <form onSubmit={handleSubmit} className="bg-white p-6 rounded-2xl shadow-md w-full max-w-md">
-        
+      <form
+        onSubmit={handleSubmit}
+        className="bg-white p-6 rounded-2xl shadow-md w-full max-w-md"
+      >
         <h1 className="text-2xl font-bold text-center mb-6 text-blue-700">
           Iniciar Sesión
         </h1>
@@ -122,7 +124,6 @@ export default function Login() {
         >
           {loading ? "Ingresando..." : "Ingresar"}
         </button>
-
       </form>
     </div>
   );
