@@ -4,14 +4,17 @@ import { BrowserRouter } from "react-router-dom";
 
 import App from "./App.jsx";
 import { AuthProvider } from "./auth/AuthContext";
-import "./index.css"; // ⬅️ Tailwind global
+import { DocenteProvider } from "./context/DocenteContext";   // ✅ IMPORTANTE
+import "./index.css";
 
 ReactDOM.createRoot(document.getElementById("root")).render(
   <React.StrictMode>
     <AuthProvider>
-      <BrowserRouter>
-        <App />
-      </BrowserRouter>
+      <DocenteProvider>    {/* ✅ ENVOLVER TODO */}
+        <BrowserRouter>
+          <App />
+        </BrowserRouter>
+      </DocenteProvider>
     </AuthProvider>
   </React.StrictMode>
 );

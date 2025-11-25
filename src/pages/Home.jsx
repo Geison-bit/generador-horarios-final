@@ -164,7 +164,7 @@ export default function Home() {
       {/* Grid */}
       <main className="mx-auto max-w-6xl px-6 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          
+
           {can("ui.restric.docente") && (
             <ActionCard
               to={`/restricciones?nivel=${nivelSeleccionado}`}
@@ -275,6 +275,17 @@ export default function Home() {
             />
           )}
 
+          {/* ⭐ NUEVA TARJETA INTEGRADA: CREAR USUARIO */}
+          {can("ui.admin.cuentas") && (
+            <ActionCard
+              to="/admin/cuentas/crear"
+              icon={UserPlus}
+              title="Crear Usuario"
+              desc="Registrar nuevos usuarios en el sistema."
+              accent="from-green-600/10 to-green-600/0"
+            />
+          )}
+
           {can("ui.auditoria") && (
             <ActionCard
               to={`/auditoria?nivel=${nivelSeleccionado}`}
@@ -284,6 +295,7 @@ export default function Home() {
               accent="from-purple-600/10 to-purple-600/0"
             />
           )}
+
         </div>
       </main>
     </div>

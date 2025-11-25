@@ -16,16 +16,22 @@ const RUTAS = [
   { label: "Registrar Aulas", path: "/aulas" },
   { label: "Asignar Materias", path: "/asignacion" },
   { label: "Franjas Horarias", path: "/franjas" },
-  // 👇 Mantén “Restricciones” como disponibilidad del profesor
   { label: "Disponibilidad", path: "/restricciones" },
-  // 👇 Panel de reglas (no reemplaza a “Restricciones”)
   { label: "Panel de restricciones", path: "/restricciones-panel" },
   { label: "Horario General", path: "/horario" },
   { label: "Horario por Docente", path: "/horario-docente" },
-  // ✅ Administración
+
+  // ==========================
+  //       ADMINISTRACIÓN
+  // ==========================
   { label: "Gestión de Docentes", path: "/admin/docentes" },
   { label: "Gestión de Roles", path: "/admin/roles" },
-  // ✅ Nueva: Bitácora
+  { label: "Gestión de Cuentas", path: "/admin/cuentas" },
+
+  // ⭐ NUEVA RUTA INTEGRADA
+  { label: "Crear Usuario", path: "/admin/cuentas/crear" },
+
+  // Auditoría
   { label: "Bitácora", path: "/auditoria" },
 ];
 
@@ -47,7 +53,6 @@ export default function Breadcrumbs() {
     }
   }, [location.search]);
 
-  // Cambiar nivel mantiene la ruta actual
   const onNivelChange = (nuevo) => {
     setNivel(nuevo);
     localStorage.setItem("nivelSeleccionado", nuevo);
@@ -56,13 +61,11 @@ export default function Breadcrumbs() {
     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
-  // Ruta actual (coincidencia por prefix)
   const rutaActual = useMemo(
     () => RUTAS.find((r) => location.pathname.startsWith(r.path)),
     [location.pathname]
   );
 
-  // Breadcrumb items (Inicio > etiqueta)
   const crumbs = useMemo(() => {
     const items = [{ label: "Inicio", path: "/" }];
     if (rutaActual) items.push({ label: rutaActual.label, path: rutaActual.path });
@@ -71,7 +74,6 @@ export default function Breadcrumbs() {
 
   const irA = (path) => {
     const params = new URLSearchParams(location.search);
-    // asegura que el nivel viaje siempre
     params.set("nivel", nivel);
     navigate(`${path}?${params.toString()}`);
   };
@@ -80,8 +82,10 @@ export default function Breadcrumbs() {
     <div className="w-full px-4">
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5">
-          {/* Fila superior: Nivel + Breadcrumb */}
+          
+          {/* Nivel + Breadcrumb */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+            
             {/* Nivel */}
             <div className="inline-flex items-center gap-3">
               <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 p-2 ring-1 ring-blue-200">
@@ -148,7 +152,8 @@ export default function Breadcrumbs() {
                     role="tab"
                     aria-selected={activo}
                     onClick={() => irA(ruta.path)}
-                    className={`snap-start whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600
+                    className={`snap-start whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition shadow-sm 
+                      focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600
                       ${
                         activo
                           ? "border-blue-200 bg-blue-50 text-blue-700"
@@ -161,6 +166,7 @@ export default function Breadcrumbs() {
               })}
             </div>
           </div>
+
         </div>
       </div>
     </div>

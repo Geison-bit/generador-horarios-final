@@ -39,3 +39,9 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
     }
   },
 });
+
+// ⭐ Para permitir ambas formas de importación:
+// import supabase from "../supabaseClient"
+// import { supabase } from "../supabaseClient"
+
+export default supabase;

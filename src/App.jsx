@@ -12,6 +12,7 @@ import DocentesAdmin from "./components/DocentesAdmin";
 import { RolesAdminInner } from "./components/RolesAdmin";
 
 import GestionCuentasPage from "./components/GestiónCuentas";
+import CrearUsuario from "./pages/CrearUsuario";  // ⬅️ NUEVO IMPORT
 import BitacoraAuditoriaPage from "./pages/BitacoraAuditoriaPage";
 
 import ProtectedRoute from "./auth/ProtectedRoute";
@@ -21,11 +22,13 @@ import { Routes, Route, Navigate } from "react-router-dom";
 
 export default function App() {
   return (
-    <div className="min-h-screen bg-gray-50 text-gray-900">  {/* ⬅️ layout base */}
+    <div className="min-h-screen bg-gray-50 text-gray-900"> 
       <Routes>
+
+        {/* LOGIN */}
         <Route path="/login" element={<Login />} />
 
-        {/* Rutas protegidas */}
+        {/* HOME protegido */}
         <Route
           path="/"
           element={
@@ -35,6 +38,7 @@ export default function App() {
           }
         />
 
+        {/* DOCENTES */}
         <Route
           path="/docentes"
           element={
@@ -44,6 +48,7 @@ export default function App() {
           }
         />
 
+        {/* FRANJAS HORARIAS */}
         <Route
           path="/franjas"
           element={
@@ -53,6 +58,7 @@ export default function App() {
           }
         />
 
+        {/* ASIGNACIÓN DOCENTES */}
         <Route
           path="/asignacion"
           element={
@@ -62,6 +68,7 @@ export default function App() {
           }
         />
 
+        {/* RESTRICCIONES */}
         <Route
           path="/restricciones"
           element={
@@ -80,6 +87,7 @@ export default function App() {
           }
         />
 
+        {/* HORARIO GENERAL */}
         <Route
           path="/horario"
           element={
@@ -89,6 +97,7 @@ export default function App() {
           }
         />
 
+        {/* HORARIO POR DOCENTE */}
         <Route
           path="/horario-docente"
           element={
@@ -98,6 +107,7 @@ export default function App() {
           }
         />
 
+        {/* AULAS */}
         <Route
           path="/aulas"
           element={
@@ -107,7 +117,7 @@ export default function App() {
           }
         />
 
-        {/* Admin */}
+        {/* ADMIN: DOCENTES */}
         <Route
           path="/admin/docentes"
           element={
@@ -117,6 +127,7 @@ export default function App() {
           }
         />
 
+        {/* ADMIN: ROLES */}
         <Route
           path="/admin/roles"
           element={
@@ -126,6 +137,7 @@ export default function App() {
           }
         />
 
+        {/* ADMIN: CUENTAS */}
         <Route
           path="/admin/cuentas"
           element={
@@ -135,6 +147,17 @@ export default function App() {
           }
         />
 
+        {/* 🔥 NUEVA RUTA: CREAR USUARIO */}
+        <Route
+          path="/admin/cuentas/crear"
+          element={
+            <ProtectedRoute need={["user.read"]}>
+              <CrearUsuario />
+            </ProtectedRoute>
+          }
+        />
+
+        {/* AUDITORÍA */}
         <Route
           path="/auditoria"
           element={
@@ -144,8 +167,9 @@ export default function App() {
           }
         />
 
-        {/* 404 */}
+        {/* NOT FOUND */}
         <Route path="*" element={<Navigate to="/" replace />} />
+
       </Routes>
     </div>
   );
