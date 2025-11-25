@@ -19,13 +19,12 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [roles, setRoles] = useState([]);
   const [permissions, setPermissions] = useState([]);
+  const [rolesLoaded, setRolesLoaded] = useState(false); // sabemos que ya intentamos cargar roles/permisos
   const [loading, setLoading] = useState(true);
 
-  // ============================================================
-  // 🔥 LIMPIEZA REAL del cache (solo si hay sesión corrupta)
-  // ============================================================
+  // Limpieza de cache (solo si se detecta sesion corrupta)
   async function resetSupabaseCache() {
-    console.warn("%c[AUTH] Cache corrupto detectado → limpiando", "color:red");
+    console.warn("%c[AUTH] Cache corrupto -> limpiando", "color:red");
     try {
       Object.keys(localStorage)
         .filter((k) => k.startsWith("sb-"))
@@ -38,9 +37,7 @@ export function AuthProvider({ children }) {
     }
   }
 
-  // ============================================================
-  // 🔥 VALIDAR BAN
-  // ============================================================
+  // Validar si el usuario esta baneado
   async function validateBan(u) {
     const { data, error } = await supabase
       .from("profiles")
@@ -56,7 +53,7 @@ export function AuthProvider({ children }) {
     if (!data) return true;
 
     if (data.status?.toLowerCase() === "banned") {
-      console.warn("⛔ Usuario BANNED → cerrando sesión");
+      console.warn("\u26d4 Usuario BANNED -> cerrando sesion");
       await supabase.auth.signOut();
       return false;
     }
@@ -64,9 +61,7 @@ export function AuthProvider({ children }) {
     return true;
   }
 
-  // ============================================================
-  // CARGAR ROLES + PERMISOS
-  // ============================================================
+  // Cargar roles y permisos
   async function fetchPermsAndRoles(u) {
     try {
       console.log("[AUTH] Cargando roles/permisos…");
@@ -81,7 +76,7 @@ export function AuthProvider({ children }) {
 
       if (roleNames.includes("admin")) {
         const { data: all } = await supabase.from("permissions").select("key");
-        setPermissions(all.map((p) => p.key));
+        setPermissions((all || []).map((p) => p.key));
         return;
       }
 
@@ -93,87 +88,93 @@ export function AuthProvider({ children }) {
       setPermissions((pData || []).map((r) => r.permission_key));
     } catch (e) {
       console.error("Error roles/permisos:", e);
+      setPermissions([]);
+      setRoles((prev) => prev || []);
+    } finally {
+      setRolesLoaded(true);
     }
   }
 
-  // ============================================================
-  // 🔥 CARGA INICIAL DE SESIÓN — CORREGIDA
-  // ============================================================
+  // Carga inicial de sesion
   useEffect(() => {
     if (initialized.current) return;
     initialized.current = true;
 
     console.log("%c[AUTH] === CARGA INICIAL ===", "color:green");
 
-    supabase.auth.getSession().then(async ({ data }) => {
-      const s = data.session;
+    supabase.auth
+      .getSession()
+      .then(async ({ data }) => {
+        const s = data.session;
 
-      // ⚠ Supabase a veces devuelve session.user=null. NO limpiar aquí.
-      if (s) {
-        if (!s.user) {
-          console.log(
-            "%c[AUTH] Usuario aún no cargado (rehidratación).",
-            "color:gray"
-          );
-        } else {
-          console.log("[AUTH] Usuario inicial:", s.user.email);
+        // Supabase puede rehidratar user luego
+        if (s) {
+          if (!s.user) {
+            console.log(
+              "%c[AUTH] Usuario aun no cargado (rehidratacion).",
+              "color:gray"
+            );
+          } else {
+            console.log("[AUTH] Usuario inicial:", s.user.email);
 
-          // Validar BAN
-          const allowed = await validateBan(s.user);
-          if (!allowed) {
-            setInitializedSession(true);
-            return;
+            const allowed = await validateBan(s.user);
+            if (!allowed) {
+              setInitializedSession(true);
+              setLoading(false);
+              return;
+            }
+
+            setSession(s);
+            setUser(s.user);
+            setRolesLoaded(false);
+            await fetchPermsAndRoles(s.user);
           }
-
-          setSession(s);
-          setUser(s.user);
-          await fetchPermsAndRoles(s.user);
         }
-      }
 
-      setInitializedSession(true);
-    });
+        setInitializedSession(true);
+      })
+      .catch((err) => {
+        console.error("[AUTH] getSession error:", err);
+        setInitializedSession(true);
+        setLoading(false);
+      });
 
-    // ============================================================
-    // 🔥 ESCUCHAR EVENTOS DE AUTH
-    // ============================================================
+    // Escuchar eventos de auth
     const { data: listener } = supabase.auth.onAuthStateChange(
       async (event, s) => {
         console.log(`%c[AUTH EVENT] ${event}`, "color:orange");
 
         const u = s?.user || null;
 
-        // ------------------------------------------------------------
-        // 🔥 CASO REAL de sesión corrupta (session=null + sb-tokens)
-        // ------------------------------------------------------------
+        // Caso de sesion corrupta: dejar que Supabase la rehidrate
         if (!u && event !== "SIGNED_OUT") {
-          return; // Supabase rehidratará user luego
+          return;
         }
 
-        // ===============================
-        // LOGOUT
-        // ===============================
         if (event === "SIGNED_OUT") {
-          console.log("[AUTH] Sesión cerrada");
+          console.log("[AUTH] Sesion cerrada");
           setUser(null);
           setSession(null);
           setRoles([]);
           setPermissions([]);
+          setRolesLoaded(true);
           setLoading(false);
           return;
         }
 
-        // ===============================
-        // SIGNED_IN o REFRESH
-        // ===============================
         if (u) {
           console.log("[AUTH] Usuario activo:", u.email);
 
           const allowed = await validateBan(u);
-          if (!allowed) return;
+          if (!allowed) {
+            setRolesLoaded(true);
+            setLoading(false);
+            return;
+          }
 
           setSession(s);
           setUser(u);
+          setRolesLoaded(false);
           await fetchPermsAndRoles(u);
         }
 
@@ -184,24 +185,19 @@ export function AuthProvider({ children }) {
     return () => listener.subscription.unsubscribe();
   }, []);
 
-  // ============================================================
-  // 🔥 CONTROL FINAL DE LOADING
-  // ============================================================
+  // Control final de loading
   useEffect(() => {
-    // No usuario → listo para redirigir a login
+    // Sin usuario -> listo para redirigir a login
     if (initializedSession && !user) {
       setLoading(false);
       return;
     }
 
-    if (initializedSession && user && (roles.length > 0 || permissions.length > 0)) {
+    if (initializedSession && user && rolesLoaded) {
       setLoading(false);
     }
-  }, [initializedSession, user, roles, permissions]);
+  }, [initializedSession, user, rolesLoaded]);
 
-  // ============================================================
-  // CONTEXTO FINAL
-  // ============================================================
   const value = useMemo(
     () => ({
       session,
