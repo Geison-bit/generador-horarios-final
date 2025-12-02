@@ -7,13 +7,14 @@ import { withAudit } from "../services/auditService";
 import { Clock8, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
 
 const LastEditPill = ({ edit }) => {
-  const email = edit?.actor_email || "unknown";
+  const actor =
+    edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
     <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
       <History className="w-4 h-4" />
       <span>
-        <span className="text-slate-600">Last edit:</span> <b>{email}</b> · {fecha}
+        <span className="text-slate-600">Última edición:</span> <b>{actor}</b> · {fecha}
       </span>
     </div>
   );
@@ -27,27 +28,30 @@ const sumarMinutos = (horaStr, minutos) => {
   return fecha.toTimeString().slice(0, 5);
 };
 
-// --- helper local: busca último audit priorizando @gmail.com, luego cualquier email real, luego fallback
-const fetchUltimaEdicionPreferGmail = async (tableName) => {
+// --- helper: busca último audit y resuelve nombre desde view_user_accounts
+const fetchUltimaEdicionConNombre = async (tableName) => {
+  const resolveNombre = async (email) => {
+    if (!email) return null;
+    const { data } = await supabase
+      .from("view_user_accounts")
+      .select("full_name")
+      .eq("email", email)
+      .limit(1);
+    return data?.[0]?.full_name || null;
+  };
+
   const prefer = await supabase
     .from("audit_logs")
     .select("actor_email, created_at, operation")
     .eq("table_name", tableName)
     .neq("actor_email", "unknown")
-    .ilike("actor_email", "%@gmail.com")
     .order("created_at", { ascending: false })
     .limit(1);
-  if (!prefer.error && prefer.data?.length) return prefer.data[0];
-
-  const anyReal = await supabase
-    .from("audit_logs")
-    .select("actor_email, created_at, operation")
-    .eq("table_name", tableName)
-    .neq("actor_email", "unknown")
-    .ilike("actor_email", "%@%")
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (!anyReal.error && anyReal.data?.length) return anyReal.data[0];
+  if (!prefer.error && prefer.data?.length) {
+    const entrada = prefer.data[0];
+    const nombre = await resolveNombre(entrada.actor_email);
+    return nombre ? { ...entrada, actor_name: nombre } : entrada;
+  }
 
   const fallback = await supabase
     .from("audit_logs")
@@ -55,7 +59,13 @@ const fetchUltimaEdicionPreferGmail = async (tableName) => {
     .eq("table_name", tableName)
     .order("created_at", { ascending: false })
     .limit(1);
-  return !fallback.error && fallback.data?.length ? fallback.data[0] : null;
+  if (!fallback.error && fallback.data?.length) {
+    const entrada = fallback.data[0];
+    const nombre = await resolveNombre(entrada.actor_email);
+    return nombre ? { ...entrada, actor_name: nombre } : entrada;
+  }
+
+  return null;
 };
 
 export default function FranjasHorariasForm() {
@@ -101,7 +111,7 @@ export default function FranjasHorariasForm() {
   // ---------- Auditoría (como AulasForm, pero con preferencia @gmail.com) ----------
   useEffect(() => {
     (async () => {
-      const last = await fetchUltimaEdicionPreferGmail("franjas_horarias");
+      const last = await fetchUltimaEdicionConNombre("franjas_horarias");
       setUltimaEdicion(last);
     })();
   }, [nivel, bloques.length]);
@@ -113,7 +123,7 @@ export default function FranjasHorariasForm() {
         "postgres_changes",
         { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.franjas_horarias" },
         async () => {
-          const last = await fetchUltimaEdicionPreferGmail("franjas_horarias");
+          const last = await fetchUltimaEdicionConNombre("franjas_horarias");
           setUltimaEdicion(last);
         }
       )

@@ -6,6 +6,7 @@ import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { useDocentes } from "../context/DocenteContext";
+import { useAuth } from "../auth/AuthContext";
 
 import { supabase } from "../supabaseClient";
 import { Download, FileSpreadsheet, Printer, User } from "lucide-react";
@@ -18,15 +19,18 @@ export default function HorarioPorDocente() {
 
   // 1) Intentamos usar docentes del Context
   const { docentes } = useDocentes();
+  const { user, roles } = useAuth();
+  const isAdmin = Array.isArray(roles) && roles.includes("admin");
 
   // 2) Fallback local si el Context viene vacío: traemos solo ACTIVOS del nivel actual
   const [docentesLocal, setDocentesLocal] = useState([]);
+  const [docenteVinculado, setDocenteVinculado] = useState(null); // docente vinculado al usuario actual
   useEffect(() => {
     if (!docentes || docentes.length === 0) {
       (async () => {
         const { data, error } = await supabase
           .from("docentes")
-          .select("id, nombre, apellido, nivel, activo")
+          .select("id, nombre, apellido, nivel, activo, user_id")
           .eq("nivel", nivel)
           .eq("activo", true)
           .order("apellido", { ascending: true });
@@ -37,7 +41,7 @@ export default function HorarioPorDocente() {
     }
   }, [nivel, docentes]);
 
-  const fuenteDocentes = (docentes && docentes.length > 0) ? docentes : docentesLocal;
+  const fuenteDocentes = docentes && docentes.length > 0 ? docentes : docentesLocal;
 
   // Aseguramos: nivel y solo activos (si el context no filtra ya)
   const docentesFiltrados = useMemo(
@@ -46,10 +50,6 @@ export default function HorarioPorDocente() {
   );
 
   const [docenteId, setDocenteId] = useState("");
-  const docenteNombre = useMemo(
-    () => docentesFiltrados.find((d) => d.id === Number(docenteId))?.nombre || "",
-    [docentesFiltrados, docenteId]
-  );
 
   const [franjas, setFranjas] = useState([]);               // [{bloque, hora_inicio, hora_fin}]
   const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
@@ -59,6 +59,36 @@ export default function HorarioPorDocente() {
   const [loading, setLoading] = useState(false);
 
   const tablaRef = useRef(null);
+
+  // Vincular docente al usuario (cuando no es admin)
+  useEffect(() => {
+    if (!user || isAdmin) return;
+    (async () => {
+      const { data, error } = await supabase
+        .from("docentes")
+        .select("id, nombre, apellido, nivel, activo")
+        .eq("user_id", user.id)
+        .eq("nivel", nivel)
+        .limit(1);
+      if (!error && data && data.length) {
+        const d = data[0];
+        setDocenteVinculado(d);
+        setDocenteId(d.id.toString());
+      }
+    })();
+  }, [user, isAdmin, nivel]);
+
+  // Lista final segun rol
+  const listaDocentes = useMemo(() => {
+    if (isAdmin) return docentesFiltrados;
+    if (docenteVinculado) return [docenteVinculado];
+    return [];
+  }, [isAdmin, docentesFiltrados, docenteVinculado]);
+
+  const docenteNombre = useMemo(
+    () => listaDocentes.find((d) => d.id === Number(docenteId))?.nombre || "",
+    [listaDocentes, docenteId]
+  );
 
   // ------- Cargas iniciales -------
   useEffect(() => {
@@ -197,18 +227,25 @@ export default function HorarioPorDocente() {
       </h2>
 
       {/* Selector de docente (solo activos del nivel) */}
-      <select
-        value={docenteId}
-        onChange={(e) => setDocenteId(e.target.value)}
-        className="border rounded px-3 py-2 mb-4 w-full max-w-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
-      >
-        <option value="">-- Seleccione un docente --</option>
-        {docentesFiltrados.map((d) => (
-          <option key={d.id} value={d.id}>
-            {d.nombre}
-          </option>
-        ))}
-      </select>
+      {isAdmin ? (
+        <select
+          value={docenteId}
+          onChange={(e) => setDocenteId(e.target.value)}
+          className="border rounded px-3 py-2 mb-4 w-full max-w-xl focus:outline-none focus:ring-2 focus:ring-blue-600"
+        >
+          <option value="">-- Seleccione un docente --</option>
+          {listaDocentes.map((d) => (
+            <option key={d.id} value={d.id}>
+              {d.nombre}
+            </option>
+          ))}
+        </select>
+      ) : (
+        <div className="mb-4 text-sm text-slate-700">
+          <div className="font-semibold">Docente:</div>
+          <div>{docenteNombre || "Sin docente vinculado"}</div>
+        </div>
+      )}
 
       {docenteId && (
         <>

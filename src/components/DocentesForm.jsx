@@ -17,18 +17,20 @@ const IconoEliminar = () => (
   </svg>
 );
 
-// --- Mini pill "Last edit" ---
+// --- Mini pill "Última edición" ---
 const LastEditPill = ({ edit }) => {
-  const email = edit?.actor_email || "unknown";
-  const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
-  return (
-    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
-      <Clock3 className="w-4 h-4" />
-      <span>
-        <span className="text-gray-600">Last edit:</span> <b>{email}</b> · {fecha}
-      </span>
-    </div>
-  );
+  const actorName =
+    edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
+  const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
+  return (
+    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
+      <Clock3 className="w-4 h-4" />
+      <span>
+        <span className="text-gray-600">Última edición:</span>{" "}
+        <b>{actorName}</b> · {fecha}
+      </span>
+    </div>
+  );
 };
 
 // --- Modal con autocomplete (excluye los ya vinculados) ---
@@ -345,20 +347,33 @@ const DocentesForm = () => {
   };
 
   // --- Auditoría: última edición ---
-  useEffect(() => {
-  	const fetchUltimaEdicion = async () => {
-  	  const { data, error } = await supabase
-  		.from("audit_logs")
-  		.select("actor_email, created_at, table_name, operation")
-  		.in("table_name", ["docentes", "docente_curso"])
-  		.order("created_at", { ascending: false })
-  		.limit(1);
+useEffect(() => {
+	const fetchUltimaEdicion = async () => {
+	  const { data, error } = await supabase
+		.from("audit_logs")
+		.select("actor_email, created_at, table_name, operation")
+		.in("table_name", ["docentes", "docente_curso"])
+		.order("created_at", { ascending: false })
+		.limit(1);
 
-  	  if (!error && data?.length) setUltimaEdicion(data[0]);
-  	  else setUltimaEdicion(null);
-  	};
-  	fetchUltimaEdicion();
-  }, [nivelURL, docentes.length]);
+	  if (!error && data?.length) {
+		let registro = data[0];
+		if (registro.actor_email) {
+		  const { data: udata } = await supabase
+			.from("view_user_accounts")
+			.select("full_name")
+			.eq("email", registro.actor_email)
+			.limit(1);
+		  if (udata && udata[0]?.full_name) {
+			registro = { ...registro, actor_name: udata[0].full_name };
+		  }
+		}
+		setUltimaEdicion(registro);
+	  }
+	  else setUltimaEdicion(null);
+	};
+	fetchUltimaEdicion();
+}, [nivelURL, docentes.length]);
 
   // Realtime opcional para el badge
   useEffect(() => {
@@ -373,18 +388,31 @@ const DocentesForm = () => {
   		  filter: "table_name=in.(docentes,docente_curso)",
   		},
   		() => {
-  		  (async () => {
-  			const { data } = await supabase
-  			  .from("audit_logs")
-  			  .select("actor_email, created_at, table_name, operation")
-  			  .in("table_name", ["docentes", "docente_curso"])
-  			  .order("created_at", { ascending: false })
-  			  .limit(1);
-  			if (data?.length) setUltimaEdicion(data[0]);
-  		  })();
-  		}
-  	  )
-  	  .subscribe();
+		  (async () => {
+			const { data } = await supabase
+			  .from("audit_logs")
+			  .select("actor_email, created_at, table_name, operation")
+			  .in("table_name", ["docentes", "docente_curso"])
+			  .order("created_at", { ascending: false })
+			  .limit(1);
+			if (data?.length) {
+			  let registro = data[0];
+			  if (registro.actor_email) {
+				const { data: udata } = await supabase
+				  .from("view_user_accounts")
+				  .select("full_name")
+				  .eq("email", registro.actor_email)
+				  .limit(1);
+				if (udata && udata[0]?.full_name) {
+				  registro = { ...registro, actor_name: udata[0].full_name };
+				}
+			  }
+			  setUltimaEdicion(registro);
+			}
+		  })();
+		}
+	  )
+	  .subscribe();
 
   	return () => {
   	  try { supabase.removeChannel(channel); } catch {}

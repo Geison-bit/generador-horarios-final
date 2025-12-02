@@ -10,13 +10,20 @@ export default function BitacoraAuditoriaPage() {
 
   async function loadLogs() {
     setLoading(true);
-    const { data, error } = await supabase
-      .from("audit_logs")
-      .select("actor_email, operation, table_name, created_at")
-      .order("created_at", { ascending: false })
-      .limit(200);
 
-    if (!error) setRows(data || []);
+    // 🟢 AQUÍ USAMOS LA VISTA LIMPIA
+    const { data, error } = await supabase
+      .from("v_audit_logs_human")
+      .select("actor_name, operacion_es, entidad_es, created_at")
+      .order("created_at", { ascending: false })
+      .limit(100);
+
+    if (!error) {
+      setRows(data || []);
+    } else {
+      console.error("Error cargando auditoría:", error);
+    }
+
     setLoading(false);
   }
 
@@ -26,7 +33,6 @@ export default function BitacoraAuditoriaPage() {
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
-      {/* Breadcrumbs con chips de navegación y selector de nivel */}
       <Breadcrumbs />
 
       {/* Encabezado */}
@@ -34,6 +40,7 @@ export default function BitacoraAuditoriaPage() {
         <h2 className="text-xl md:text-2xl font-semibold text-slate-800">
           Bitácora de Auditoría
         </h2>
+
         <button
           onClick={loadLogs}
           disabled={loading}
@@ -61,6 +68,7 @@ export default function BitacoraAuditoriaPage() {
               <th className="border-b border-slate-200 px-4 py-3">Fecha</th>
             </tr>
           </thead>
+
           <tbody>
             {loading ? (
               <tr>
@@ -77,15 +85,22 @@ export default function BitacoraAuditoriaPage() {
             ) : (
               rows.map((r, i) => (
                 <tr key={`${r.created_at}-${i}`} className="hover:bg-slate-50">
+                  {/* 🟢 Nombre */}
                   <td className="border-b border-slate-200 px-4 py-2">
-                    {r.actor_email || "unknown"}
+                    {r.actor_name || "Desconocido"}
                   </td>
+
+                  {/* 🟢 Acción */}
                   <td className="border-b border-slate-200 px-4 py-2">
-                    {r.operation}
+                    {r.operacion_es}
                   </td>
+
+                  {/* 🟢 Entidad */}
                   <td className="border-b border-slate-200 px-4 py-2">
-                    {r.table_name}
+                    {r.entidad_es}
                   </td>
+
+                  {/* 🟢 Fecha */}
                   <td className="border-b border-slate-200 px-4 py-2">
                     {new Date(r.created_at).toLocaleString()}
                   </td>
@@ -93,6 +108,7 @@ export default function BitacoraAuditoriaPage() {
               ))
             )}
           </tbody>
+
         </table>
       </div>
     </div>

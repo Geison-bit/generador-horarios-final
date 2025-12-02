@@ -11,7 +11,6 @@ import ProtectedRoute from "../auth/ProtectedRoute";
  *  Componente principal
  *  ========================= */
 function GestionCuentasInner() {
-  const [showModal, setShowModal] = useState(false);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -79,18 +78,38 @@ function GestionCuentasInner() {
     }
   }
 
+  /** =========================
+   *  EDITAR NOMBRE DEL PERFIL
+   *  ========================= */
+  async function editarNombre(user) {
+    const nuevoNombre = window.prompt(
+      "Ingresa el nombre completo para este usuario:",
+      user?.nombreCompleto || ""
+    );
+    if (!nuevoNombre || !user?.id) return;
+
+    try {
+      const { error } = await supabase
+        .from("profiles")
+        .update({ full_name: nuevoNombre.trim() })
+        .eq("id", user.id);
+
+      if (error) throw error;
+      alert("Nombre actualizado");
+      loadUsers();
+    } catch (err) {
+      console.error(err);
+      alert("Error al actualizar nombre: " + (err?.message || err));
+    }
+  }
+
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
       <div className="flex justify-between items-center my-4">
         <h1 className="text-2xl font-semibold">Gestión de Cuentas de Usuario</h1>
-        <button
-          onClick={() => setShowModal(true)}
-          className="px-4 py-2 bg-blue-600 text-white rounded-lg shadow hover:bg-blue-700 transition-colors"
-        >
-          Crear Nuevo Usuario
-        </button>
+        {/* Botón de crear usuario removido a pedido */}
       </div>
 
       {loading ? (
@@ -149,6 +168,12 @@ function GestionCuentasInner() {
                           Activar
                         </button>
                       )}
+                      <button
+                        onClick={() => editarNombre(user)}
+                        className="ml-2 px-2 py-1 bg-gray-200 text-gray-800 rounded-lg text-xs hover:bg-gray-300"
+                      >
+                        Editar
+                      </button>
                     </td>
                   </tr>
                 );
@@ -169,13 +194,6 @@ function GestionCuentasInner() {
         </div>
       )}
 
-      {showModal && (
-        <CrearUsuarioModal
-          onClose={() => setShowModal(false)}
-          onSuccess={handleUserCreated}
-          session={session}
-        />
-      )}
     </div>
   );
 }
@@ -269,6 +287,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
   const canSubmit =
     formData.email.trim() !== "" &&
     formData.password.trim() !== "" &&
+    formData.full_name.trim() !== "" &&
     formData.roleName.trim() !== "" &&
     !loading;
 
@@ -304,10 +323,11 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
           <input
             type="text"
             name="full_name"
-            placeholder="Nombre Completo (opcional)"
+            placeholder="Nombre Completo"
             className="w-full px-3 py-2 border rounded-lg"
             value={formData.full_name}
             onChange={handleChange}
+            required
           />
 
           <h3 className="text-sm font-medium text-gray-600">Rol del Sistema</h3>

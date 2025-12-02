@@ -17,6 +17,7 @@ export default function Home() {
 
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
   const [email, setEmail] = useState(null);
+  const [fullName, setFullName] = useState(null);
   const [role, setRole] = useState(null);
   const [loadingRole, setLoadingRole] = useState(true);
 
@@ -39,6 +40,19 @@ export default function Home() {
       }
 
       setEmail(user.email || null);
+      // Nombre desde metadata o perfil
+      let nombre = user.user_metadata?.full_name || "";
+      try {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("full_name")
+          .eq("id", user.id)
+          .single();
+        if (profile?.full_name) nombre = profile.full_name;
+      } catch {
+        // ignorar errores de lectura de perfil
+      }
+      setFullName(nombre || user.email || "");
 
       // rol inicial desde metadata
       let resolvedRole =
@@ -122,11 +136,13 @@ export default function Home() {
             <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
               <UserIcon className="w-4 h-4 text-slate-700" />
               <span className="text-sm font-semibold capitalize text-slate-800">
-                {role}
+                {fullName || "Usuario"}
               </span>
               <span className="text-slate-300">·</span>
               <AtSign className="w-4 h-4 text-slate-700" />
-              <span className="text-sm text-slate-700">{email || "—"}</span>
+              <span className="text-sm text-slate-700">
+                {role ? `Rol: ${role}` : "Sin rol"}
+              </span>
             </div>
 
             <button

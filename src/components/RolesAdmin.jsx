@@ -1,4 +1,4 @@
-/* --- RolesAdmin.jsx (FULL FIXED & IMPROVED) --- */
+/* --- RolesAdmin.jsx (usuarios completos) --- */
 
 import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
@@ -24,7 +24,7 @@ export function RolesAdminInner() {
   const nivelURL = params.get("nivel") || "Secundaria";
 
   const [roles, setRoles] = useState([]);
-  const [docentes, setDocentes] = useState([]);
+  const [usuarios, setUsuarios] = useState([]);
   const [asignaciones, setAsignaciones] = useState([]);
   const [q, setQ] = useState("");
   const [openRoleForm, setOpenRoleForm] = useState(false);
@@ -37,7 +37,7 @@ export function RolesAdminInner() {
   const loadAll = async () => {
     setLoading(true);
 
-    const [{ data: rolesRaw }, { data: docentesRaw }, { data: asignRaw }] =
+    const [{ data: rolesRaw }, { data: usuariosRaw }, { data: asignRaw }] =
       await Promise.all([
         supabase
           .from("roles")
@@ -45,12 +45,11 @@ export function RolesAdminInner() {
           .order("name", { ascending: true }),
 
         supabase
-          .from("docentes")
-          .select("id,nombre,apellido,nivel,activo")
-          .eq("nivel", nivelURL)
-          .order("apellido", { ascending: true }),
+          .from("view_user_accounts")
+          .select("user_id, full_name, status")
+          .order("full_name", { ascending: true }),
 
-        supabase.from("docente_roles").select("docente_id, role_id"),
+        supabase.from("user_roles").select("user_id, role_id"),
       ]);
 
     setRoles(
@@ -61,12 +60,11 @@ export function RolesAdminInner() {
       }))
     );
 
-    setDocentes(
-      (docentesRaw || []).map((d) => ({
-        id: d.id,
-        nombre: d.nombre,
-        apellido: d.apellido,
-        activo: d.activo ?? true,
+    setUsuarios(
+      (usuariosRaw || []).map((u) => ({
+        id: u.user_id,
+        nombreCompleto: u.full_name || "Sin Perfil",
+        activo: (u.status || "").toLowerCase() === "active",
       }))
     );
 
@@ -79,66 +77,64 @@ export function RolesAdminInner() {
   }, [nivelURL]);
 
   // ================== FILTROS ==================
-  const docentesFiltrados = useMemo(() => {
-    let base = docentes;
+  const usuariosFiltrados = useMemo(() => {
+    let base = usuarios;
     const s = q.trim().toLowerCase();
     if (soloActivos) base = base.filter((x) => x.activo);
     if (!s) return base;
 
-    return base.filter((d) =>
-      `${d.apellido} ${d.nombre}`.toLowerCase().includes(s)
+    return base.filter((u) =>
+      (u.nombreCompleto || "").toLowerCase().includes(s)
     );
-  }, [docentes, q, soloActivos]);
+  }, [usuarios, q, soloActivos]);
 
   // ================== TOGGLE ROLE ==================
-  const hasRole = (docenteId, roleId) =>
-    asignaciones.some(
-      (a) => a.docente_id === docenteId && a.role_id === roleId
-    );
+  const hasRole = (userId, roleId) =>
+    asignaciones.some((a) => a.user_id === userId && a.role_id === roleId);
 
-  const toggle = async (docenteId, roleId) => {
+  const toggle = async (userId, roleId) => {
     try {
-      if (hasRole(docenteId, roleId)) {
+      if (hasRole(userId, roleId)) {
         await withAudit(
           async () => {
             await supabase
-              .from("docente_roles")
+              .from("user_roles")
               .delete()
-              .match({ docente_id: docenteId, role_id: roleId });
+              .match({ user_id: userId, role_id: roleId });
           },
           {
-            action: "teacher_role_remove",
-            entity: "docente_roles",
-            details: { docente_id: docenteId, role_id: roleId },
+            action: "user_role_remove",
+            entity: "user_roles",
+            details: { user_id: userId, role_id: roleId },
           }
         );
 
         setAsignaciones((prev) =>
           prev.filter(
-            (a) => !(a.docente_id === docenteId && a.role_id === roleId)
+            (a) => !(a.user_id === userId && a.role_id === roleId)
           )
         );
       } else {
         await withAudit(
           async () => {
             await supabase
-              .from("docente_roles")
-              .insert({ docente_id: docenteId, role_id: roleId });
+              .from("user_roles")
+              .insert({ user_id: userId, role_id: roleId });
           },
           {
-            action: "teacher_role_add",
-            entity: "docente_roles",
-            details: { docente_id: docenteId, role_id: roleId },
+            action: "user_role_add",
+            entity: "user_roles",
+            details: { user_id: userId, role_id: roleId },
           }
         );
 
         setAsignaciones((prev) => [
           ...prev,
-          { docente_id: docenteId, role_id: roleId },
+          { user_id: userId, role_id: roleId },
         ]);
       }
     } catch (e) {
-      alert("❌ Error al actualizar rol: " + e.message);
+      alert("⚠️ Error al actualizar rol: " + e.message);
     }
   };
 
@@ -160,7 +156,7 @@ export function RolesAdminInner() {
       await supabase.from("roles").delete().eq("id", r.id);
       await loadAll();
     } catch (e) {
-      alert("❌ No se pudo eliminar: " + e.message);
+      alert("⚠️ No se pudo eliminar: " + e.message);
     }
   };
 
@@ -189,7 +185,7 @@ export function RolesAdminInner() {
       setOpenRoleForm(false);
       await loadAll();
     } catch (e) {
-      alert("❌ Error guardando rol: " + e.message);
+      alert("⚠️ Error guardando rol: " + e.message);
     }
   };
 
@@ -267,7 +263,7 @@ export function RolesAdminInner() {
             <div className="p-3 border-b flex justify-between gap-3">
               <div className="flex items-center gap-3">
                 <h2 className="font-medium">
-                  Asignación de roles a docentes
+                  Asignación de roles a usuarios
                 </h2>
                 <label className="flex items-center gap-2 text-sm">
                   <input
@@ -283,7 +279,7 @@ export function RolesAdminInner() {
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
                 className="px-3 py-2 border rounded-xl"
-                placeholder="Buscar docente…"
+                placeholder="Buscar usuario…"
               />
             </div>
 
@@ -291,7 +287,7 @@ export function RolesAdminInner() {
               <table className="min-w-full text-sm">
                 <thead className="bg-gray-50">
                   <tr>
-                    <th className="px-3 py-2 text-left">Docente</th>
+                    <th className="px-3 py-2 text-left">Usuario</th>
                     {roles.map((r) => (
                       <th key={r.id} className="px-3 py-2 text-center">
                         {r.nombre}
@@ -301,21 +297,21 @@ export function RolesAdminInner() {
                 </thead>
 
                 <tbody>
-                  {docentesFiltrados.map((d) => (
-                    <tr key={d.id} className="border-t">
+                  {usuariosFiltrados.map((u) => (
+                    <tr key={u.id} className="border-t">
                       <td className="px-3 py-2">
-                        {d.apellido} {d.nombre}
+                        {u.nombreCompleto}
                       </td>
 
                       {roles.map((r) => {
-                        const on = hasRole(d.id, r.id);
+                        const on = hasRole(u.id, r.id);
                         return (
                           <td
-                            key={`${d.id}-${r.id}`}
+                            key={`${u.id}-${r.id}`}
                             className="px-3 py-2 text-center"
                           >
                             <button
-                              onClick={() => toggle(d.id, r.id)}
+                              onClick={() => toggle(u.id, r.id)}
                               className={`px-2 py-1 rounded-lg ${
                                 on
                                   ? "bg-green-100 text-green-700"

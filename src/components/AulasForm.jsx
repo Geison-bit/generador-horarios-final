@@ -205,9 +205,19 @@ export default function AulasForm() {
     }
   }
 
-  // --- Auditoría: “Last edit” (prefiere email válido) ---
+  // --- Auditoría: “Última edición” (prefiere nombre) ---
   useEffect(() => {
     const fetchUltima = async () => {
+      const resolveNombre = async (email) => {
+        if (!email) return null;
+        const { data } = await supabase
+          .from("view_user_accounts")
+          .select("full_name")
+          .eq("email", email)
+          .limit(1);
+        return data?.[0]?.full_name || null;
+      };
+
       // 1) último con email real
       const prefer = await supabase
         .from("audit_logs")
@@ -218,7 +228,9 @@ export default function AulasForm() {
         .limit(1);
 
       if (!prefer.error && prefer.data?.length) {
-        setUltimaEdicion(prefer.data[0]);
+        const entrada = prefer.data[0];
+        const nombre = await resolveNombre(entrada.actor_email);
+        setUltimaEdicion(nombre ? { ...entrada, actor_name: nombre } : entrada);
         return;
       }
       // 2) fallback
@@ -229,8 +241,11 @@ export default function AulasForm() {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (!fallback.error && fallback.data?.length) setUltimaEdicion(fallback.data[0]);
-      else setUltimaEdicion(null);
+      if (!fallback.error && fallback.data?.length) {
+        const entrada = fallback.data[0];
+        const nombre = await resolveNombre(entrada.actor_email);
+        setUltimaEdicion(nombre ? { ...entrada, actor_name: nombre } : entrada);
+      } else setUltimaEdicion(null);
     };
     fetchUltima();
   }, [nivel, aulas.length]);
@@ -249,7 +264,21 @@ export default function AulasForm() {
             .eq("table_name", "aulas")
             .order("created_at", { ascending: false })
             .limit(1);
-          if (data?.length) setUltimaEdicion(data[0]);
+          if (data?.length) {
+            const entrada = data[0];
+            if (entrada.actor_email) {
+              const { data: udata } = await supabase
+                .from("view_user_accounts")
+                .select("full_name")
+                .eq("email", entrada.actor_email)
+                .limit(1);
+              if (udata?.[0]?.full_name) {
+                setUltimaEdicion({ ...entrada, actor_name: udata[0].full_name });
+                return;
+              }
+            }
+            setUltimaEdicion(entrada);
+          }
         }
       )
       .subscribe();
@@ -275,8 +304,9 @@ export default function AulasForm() {
         <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
           <Clock3 className="size-4" />
           <span>
-            <span className="text-gray-600">Last edit:</span>{" "}
-            <b>{ultimaEdicion?.actor_email || "unknown"}</b> ·{" "}
+            <span className="text-gray-600">Última edición:</span>{" "}
+            <b>{ultimaEdicion?.actor_name || ultimaEdicion?.actor_email || "Desconocido"}</b>{" "}
+            ·{" "}
             {ultimaEdicion?.created_at ? new Date(ultimaEdicion.created_at).toLocaleString() : "—"}
           </span>
         </div>

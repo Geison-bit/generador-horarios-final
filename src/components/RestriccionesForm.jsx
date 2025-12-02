@@ -43,27 +43,30 @@ const getDiaIndexFromStr = (diaStr) => {
   return normList.indexOf(n);
 };
 
-// --- helper local: último audit priorizando @gmail.com, luego cualquier email real, luego fallback
-const fetchUltimaEdicionPreferGmail = async (tableName) => {
+// --- helper local: último audit y resolver nombre
+const fetchUltimaEdicionConNombre = async (tableName) => {
+  const resolveNombre = async (email) => {
+    if (!email) return null;
+    const { data } = await supabase
+      .from("view_user_accounts")
+      .select("full_name")
+      .eq("email", email)
+      .limit(1);
+    return data?.[0]?.full_name || null;
+  };
+
   const prefer = await supabase
     .from("audit_logs")
     .select("actor_email, created_at, operation")
     .eq("table_name", tableName)
     .neq("actor_email", "unknown")
-    .ilike("actor_email", "%@gmail.com")
     .order("created_at", { ascending: false })
     .limit(1);
-  if (!prefer.error && prefer.data?.length) return prefer.data[0];
-
-  const anyReal = await supabase
-    .from("audit_logs")
-    .select("actor_email, created_at, operation")
-    .eq("table_name", tableName)
-    .neq("actor_email", "unknown")
-    .ilike("actor_email", "%@%")
-    .order("created_at", { ascending: false })
-    .limit(1);
-  if (!anyReal.error && anyReal.data?.length) return anyReal.data[0];
+  if (!prefer.error && prefer.data?.length) {
+    const entrada = prefer.data[0];
+    const nombre = await resolveNombre(entrada.actor_email);
+    return nombre ? { ...entrada, actor_name: nombre } : entrada;
+  }
 
   const fallback = await supabase
     .from("audit_logs")
@@ -71,18 +74,24 @@ const fetchUltimaEdicionPreferGmail = async (tableName) => {
     .eq("table_name", tableName)
     .order("created_at", { ascending: false })
     .limit(1);
-  return !fallback.error && fallback.data?.length ? fallback.data[0] : null;
+  if (!fallback.error && fallback.data?.length) {
+    const entrada = fallback.data[0];
+    const nombre = await resolveNombre(entrada.actor_email);
+    return nombre ? { ...entrada, actor_name: nombre } : entrada;
+  }
+  return null;
 };
 
-// Pill Last edit
+// Pill Última edición
 const LastEditPill = ({ edit }) => {
-  const email = edit?.actor_email || "unknown";
+  const actor =
+    edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
     <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
       <History className="w-4 h-4" />
       <span>
-        <span className="text-slate-600">Last edit:</span> <b>{email}</b> · {fecha}
+        <span className="text-slate-600">Última edición:</span> <b>{actor}</b> · {fecha}
       </span>
     </div>
   );
@@ -355,13 +364,13 @@ const RestriccionesForm = () => {
       : new Date(1970, 0, 1, 13, 30);
   }, [bloquesHorario]);
 
-  // --------- Auditoría ---------
-  useEffect(() => {
-    (async () => {
-      const last = await fetchUltimaEdicionPreferGmail("restricciones_docente");
+// --------- Auditoría ---------
+useEffect(() => {
+  (async () => {
+      const last = await fetchUltimaEdicionConNombre("restricciones_docente");
       setUltimaEdicion(last);
-    })();
-  }, [nivelURL, docenteSeleccionado, eventos.length]);
+  })();
+}, [nivelURL, docenteSeleccionado, eventos.length]);
 
   useEffect(() => {
     const ch = supabase
@@ -375,7 +384,7 @@ const RestriccionesForm = () => {
           filter: "table_name=eq.restricciones_docente",
         },
         async () => {
-          const last = await fetchUltimaEdicionPreferGmail("restricciones_docente");
+          const last = await fetchUltimaEdicionConNombre("restricciones_docente");
           setUltimaEdicion(last);
         }
       )

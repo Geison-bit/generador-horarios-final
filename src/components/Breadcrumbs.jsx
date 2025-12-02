@@ -2,45 +2,50 @@
 import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ChevronRight, GraduationCap } from "lucide-react";
+import { useAuth } from "../auth/AuthContext"; // 👈 IMPORTANTE
 
 /**
- * Breadcrumbs.jsx — Barra de navegación contextual mejorada
- * - Persiste ?nivel= (también en localStorage)
- * - Breadcrumb accesible + chips de navegación
- * - Mantiene el nivel al cambiar de ruta
+ * Breadcrumbs.jsx — Barra de navegación contextual
+ * Ahora filtra módulos según permisos y roles.
  */
 
-// 🔹 Catálogo de rutas visibles como chips
+// 🔹 Catálogo de rutas con permisos
 const RUTAS = [
-  { label: "Registrar Docentes", path: "/docentes" },
-  { label: "Registrar Aulas", path: "/aulas" },
-  { label: "Asignar Materias", path: "/asignacion" },
-  { label: "Franjas Horarias", path: "/franjas" },
-  { label: "Disponibilidad", path: "/restricciones" },
-  { label: "Panel de restricciones", path: "/restricciones-panel" },
-  { label: "Horario General", path: "/horario" },
-  { label: "Horario por Docente", path: "/horario-docente" },
+  { label: "Registrar Docentes", path: "/docentes", perm: "ui.docentes" },
+  { label: "Registrar Aulas", path: "/aulas", perm: "ui.aulas" },
+  { label: "Asignar Materias", path: "/asignacion", perm: "ui.asignacion" },
+  { label: "Franjas Horarias", path: "/franjas", perm: "ui.franjas" },
+  { label: "Disponibilidad", path: "/restricciones", perm: "ui.disponibilidad" },
+  { label: "Panel de restricciones", path: "/restricciones-panel", perm: "ui.restric.panel" },
+  { label: "Horario General", path: "/horario", perm: "ui.horario.general" },
+  { label: "Horario por Docente", path: "/horario-docente", perm: "ui.horario.docente" },
 
   // ==========================
   //       ADMINISTRACIÓN
   // ==========================
-  { label: "Gestión de Docentes", path: "/admin/docentes" },
-  { label: "Gestión de Roles", path: "/admin/roles" },
-  { label: "Gestión de Cuentas", path: "/admin/cuentas" },
+  { label: "Gestión de Docentes", path: "/admin/docentes", perm: "ui.admin.docentes" },
+  { label: "Gestión de Roles", path: "/admin/roles", perm: "ui.admin.roles" },
+  { label: "Gestión de Cuentas", path: "/admin/cuentas", perm: "ui.admin.cuentas" },
 
   // ⭐ NUEVA RUTA INTEGRADA
-  { label: "Crear Usuario", path: "/admin/cuentas/crear" },
+  { label: "Crear Usuario", path: "/admin/cuentas/crear", perm: "ui.admin.cuentas" },
 
   // Auditoría
-  { label: "Bitácora", path: "/auditoria" },
+  { label: "Bitácora", path: "/auditoria", perm: "ui.auditoria" },
 ];
 
 export default function Breadcrumbs() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ----- Nivel seleccionado: URL -> localStorage -> fallback -----
+  // 👀 Extraemos permisos y roles
+  const { permissions = [], roles = [] } = useAuth();
+  const isAdmin = roles.includes("admin");
+  const perms = new Set(permissions);
+
+  // ----- Nivel seleccionado: URL -> localStorage -----
   const [nivel, setNivel] = useState("Primaria");
+
   useEffect(() => {
     const params = new URLSearchParams(location.search);
     const qNivel = params.get("nivel");
@@ -61,10 +66,18 @@ export default function Breadcrumbs() {
     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
-  const rutaActual = useMemo(
-    () => RUTAS.find((r) => location.pathname.startsWith(r.path)),
-    [location.pathname]
-  );
+  // 🟢 FILTRA rutas según permisos
+  const rutasFiltradas = useMemo(() => {
+    if (isAdmin) return RUTAS;
+    return RUTAS.filter((r) => !r.perm || perms.has(r.perm));
+  }, [permissions, isAdmin]);
+
+  // 🟢 Detecta ruta actual, pero solo si pertenece a rutas permitidas
+  const rutaActual = useMemo(() => {
+    return rutasFiltradas.find((r) =>
+      location.pathname.startsWith(r.path)
+    );
+  }, [location.pathname, rutasFiltradas]);
 
   const crumbs = useMemo(() => {
     const items = [{ label: "Inicio", path: "/" }];
@@ -130,21 +143,28 @@ export default function Breadcrumbs() {
             </nav>
           </div>
 
-          {/* Navegación rápida (chips) */}
+          {/* Módulos permitidos */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
-              <span className="text-xs uppercase tracking-wide text-slate-500">Módulos</span>
-              <button onClick={() => irA("/")} className="text-xs font-medium text-blue-700 hover:underline">
+              <span className="text-xs uppercase tracking-wide text-slate-500">
+                Módulos
+              </span>
+
+              <button
+                onClick={() => irA("/")}
+                className="text-xs font-medium text-blue-700 hover:underline"
+              >
                 Ir al inicio
               </button>
             </div>
 
+            {/* Chips filtrados */}
             <div
               className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory"
               role="tablist"
               aria-label="Navegación de módulos"
             >
-              {RUTAS.map((ruta) => {
+              {rutasFiltradas.map((ruta) => {
                 const activo = location.pathname.startsWith(ruta.path);
                 return (
                   <button

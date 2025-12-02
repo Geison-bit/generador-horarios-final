@@ -7,6 +7,7 @@ export default function CrearUsuario() {
   const [form, setForm] = useState({
     email: "",
     password: "",
+    full_name: "",
   });
 
   const handleChange = (e) =>
@@ -21,6 +22,7 @@ export default function CrearUsuario() {
       setForm({
         email: "",
         password: "",
+        full_name: "",
       });
     } catch (err) {
       console.error(err);
@@ -38,6 +40,18 @@ export default function CrearUsuario() {
         <h2 className="text-2xl font-bold mb-6">Crear nuevo usuario</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          <label className="block">
+            Nombre completo
+            <input
+              name="full_name"
+              type="text"
+              value={form.full_name}
+              onChange={handleChange}
+              className="input w-full border p-2 rounded mt-1"
+              required
+            />
+          </label>
 
           <label className="block">
             Email
