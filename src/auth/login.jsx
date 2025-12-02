@@ -89,40 +89,7 @@ export default function Login() {
 
       <div className="grid w-full max-w-6xl gap-8 lg:grid-cols-5">
 
-        {/* PANEL IZQUIERDO 🔵 INSTITUCIONAL */}
-        <div className="lg:col-span-3 bg-white rounded-3xl shadow-xl p-10 border border-slate-200">
-          <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 border-blue-200">
-            Generador de horarios escolares
-          </div>
-
-          <h1 className="mt-4 text-3xl font-black text-slate-900 leading-tight">
-            Organiza docentes, aulas y restricciones sin caos.
-          </h1>
-
-          <p className="mt-3 text-slate-600 max-w-xl">
-            Esta plataforma usa modelos de optimización y reglas de negocio para
-            construir horarios claros y equilibrados. Inicia sesión para
-            continuar donde lo dejaste.
-          </p>
-
-          <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-semibold text-slate-800">Control total</p>
-              <p className="text-sm text-slate-600 mt-1">
-                Administra disponibilidad docente, aulas y permisos desde un solo lugar.
-              </p>
-            </div>
-
-            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
-              <p className="font-semibold text-slate-800">Horarios precisos</p>
-              <p className="text-sm text-slate-600 mt-1">
-                Genera propuestas con MiniZinc y revisa versionado por nivel.
-              </p>
-            </div>
-          </div>
-        </div>
-
-        {/* FORMULARIO DERECHO */}
+        {/* 1️⃣ FORMULARIO IZQUIERDO */}
         <div className="lg:col-span-2">
           <form
             onSubmit={handleSubmit}
@@ -184,8 +151,41 @@ export default function Login() {
             </p>
           </form>
         </div>
+
+        {/* 2️⃣ PANEL INSTITUCIONAL DERECHA */}
+        <div className="lg:col-span-3 bg-white rounded-3xl shadow-xl p-10 border border-slate-200">
+          <div className="inline-flex items-center gap-2 rounded-full border px-3 py-1 text-xs font-semibold uppercase tracking-wide text-blue-600 bg-blue-50 border-blue-200">
+            Generador de horarios escolares
+          </div>
+
+          <h1 className="mt-4 text-3xl font-black text-slate-900 leading-tight">
+            Organiza docentes, aulas y restricciones sin caos.
+          </h1>
+
+          <p className="mt-3 text-slate-600 max-w-xl">
+            Esta plataforma usa modelos de optimización y reglas de negocio para
+            construir horarios claros y equilibrados. Inicia sesión para
+            continuar donde lo dejaste.
+          </p>
+
+          <div className="mt-6 grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold text-slate-800">Control total</p>
+              <p className="text-sm text-slate-600 mt-1">
+                Administra disponibilidad docente, aulas y permisos desde un solo lugar.
+              </p>
+            </div>
+
+            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
+              <p className="font-semibold text-slate-800">Horarios precisos</p>
+              <p className="text-sm text-slate-600 mt-1">
+                Genera propuestas con MiniZinc y revisa versionado por nivel.
+              </p>
+            </div>
+          </div>
+        </div>
+
       </div>
     </div>
   );
 }
-
