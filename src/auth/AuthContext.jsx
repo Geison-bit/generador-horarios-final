@@ -21,6 +21,7 @@ export function AuthProvider({ children }) {
   const [permissions, setPermissions] = useState([]);
   const [rolesLoaded, setRolesLoaded] = useState(false); // sabemos que ya intentamos cargar roles/permisos
   const [loading, setLoading] = useState(true);
+  const [bannedMessage, setBannedMessage] = useState("");
 
   // Limpieza de cache (solo si se detecta sesion corrupta)
   async function resetSupabaseCache() {
@@ -54,6 +55,9 @@ export function AuthProvider({ children }) {
 
     if (data.status?.toLowerCase() === "banned") {
       console.warn("\u26d4 Usuario BANNED -> cerrando sesion");
+      setBannedMessage(
+        "Tu cuenta fue bloqueada por un administrador. Si crees que es un error, contacta al colegio."
+      );
       await supabase.auth.signOut();
       return false;
     }
@@ -206,8 +210,10 @@ export function AuthProvider({ children }) {
       permissions,
       loading,
       initializedSession,
+      bannedMessage,
+      setBannedMessage,
     }),
-    [session, user, roles, permissions, loading, initializedSession]
+    [session, user, roles, permissions, loading, initializedSession, bannedMessage]
   );
 
   return <authCtx.Provider value={value}>{children}</authCtx.Provider>;

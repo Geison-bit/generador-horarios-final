@@ -1,6 +1,7 @@
 // --- GUARDAR COMO: src/components/GestionCuentas.jsx ---
 import React, { useState, useEffect } from "react";
 import { supabase } from "../supabaseClient";
+import { withAudit, logAudit } from "../services/auditService";
 import Breadcrumbs from "./Breadcrumbs";
 import { useAuth } from "../auth/AuthContext";
 
@@ -24,13 +25,14 @@ function GestionCuentasInner() {
     try {
       const { data, error } = await supabase
         .from("view_user_accounts")
-        .select("user_id, full_name, status, role_name");
+        .select("user_id, full_name, status, role_name, email");
 
       if (error) throw error;
 
       const mapped = (data ?? []).map((u) => ({
         id: u.user_id,
         nombreCompleto: u.full_name || "Sin Perfil",
+        email: u.email || "",
         rol: u.role_name || "Sin rol",
         estado: u.status || "Indefinido",
       }));
@@ -58,12 +60,21 @@ function GestionCuentasInner() {
    *  ========================= */
   async function toggleUserStatus(userId, newStatus) {
     try {
-      const { error } = await supabase
-        .from("profiles")
-        .update({ status: newStatus })
-        .eq("id", userId);
+      const { ok, error } = await withAudit(
+        () =>
+          supabase
+            .from("profiles")
+            .update({ status: newStatus })
+            .eq("id", userId),
+        {
+          action: "update",
+          entity: "profiles",
+          entityId: userId,
+          details: { status: newStatus },
+        }
+      );
 
-      if (error) throw error;
+      if (!ok) throw error || new Error("No se pudo actualizar el estado");
 
       alert(
         `Usuario ${
@@ -79,27 +90,53 @@ function GestionCuentasInner() {
   }
 
   /** =========================
-   *  EDITAR NOMBRE DEL PERFIL
+   *  EDITAR NOMBRE Y CORREO DEL PERFIL
    *  ========================= */
-  async function editarNombre(user) {
+  async function editarUsuario(user) {
+    if (!user?.id) return;
+
     const nuevoNombre = window.prompt(
       "Ingresa el nombre completo para este usuario:",
       user?.nombreCompleto || ""
     );
-    if (!nuevoNombre || !user?.id) return;
+    if (nuevoNombre === null) return;
+
+    const nuevoCorreo = window.prompt(
+      "Ingresa el correo electrónico para este usuario:",
+      user?.email || ""
+    );
+    if (nuevoCorreo === null) return;
+
+    const nombreLimpio = nuevoNombre.trim();
+    const correoLimpio = nuevoCorreo.trim();
+    if (!nombreLimpio) {
+      alert("El nombre no puede estar vacío.");
+      return;
+    }
+    if (!correoLimpio || !correoLimpio.includes("@")) {
+      alert("Ingresa un correo electrónico válido.");
+      return;
+    }
 
     try {
       const { error } = await supabase
         .from("profiles")
-        .update({ full_name: nuevoNombre.trim() })
+        .update({ full_name: nombreLimpio, email: correoLimpio })
         .eq("id", user.id);
 
+      await logAudit({
+        action: "update",
+        entity: "profiles",
+        entityId: user.id,
+        details: { full_name: nombreLimpio, email: correoLimpio },
+      });
+
       if (error) throw error;
-      alert("Nombre actualizado");
+      alert("Perfil actualizado");
       loadUsers();
     } catch (err) {
       console.error(err);
-      alert("Error al actualizar nombre: " + (err?.message || err));
+      alert("Error al actualizar perfil: " + (err?.message || err));
     }
   }
 
@@ -120,6 +157,7 @@ function GestionCuentasInner() {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-3 py-2 text-left">Nombre (Perfil)</th>
+                <th className="px-3 py-2 text-left">Correo</th>
                 <th className="px-3 py-2 text-left">Rol de Sistema</th>
                 <th className="px-3 py-2 text-left">Estado</th>
                 <th className="px-3 py-2 text-left">Acciones</th>
@@ -133,6 +171,8 @@ function GestionCuentasInner() {
                 return (
                   <tr key={user.id} className="border-t">
                     <td className="px-3 py-2">{user.nombreCompleto}</td>
+
+                    <td className="px-3 py-2">{user.email}</td>
 
                     <td className="px-3 py-2">
                       <span className="px-2 py-0.5 bg-gray-200 text-gray-800 rounded-full text-xs">
@@ -169,7 +209,7 @@ function GestionCuentasInner() {
                         </button>
                       )}
                       <button
-                        onClick={() => editarNombre(user)}
+                        onClick={() => editarUsuario(user)}
                         className="ml-2 px-2 py-1 bg-gray-200 text-gray-800 rounded-md sm:rounded-lg text-xs hover:bg-gray-300"
                       >
                         Editar
@@ -275,6 +315,16 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
       if (!res.ok) throw new Error(out?.error || "Error en Edge Function");
 
       alert("¡Usuario creado exitosamente!");
+      await logAudit({
+        action: "create",
+        entity: "user_accounts",
+        entityId: out?.user?.id ?? null,
+        details: {
+          email: payload.email,
+          role: payload.roleName,
+          docenteId: payload.docenteId || null,
+        },
+      });
       onSuccess();
     } catch (err) {
       console.error("Error al crear usuario:", err);
