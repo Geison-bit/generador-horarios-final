@@ -108,7 +108,7 @@ function GestionCuentasInner() {
       <Breadcrumbs />
 
       <div className="flex justify-between items-center my-4">
-        <h1 className="text-2xl font-semibold">Gestión de Cuentas de Usuario</h1>
+        <h1 className="text-xl sm:text-2xl font-semibold">Gestión de Cuentas de Usuario</h1>
         {/* Botón de crear usuario removido a pedido */}
       </div>
 
@@ -156,21 +156,21 @@ function GestionCuentasInner() {
                       {activo ? (
                         <button
                           onClick={() => toggleUserStatus(user.id, "banned")}
-                          className="px-2 py-1 bg-red-500 text-white rounded-lg text-xs"
+                          className="px-2 py-1 bg-red-500 text-white rounded-md sm:rounded-lg text-xs"
                         >
                           Desactivar
                         </button>
                       ) : (
                         <button
                           onClick={() => toggleUserStatus(user.id, "active")}
-                          className="px-2 py-1 bg-green-500 text-white rounded-lg text-xs"
+                          className="px-2 py-1 bg-green-500 text-white rounded-md sm:rounded-lg text-xs"
                         >
                           Activar
                         </button>
                       )}
                       <button
                         onClick={() => editarNombre(user)}
-                        className="ml-2 px-2 py-1 bg-gray-200 text-gray-800 rounded-lg text-xs hover:bg-gray-300"
+                        className="ml-2 px-2 py-1 bg-gray-200 text-gray-800 rounded-md sm:rounded-lg text-xs hover:bg-gray-300"
                       >
                         Editar
                       </button>
@@ -183,7 +183,7 @@ function GestionCuentasInner() {
                 <tr className="border-t">
                   <td
                     colSpan={4}
-                    className="px-3 py-4 text-center text-gray-500"
+                    className="px-3 py-2 sm:py-1.5 sm:py-2.5 lg:py-3 lg:py-4 text-center text-gray-500"
                   >
                     No se encontraron perfiles de usuario.
                   </td>
@@ -293,8 +293,8 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white p-6 rounded-lg shadow-xl w-full max-w-md space-y-4">
-        <h2 className="text-xl font-semibold">Crear Nuevo Usuario</h2>
+      <div className="bg-white p-6 rounded-md sm:rounded-lg shadow-xl w-full max-w-md space-y-4">
+        <h2 className="text-lg sm:text-xl font-semibold">Crear Nuevo Usuario</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <input
@@ -302,7 +302,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
             name="email"
             placeholder="Correo electrónico"
             required
-            className="w-full px-3 py-2 border rounded-lg"
+            className="w-full px-3 py-2 border rounded-md sm:rounded-lg"
             value={formData.email}
             onChange={handleChange}
           />
@@ -312,7 +312,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
             name="password"
             placeholder="Contraseña (temporal)"
             required
-            className="w-full px-3 py-2 border rounded-lg"
+            className="w-full px-3 py-2 border rounded-md sm:rounded-lg"
             value={formData.password}
             onChange={handleChange}
           />
@@ -324,7 +324,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
             type="text"
             name="full_name"
             placeholder="Nombre Completo"
-            className="w-full px-3 py-2 border rounded-lg"
+            className="w-full px-3 py-2 border rounded-md sm:rounded-lg"
             value={formData.full_name}
             onChange={handleChange}
             required
@@ -334,7 +334,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
           <select
             name="roleName"
             required
-            className="w-full px-3 py-2 border rounded-lg bg-white"
+            className="w-full px-3 py-2 border rounded-md sm:rounded-lg bg-white"
             value={formData.roleName}
             onChange={handleChange}
           >
@@ -350,7 +350,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
             type="text"
             name="docenteId"
             placeholder="ID de Docente (opcional)"
-            className="w-full px-3 py-2 border rounded-lg"
+            className="w-full px-3 py-2 border rounded-md sm:rounded-lg"
             value={formData.docenteId}
             onChange={handleChange}
           />
@@ -364,7 +364,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
               type="button"
               onClick={onClose}
               disabled={loading}
-              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-lg hover:bg-gray-300"
+              className="px-4 py-2 bg-gray-200 text-gray-800 rounded-md sm:rounded-lg hover:bg-gray-300"
             >
               Cancelar
             </button>
@@ -372,7 +372,7 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
             <button
               type="submit"
               disabled={!canSubmit}
-              className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 disabled:bg-blue-300"
+              className="px-4 py-2 bg-blue-600 text-white rounded-md sm:rounded-lg hover:bg-blue-700 disabled:bg-blue-300"
             >
               {loading ? "Creando..." : "Crear Usuario"}
             </button>
@@ -382,3 +382,4 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
     </div>
   );
 }
+

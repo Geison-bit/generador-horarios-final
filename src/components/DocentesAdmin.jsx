@@ -163,8 +163,8 @@ export default function DocentesAdmin() {
       <Breadcrumbs />
 
       <div className="flex items-center justify-between mb-4 mt-4">
-        <h1 className="text-2xl font-semibold">Gestión de Docentes ({nivelURL})</h1>
-        <button onClick={onNew} className="px-3 py-2 rounded-xl bg-blue-600 text-white hover:opacity-90">
+        <h1 className="text-xl sm:text-2xl font-semibold">Gestión de Docentes ({nivelURL})</h1>
+        <button onClick={onNew} className="px-3 py-2 rounded-lg sm:rounded-xl bg-blue-600 text-white hover:opacity-90">
           Nuevo Docente
         </button>
       </div>
@@ -174,7 +174,7 @@ export default function DocentesAdmin() {
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Buscar por apellidos, nombres, especialidades o aula…"
-          className="w-full px-3 py-2 border rounded-xl"
+          className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
         />
       </div>
 
@@ -204,14 +204,14 @@ export default function DocentesAdmin() {
                 <td className="px-3 py-2 text-center">
                   <button
                     onClick={() => toggleActivo(r)}
-                    className={`px-2 py-1 rounded-lg ${r.activo ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}
+                    className={`px-2 py-1 rounded-md sm:rounded-lg ${r.activo ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}
                     title="Activar/Desactivar"
                   >
                     {r.activo ? "Sí" : "No"}
                   </button>
                 </td>
                 <td className="px-3 py-2 text-right">
-                  <button onClick={() => onEdit(r)} className="px-2 py-1 rounded-lg bg-amber-500 text-white">
+                  <button onClick={() => onEdit(r)} className="px-2 py-1 rounded-md sm:rounded-lg bg-amber-500 text-white">
                     Editar
                   </button>
                 </td>
@@ -232,13 +232,13 @@ export default function DocentesAdmin() {
       {openForm && (
         <div className="fixed inset-0 bg-black/30 flex items-center justify-center p-4">
           <form onSubmit={onSave} className="bg-white rounded-2xl p-4 w-full max-w-2xl shadow-xl">
-            <h2 className="text-xl font-semibold mb-3">{form.id ? "Editar docente" : "Nuevo docente"}</h2>
+            <h2 className="text-lg sm:text-xl font-semibold mb-3">{form.id ? "Editar docente" : "Nuevo docente"}</h2>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
                 <label className="text-sm">Apellido</label>
                 <input
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.apellido}
                   onChange={(e) => setForm((f) => ({ ...f, apellido: e.target.value }))}
                   required
@@ -247,7 +247,7 @@ export default function DocentesAdmin() {
               <div>
                 <label className="text-sm">Nombre</label>
                 <input
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.nombre}
                   onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
                   required
@@ -256,7 +256,7 @@ export default function DocentesAdmin() {
               <div>
                 <label className="text-sm">Tipo</label>
                 <select
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.tipo_profesor}
                   onChange={(e) => setForm((f) => ({ ...f, tipo_profesor: e.target.value }))}
                 >
@@ -269,7 +269,7 @@ export default function DocentesAdmin() {
                 <input
                   type="number"
                   min="0"
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.jornada_total}
                   onChange={(e) => setForm((f) => ({ ...f, jornada_total: e.target.value }))}
                 />
@@ -277,7 +277,7 @@ export default function DocentesAdmin() {
               <div>
                 <label className="text-sm">Aula</label>
                 <select
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.aula_id || ""}
                   onChange={(e) => setForm((f) => ({ ...f, aula_id: e.target.value ? Number(e.target.value) : null }))}
                 >
@@ -292,7 +292,7 @@ export default function DocentesAdmin() {
               <div>
                 <label className="text-sm">Nivel</label>
                 <select
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.nivel}
                   onChange={(e) => setForm((f) => ({ ...f, nivel: e.target.value }))}
                 >
@@ -303,7 +303,7 @@ export default function DocentesAdmin() {
               <div className="md:col-span-2">
                 <label className="text-sm">Especialidades (opcional, separadas por coma)</label>
                 <input
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                   value={form.especialidades}
                   onChange={(e) => setForm((f) => ({ ...f, especialidades: e.target.value }))}
                 />
@@ -322,10 +322,10 @@ export default function DocentesAdmin() {
             </div>
 
             <div className="mt-4 flex justify-end gap-2">
-              <button type="button" onClick={() => setOpenForm(false)} className="px-3 py-2 rounded-xl border">
+              <button type="button" onClick={() => setOpenForm(false)} className="px-3 py-2 rounded-lg sm:rounded-xl border">
                 Cancelar
               </button>
-              <button disabled={loading} className="px-3 py-2 rounded-xl bg-blue-600 text-white">
+              <button disabled={loading} className="px-3 py-2 rounded-lg sm:rounded-xl bg-blue-600 text-white">
                 {loading ? "Guardando..." : "Guardar"}
               </button>
             </div>
@@ -335,3 +335,4 @@ export default function DocentesAdmin() {
     </div>
   );
 }
+

@@ -70,8 +70,8 @@ function VincularCuentaModal({ open, onClose, onConfirm, docente }) {
 
   return (
     <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4">
-      <div className="w-full max-w-md rounded-xl bg-white shadow-lg border">
-        <div className="px-4 py-3 border-b">
+      <div className="w-full max-w-md rounded-lg sm:rounded-xl bg-white shadow-lg border">
+        <div className="px-4 py-1.5 sm:py-2.5 lg:py-3 border-b">
           <h3 className="font-semibold">Vincular cuenta</h3>
           <p className="text-sm text-gray-600">
             Docente: <b>{docente?.nombre} {docente?.apellido}</b>
@@ -425,8 +425,8 @@ useEffect(() => {
 
   	  {/* ➜ más espacio debajo del menú/breadcrumbs */}
   	  <div className="mt-6 md:mt-8 flex items-center justify-between">
-  		<h2 className="text-2xl font-bold flex items-center gap-2">
-  		  <span className="inline-flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
+  		<h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
+  		  <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
   			<UserPlus className="h-5 w-5" aria-hidden="true" />
   		  </span>
   		  <span>Registrar Docente — {nivelURL}</span>
@@ -436,7 +436,7 @@ useEffect(() => {
 
   	  {/* Formulario */}
   	  <form
-  		className="mt-4 bg-white p-4 rounded-lg border shadow-sm mb-6 flex flex-wrap gap-4 items-start"
+  		className="mt-4 bg-white p-4 rounded-md sm:rounded-lg border shadow-sm mb-6 flex flex-wrap gap-4 items-start"
   		onSubmit={handleSubmit}
   	  >
   		{["nombre", "apellido"].map((field) => (
@@ -539,7 +539,7 @@ useEffect(() => {
   		<div className="flex items-end gap-2 pt-6">
   		  <button
   			type="submit"
-  			className={`${modoEdicion ? "bg-yellow-500 hover:bg-yellow-600" : "bg-blue-600 hover:bg-blue-700"} text-white px-4 py-2 rounded-md font-semibold`}
+  			className={`${modoEdicion ? "bg-yellow-500 hover:bg-yellow-full sm:w-600" : "bg-blue-600 hover:bg-blue-700"} text-white px-4 py-2 rounded-md font-semibold`}
   		  >
   			{modoEdicion ? "Guardar Cambios" : "Agregar Docente"}
   		  </button>
@@ -556,14 +556,14 @@ useEffect(() => {
   		<table className="w-full text-sm border-collapse">
   		  <thead className="bg-gray-100 text-left">
   			<tr>
-  			  <th className="border-b px-4 py-3">Nombre</th>
-  			  <th className="border-b px-4 py-3">Apellido</th>
-  			  <th className="border-b px-4 py-3">Tipo</th>
-  			  <th className="border-b px-4 py-3 text-center">Horas</th>
-  			  <th className="border-b px-4 py-3">Aula</th>
-  			  <th className="border-b px-4 py-3">Especialidades</th>
-  			  <th className="border-b px-4 py-3">Cuenta vinculada</th>
-  			  <th className="border-b px-4 py-3 text-center">Acciones</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Nombre</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Apellido</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Tipo</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Horas</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Aula</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Especialidades</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Cuenta vinculada</th>
+  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
   			</tr>
   		  </thead>
   		  <tbody>
@@ -637,3 +637,4 @@ useEffect(() => {
 };
 
 export default DocentesForm;
+

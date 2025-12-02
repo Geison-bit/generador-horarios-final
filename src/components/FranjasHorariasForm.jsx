@@ -235,17 +235,17 @@ export default function FranjasHorariasForm() {
   const headerActionsDisabled = useMemo(() => saving || cargando || !canWrite, [saving, cargando, canWrite]);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
       <Breadcrumbs />
 
       {/* Header sticky */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
-        <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
+        <div className="px-4 md:px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2.5 lg:py-3 max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <Clock8 className="size-6 text-blue-700" />
               <div>
-                <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
+                <h1 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800 leading-tight">
                   Configuración de Bloques Horarios
                 </h1>
                 <div className="mt-1">
@@ -261,7 +261,7 @@ export default function FranjasHorariasForm() {
               <LastEditPill edit={ultimaEdicion} />
               <button
                 onClick={guardarConfiguracion}
-                className="inline-flex items-center gap-2 rounded-lg px-4 py-2 text-white shadow-sm disabled:opacity-60
+                className="inline-flex items-center gap-2 rounded-md sm:rounded-lg px-4 py-2 text-white shadow-sm disabled:opacity-60
                            bg-emerald-600 hover:bg-emerald-700"
                 disabled={headerActionsDisabled}
                 title={!canWrite ? "Sin permiso para editar" : "Guardar"}
@@ -278,7 +278,7 @@ export default function FranjasHorariasForm() {
         Define los bloques de Lunes a Viernes para el nivel {nivel}. La hora de fin se calcula automáticamente a los <b>45 min</b> del inicio.
       </p>
 
-      <section className="bg-white rounded-xl border border-slate-200 shadow-sm mb-6 overflow-hidden">
+      <section className="bg-white rounded-lg sm:rounded-xl border border-slate-200 shadow-sm mb-6 overflow-hidden">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Clock8 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Bloques configurados</h3>
@@ -288,10 +288,10 @@ export default function FranjasHorariasForm() {
           <table className="w-full text-sm">
             <thead className="bg-slate-50 text-left text-slate-700">
               <tr>
-                <th className="px-4 py-3 font-medium border-b border-slate-200">Bloque</th>
-                <th className="px-4 py-3 font-medium border-b border-slate-200">Hora de inicio</th>
-                <th className="px-4 py-3 font-medium border-b border-slate-200">Hora de fin (automático)</th>
-                <th className="px-4 py-3 font-medium border-b border-slate-200 text-center">Acción</th>
+                <th className="px-4 py-1.5 sm:py-2.5 lg:py-3 font-medium border-b border-slate-200">Bloque</th>
+                <th className="px-4 py-1.5 sm:py-2.5 lg:py-3 font-medium border-b border-slate-200">Hora de inicio</th>
+                <th className="px-4 py-1.5 sm:py-2.5 lg:py-3 font-medium border-b border-slate-200">Hora de fin (automático)</th>
+                <th className="px-4 py-1.5 sm:py-2.5 lg:py-3 font-medium border-b border-slate-200 text-center">Acción</th>
               </tr>
             </thead>
             <tbody>
@@ -336,7 +336,7 @@ export default function FranjasHorariasForm() {
         <button
           onClick={agregarBloque}
           disabled={bloques.length >= 9 || !canWrite}
-          className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-lg font-semibold hover:bg-blue-800 disabled:bg-slate-300"
+          className="inline-flex items-center gap-2 bg-blue-700 text-white px-4 py-2 rounded-md sm:rounded-lg font-semibold hover:bg-blue-800 disabled:bg-slate-300"
         >
           <Plus className="h-4 w-4" /> Añadir bloque
         </button>
@@ -344,7 +344,7 @@ export default function FranjasHorariasForm() {
         <button
           onClick={guardarConfiguracion}
           disabled={saving || cargando || !canWrite}
-          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60"
+          className="inline-flex items-center gap-2 bg-emerald-600 text-white px-4 py-2 rounded-md sm:rounded-lg font-semibold hover:bg-emerald-700 disabled:opacity-60"
         >
           {saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
           Guardar configuración
@@ -359,7 +359,7 @@ export default function FranjasHorariasForm() {
 
       {cargando && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-white/60">
-          <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
+          <div className="rounded-lg sm:rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
             <Loader2 className="size-5 animate-spin" />
             <span className="text-sm text-slate-700">Cargando…</span>
           </div>
@@ -368,3 +368,4 @@ export default function FranjasHorariasForm() {
     </div>
   );
 }
+

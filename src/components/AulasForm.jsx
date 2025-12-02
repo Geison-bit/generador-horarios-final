@@ -292,12 +292,12 @@ export default function AulasForm() {
 
   // --- UI ---
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
       <Breadcrumbs />
 
       {/* Header */}
       <div className="mb-4 flex items-center justify-between gap-4">
-        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+        <h2 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800 flex items-center gap-2">
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
         </h2>
 
@@ -314,7 +314,7 @@ export default function AulasForm() {
 
       {/* Búsqueda */}
       <div className="mb-3">
-        <div className="flex items-center gap-2 rounded-xl border bg-white px-3 py-2 shadow-sm max-w-md">
+        <div className="flex items-center gap-2 rounded-lg sm:rounded-xl border bg-white px-3 py-2 shadow-sm max-w-md">
           <Search className="size-4 text-slate-500" />
           <input
             value={filter}
@@ -343,7 +343,7 @@ export default function AulasForm() {
             value={formData.nombre}
             onChange={handleInputChange}
             maxLength={15}
-            className={`rounded-lg border px-3 py-2 text-sm ${
+            className={`rounded-md sm:rounded-lg border px-3 py-2 text-sm ${
               errors.nombre ? "border-rose-500" : "border-slate-300"
             } focus:outline-none focus:ring-2 focus:ring-blue-600`}
           />
@@ -362,7 +362,7 @@ export default function AulasForm() {
             value={formData.piso}
             onChange={handleInputChange}
             min="1"
-            className={`rounded-lg border px-3 py-2 text-sm ${
+            className={`rounded-md sm:rounded-lg border px-3 py-2 text-sm ${
               errors.piso ? "border-rose-500" : "border-slate-300"
             } focus:outline-none focus:ring-2 focus:ring-blue-600 w-28`}
           />
@@ -378,7 +378,7 @@ export default function AulasForm() {
             name="tipo"
             value={formData.tipo}
             onChange={handleInputChange}
-            className={`rounded-lg border px-3 py-2 text-sm ${
+            className={`rounded-md sm:rounded-lg border px-3 py-2 text-sm ${
               errors.tipo ? "border-rose-500" : "border-slate-300"
             } focus:outline-none focus:ring-2 focus:ring-blue-600`}
           >
@@ -394,7 +394,7 @@ export default function AulasForm() {
           <button
             type="submit"
             disabled={saving}
-            className={`inline-flex items-center gap-2 rounded-lg px-4 py-2 text-white shadow ${
+            className={`inline-flex items-center gap-2 rounded-md sm:rounded-lg px-4 py-2 text-white shadow ${
               modoEdicion ? "bg-amber-600 hover:bg-amber-700" : "bg-blue-600 hover:bg-blue-700"
             } disabled:opacity-70`}
             title={modoEdicion ? "Guardar cambios" : "Agregar aula"}
@@ -406,7 +406,7 @@ export default function AulasForm() {
             <button
               type="button"
               onClick={cancelarEdicion}
-              className="inline-flex items-center gap-2 rounded-lg bg-slate-500 px-4 py-2 text-white shadow hover:bg-slate-600"
+              className="inline-flex items-center gap-2 rounded-md sm:rounded-lg bg-slate-500 px-4 py-2 text-white shadow hover:bg-slate-600"
             >
               <X className="size-4" /> Cancelar
             </button>
@@ -419,10 +419,10 @@ export default function AulasForm() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-700">
             <tr>
-              <th className="border-b border-slate-200 px-4 py-3">Nombre</th>
-              <th className="border-b border-slate-200 px-4 py-3">Piso</th>
-              <th className="border-b border-slate-200 px-4 py-3">Tipo</th>
-              <th className="border-b border-slate-200 px-4 py-3 text-center">Acciones</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Nombre</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Piso</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Tipo</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
             </tr>
           </thead>
           <tbody>
@@ -475,3 +475,4 @@ export default function AulasForm() {
     </div>
   );
 }
+

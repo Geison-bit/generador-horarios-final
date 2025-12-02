@@ -100,12 +100,12 @@ export default function RolePermsMatrix() {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between gap-3">
-        <h2 className="text-lg font-semibold">Matriz Permiso × Rol</h2>
+        <h2 className="text-base sm:text-lg font-semibold">Matriz Permiso × Rol</h2>
         <input
           value={q}
           onChange={(e) => setQ(e.target.value)}
           placeholder="Buscar permiso…"
-          className="px-3 py-2 border rounded-xl w-80"
+          className="px-3 py-2 border rounded-lg sm:rounded-xl w-full sm:w-80"
         />
       </div>
 
@@ -201,3 +201,4 @@ export default function RolePermsMatrix() {
     </div>
   );
 }
+

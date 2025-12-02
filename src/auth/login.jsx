@@ -106,14 +106,14 @@ export default function Login() {
           </p>
 
           <div className="mt-6 grid gap-4 sm:grid-cols-2">
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="font-semibold text-slate-800">Control total</p>
               <p className="text-sm text-slate-600 mt-1">
                 Administra disponibilidad docente, aulas y permisos desde un solo lugar.
               </p>
             </div>
 
-            <div className="rounded-xl border border-slate-200 bg-slate-50 p-4">
+            <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-slate-50 p-4">
               <p className="font-semibold text-slate-800">Horarios precisos</p>
               <p className="text-sm text-slate-600 mt-1">
                 Genera propuestas con MiniZinc y revisa versionado por nivel.
@@ -132,7 +132,7 @@ export default function Login() {
               <p className="text-xs font-semibold uppercase tracking-widest text-blue-600">
                 Acceso seguro
               </p>
-              <h2 className="mt-2 text-2xl font-bold text-slate-900">
+              <h2 className="mt-2 text-xl sm:text-2xl font-bold text-slate-900">
                 Inicia sesión
               </h2>
               <p className="mt-1 text-sm text-slate-500">
@@ -141,7 +141,7 @@ export default function Login() {
             </div>
 
             {error && (
-              <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
+              <div className="mb-4 rounded-lg sm:rounded-xl border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
                 {error}
               </div>
             )}
@@ -154,7 +154,7 @@ export default function Login() {
                 placeholder="tu@colegio.edu"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                className="mt-2 w-full rounded-lg sm:rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
               />
             </label>
 
@@ -166,7 +166,7 @@ export default function Login() {
                 placeholder="********"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="mt-2 w-full rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
+                className="mt-2 w-full rounded-lg sm:rounded-xl border border-slate-300 bg-slate-50 px-3 py-2 text-slate-900 outline-none transition focus:bg-white focus:border-blue-500 focus:ring-2 focus:ring-blue-500/40"
               />
             </label>
 
@@ -174,7 +174,7 @@ export default function Login() {
             <button
               type="submit"
               disabled={loading}
-              className="mt-3 w-full rounded-xl bg-blue-600 px-4 py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:bg-blue-300"
+              className="mt-3 w-full rounded-lg sm:rounded-xl bg-blue-600 px-4 py-1.5 sm:py-2.5 lg:py-3 text-sm font-semibold text-white shadow-md transition hover:bg-blue-700 disabled:bg-blue-300"
             >
               {loading ? "Ingresando..." : "Ingresar"}
             </button>
@@ -188,3 +188,4 @@ export default function Login() {
     </div>
   );
 }
+

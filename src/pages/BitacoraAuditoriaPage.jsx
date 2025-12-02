@@ -32,12 +32,12 @@ export default function BitacoraAuditoriaPage() {
   }, []);
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
       <Breadcrumbs />
 
       {/* Encabezado */}
       <div className="mt-4 mb-4 flex items-center justify-between">
-        <h2 className="text-xl md:text-2xl font-semibold text-slate-800">
+        <h2 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800">
           Bitácora de Auditoría
         </h2>
 
@@ -62,10 +62,10 @@ export default function BitacoraAuditoriaPage() {
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-left text-slate-700">
             <tr>
-              <th className="border-b border-slate-200 px-4 py-3">Usuario</th>
-              <th className="border-b border-slate-200 px-4 py-3">Acción</th>
-              <th className="border-b border-slate-200 px-4 py-3">Entidad</th>
-              <th className="border-b border-slate-200 px-4 py-3">Fecha</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Usuario</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Acción</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Entidad</th>
+              <th className="border-b border-slate-200 px-4 py-1.5 sm:py-2.5 lg:py-3">Fecha</th>
             </tr>
           </thead>
 
@@ -114,3 +114,4 @@ export default function BitacoraAuditoriaPage() {
     </div>
   );
 }
+

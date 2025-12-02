@@ -64,7 +64,7 @@ export default function ConsentModal({ open, onClose }) {
   return (
     <div className="fixed inset-0 z-[100] bg-black/40 backdrop-blur-[1px] flex items-center justify-center p-4">
       <div className="max-w-lg w-full bg-white rounded-2xl border border-slate-200 shadow-lg p-5">
-        <h2 className="text-lg font-semibold text-slate-800">
+        <h2 className="text-base sm:text-lg font-semibold text-slate-800">
           Consentimiento para tratamiento de datos (v{CONSENT_VERSION})
         </h2>
         <p className="mt-2 text-sm text-slate-700">
@@ -100,13 +100,13 @@ export default function ConsentModal({ open, onClose }) {
           <button
             disabled={!checked || busy}
             onClick={accept}
-            className="px-4 py-2 rounded-lg bg-blue-600 text-white disabled:opacity-50"
+            className="px-4 py-2 rounded-md sm:rounded-lg bg-blue-600 text-white disabled:opacity-50"
           >
             {busy ? "Guardando…" : "Aceptar"}
           </button>
           <button
             onClick={decline}
-            className="px-4 py-2 rounded-lg border border-slate-300"
+            className="px-4 py-2 rounded-md sm:rounded-lg border border-slate-300"
           >
             No aceptar
           </button>
@@ -115,3 +115,4 @@ export default function ConsentModal({ open, onClose }) {
     </div>
   );
 }
+

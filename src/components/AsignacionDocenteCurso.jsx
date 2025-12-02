@@ -392,17 +392,17 @@ export default function AsignacionDocenteCurso() {
 
   // ------- Render -------
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
       <Breadcrumbs />
 
       {/* ======= Encabezado principal sticky con icono ======= */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
-        <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
+        <div className="px-4 md:px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2.5 lg:py-3 max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <ClipboardList className="size-6 text-blue-700" />
               <div>
-                <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
+                <h1 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800 leading-tight">
                   Asignación de Docentes y Horas
                 </h1>
                 <div className="mt-1">
@@ -417,7 +417,7 @@ export default function AsignacionDocenteCurso() {
             <button
               onClick={guardarTodo}
               disabled={saving || loading}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-70"
+              className="inline-flex items-center gap-2 rounded-md sm:rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-70"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Guardar todo
@@ -427,7 +427,7 @@ export default function AsignacionDocenteCurso() {
       </div>
 
       {/* Barra de estado */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
+      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
         <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
           <div className="flex items-center gap-2 text-slate-700">
             <Users2 className="size-5" />
@@ -458,13 +458,13 @@ export default function AsignacionDocenteCurso() {
 
       {/* Error global */}
       {error && (
-        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
+        <div className="mb-4 rounded-md sm:rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
           {error}
         </div>
       )}
 
       {/* Crear curso */}
-      <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
+      <div className="rounded-lg sm:rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
@@ -475,12 +475,12 @@ export default function AsignacionDocenteCurso() {
               if (esValido || valor === "") setNuevoCurso(valor);
             }}
             placeholder="Nombre del curso"
-            className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+            className="w-full sm:w-64 rounded-md sm:rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
           <button
             onClick={agregarCurso}
             disabled={!nuevoCurso.trim()}
-            className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow hover:bg-emerald-700 disabled:opacity-60"
+            className="inline-flex items-center gap-2 rounded-md sm:rounded-lg bg-emerald-600 px-4 py-2 text-white shadow hover:bg-emerald-700 disabled:opacity-60"
           >
             <Plus className="size-4" /> Agregar
           </button>
@@ -495,7 +495,7 @@ export default function AsignacionDocenteCurso() {
       </div>
 
       {/* Tabla: Horas programadas */}
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto mb-8">
+      <section className="rounded-lg sm:rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto mb-8">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Clock8 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Horas programadas por curso y grado</h3>
@@ -551,7 +551,7 @@ export default function AsignacionDocenteCurso() {
       </section>
 
       {/* Tabla: Asignación de docentes */}
-      <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
+      <section className="rounded-lg sm:rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Users2 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Asignar docentes a cada curso y grado</h3>
@@ -620,7 +620,7 @@ export default function AsignacionDocenteCurso() {
       </section>
 
       {/* Resumen por docente */}
-      <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
+      <section className="mt-8 rounded-lg sm:rounded-xl border border-slate-200 bg-white shadow-sm">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <BarChart3 className="size-4 text-slate-700" />
           <h3 className="text-sm font-semibold text-slate-800">Resumen de horas asignadas por docente</h3>
@@ -659,7 +659,7 @@ export default function AsignacionDocenteCurso() {
 
       {loading && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-white/60">
-          <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
+          <div className="rounded-lg sm:rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
             <Loader2 className="size-5 animate-spin" />
             <span className="text-sm text-slate-700">Cargando…</span>
           </div>
@@ -668,3 +668,4 @@ export default function AsignacionDocenteCurso() {
     </div>
   );
 }
+

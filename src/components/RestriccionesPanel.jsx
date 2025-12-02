@@ -133,8 +133,8 @@ export default function RestriccionesPanel() {
       <Breadcrumbs />
 
       <div className="mt-6 md:mt-7 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
-        <h1 className="text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
-          <span className="inline-flex items-center justify-center rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
+        <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
             <ShieldCheck className="h-5 w-5" aria-hidden="true" />
           </span>
           <span>Restricciones aplicadas</span>
@@ -182,7 +182,7 @@ export default function RestriccionesPanel() {
       )}
 
       <section className="mt-4 rounded-2xl border border-slate-200 bg-white shadow-sm">
-        <header className="px-4 py-3 border-b bg-slate-50 rounded-t-2xl">
+        <header className="px-4 py-1.5 sm:py-2.5 lg:py-3 border-b bg-slate-50 rounded-t-2xl">
           <h3 className="font-semibold text-slate-900">Reglas del modelo</h3>
           <p className="text-xs text-slate-500">
             Activa o desactiva las reglas globales que el generador aplicará.
@@ -195,7 +195,7 @@ export default function RestriccionesPanel() {
             return (
               <li
                 key={key}
-                className="flex items-start justify-between gap-4 px-4 py-3"
+                className="flex items-start justify-between gap-4 px-4 py-1.5 sm:py-2.5 lg:py-3"
               >
                 <div className="min-w-0">
                   <p className="text-sm font-medium text-slate-900">{nombre}</p>
@@ -226,3 +226,4 @@ export default function RestriccionesPanel() {
     </div>
   );
 }
+

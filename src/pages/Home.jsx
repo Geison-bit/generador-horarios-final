@@ -106,7 +106,7 @@ export default function Home() {
       {/* Header */}
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(60%_60%_at_50%_-20%,#93c5fd33,transparent)]" />
-        <div className="mx-auto max-w-6xl px-6 pt-10 pb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+        <div className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6 pt-10 pb-4 flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
           <div>
             <motion.h1
               className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
@@ -133,7 +133,7 @@ export default function Home() {
             animate={{ opacity: 1 }}
             className="flex flex-col items-end gap-2"
           >
-            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 rounded-md sm:rounded-lg px-3 py-1.5 shadow-sm">
               <UserIcon className="w-4 h-4 text-slate-700" />
               <span className="text-sm font-semibold capitalize text-slate-800">
                 {fullName || "Usuario"}
@@ -147,7 +147,7 @@ export default function Home() {
 
             <button
               onClick={handleLogout}
-              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 rounded-lg px-3 py-1.5 shadow-sm hover:bg-slate-100 transition"
+              className="flex items-center gap-2 bg-white text-slate-700 border border-slate-200 rounded-md sm:rounded-lg px-3 py-1.5 shadow-sm hover:bg-slate-100 transition"
             >
               <LogOut className="w-4 h-4" />
               <span className="text-sm font-medium">Cerrar sesión</span>
@@ -157,7 +157,7 @@ export default function Home() {
       </header>
 
       {/* Selector */}
-      <section className="mx-auto max-w-6xl px-6">
+      <section className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
             <div>
@@ -178,7 +178,7 @@ export default function Home() {
       </section>
 
       {/* Grid */}
-      <main className="mx-auto max-w-6xl px-6 py-6">
+      <main className="mx-auto max-w-6xl px-3 sm:px-4 lg:px-6 py-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
 
           {can("ui.restric.docente") && (
@@ -334,7 +334,7 @@ function ActionCard({ to, icon: Icon, title, desc, accent }) {
       >
         <div className={`rounded-t-2xl bg-gradient-to-b ${accent} p-4`}>
           <div className="flex items-center gap-3">
-            <div className="inline-flex rounded-xl bg-white/70 p-2 ring-1 ring-slate-200">
+            <div className="inline-flex rounded-lg sm:rounded-xl bg-white/70 p-2 ring-1 ring-slate-200">
               <Icon className="size-5 text-slate-800" />
             </div>
             <h3 className="text-base font-semibold text-slate-800">{title}</h3>
@@ -357,3 +357,4 @@ function ActionCard({ to, icon: Icon, title, desc, accent }) {
     </motion.div>
   );
 }
+

@@ -45,3 +45,4 @@ export const supabase = createClient(supabaseUrl, supabaseKey, {
 // import { supabase } from "../supabaseClient"
 
 export default supabase;
+

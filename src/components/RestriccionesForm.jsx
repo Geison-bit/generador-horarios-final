@@ -399,17 +399,17 @@ useEffect(() => {
 
   // ----------------- UI -----------------
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
       <Breadcrumbs />
 
       {/* Encabezado sticky */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
-        <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
+        <div className="px-4 md:px-3 sm:px-4 lg:px-6 py-1.5 sm:py-2.5 lg:py-3 max-w-7xl mx-auto">
           <div className="flex items-center justify-between gap-4">
             <div className="flex items-center gap-3">
               <CalendarDays className="size-6 text-blue-700" />
               <div>
-                <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
+                <h1 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800 leading-tight">
                   Disponibilidad Horaria de Docentes
                 </h1>
                 <div className="mt-1">
@@ -429,7 +429,7 @@ useEffect(() => {
               <button
                 onClick={guardarRestricciones}
                 disabled={!docenteSeleccionado || saving}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
+                className="inline-flex items-center gap-2 rounded-md sm:rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-60"
                 title={!docenteSeleccionado ? "Seleccione un docente" : "Guardar disponibilidad"}
               >
                 {saving ? (
@@ -449,7 +449,7 @@ useEffect(() => {
         <select
           value={docenteSeleccionado}
           onChange={(e) => setDocenteSeleccionado(e.target.value)}
-          className="border border-slate-300 px-3 py-2 rounded-lg w-full md:w-1/3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
+          className="border border-slate-300 px-3 py-2 rounded-md sm:rounded-lg w-full md:w-1/3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
         >
           <option value="">-- Seleccione un docente --</option>
           {docentes.map((d) => (
@@ -462,7 +462,7 @@ useEffect(() => {
 
       {/* Calendario */}
       {docenteSeleccionado && (
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <section className="bg-white rounded-lg sm:rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
             <CalendarDays className="size-4 text-slate-700" />
             <h3 className="text-sm font-semibold text-slate-800">
@@ -472,7 +472,7 @@ useEffect(() => {
 
           <div className="p-3">
             <div
-              className="bg-white border border-slate-200 rounded-lg"
+              className="bg-white border border-slate-200 rounded-md sm:rounded-lg"
               style={{ height: 600 }}
             >
               <RBCalendar
@@ -512,3 +512,4 @@ useEffect(() => {
 };
 
 export default RestriccionesForm;
+

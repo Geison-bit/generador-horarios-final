@@ -697,7 +697,7 @@ const HorarioTable = () => {
       <Breadcrumbs />
 
       <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
+        <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
           <CalendarRange className="h-6 w-6 text-indigo-600" />
           Generate School Schedule - {nivel}
         </h2>
@@ -743,7 +743,7 @@ const HorarioTable = () => {
           <button
             onClick={generarHorario}
             disabled={cargando}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 lg:px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
           >
             {cargando ? "Generating..." : "🗓️ Generate Schedule"}
           </button>
@@ -757,7 +757,7 @@ const HorarioTable = () => {
       )}
 
       {historialGeneraciones.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border">
+        <div className="flex flex-wrap items-center gap-4 mt-2 mb-4 p-3 bg-gray-50 rounded-md sm:rounded-lg shadow sticky top-2 z-10 border">
           <div className="flex items-center gap-2">
             <label className="font-semibold text-sm">Version:</label>
             <select
@@ -831,11 +831,11 @@ const HorarioTable = () => {
         <DragDropContext onDragEnd={onDragEnd}>
           {horarioVisible.map((bloquesDia, diaIndex) => (
             <div key={diaIndex} id={`dia-${diaIndex}`} className="mb-6">
-              <h4 className="text-xl font-bold mb-2 text-gray-700">
+              <h4 className="text-lg sm:text-xl font-bold mb-2 text-gray-700">
                 {["Monday", "Tuesday", "Miércoles", "Thursday", "Friday"][diaIndex]}
               </h4>
 
-              <div className="overflow-x-auto border shadow-md rounded-lg max-w-screen-xl mx-auto">
+              <div className="overflow-x-auto border shadow-md rounded-md sm:rounded-lg max-w-screen-xl mx-auto">
                 <table className="w-full text-sm text-center border-collapse">
                   <thead className="bg-gray-100">
                     <tr>
@@ -894,7 +894,7 @@ const HorarioTable = () => {
                                         onClick={() => handleCeldaVaciaClick(diaIndex, bloqueIndex, gradoIndex)}
                                         className="w-full h-full flex justify-center items-center cursor-pointer hover:bg-gray-200"
                                       >
-                                        <span className="text-gray-400 text-2xl">+</span>
+                                        <span className="text-gray-400 text-xl sm:text-2xl">+</span>
                                       </div>
                                     )}
                                     {provided.placeholder}
@@ -917,8 +917,8 @@ const HorarioTable = () => {
       {/* Tabla de horas faltantes */}
       {Array.isArray(horarioVisible) && (
         <div className="mt-8">
-          <h3 className="text-xl font-bold mb-3">🕒 Missing Hours Summary</h3>
-          <div className="overflow-x-auto border shadow-md rounded-lg">
+          <h3 className="text-lg sm:text-xl font-bold mb-3">🕒 Missing Hours Summary</h3>
+          <div className="overflow-x-auto border shadow-md rounded-md sm:rounded-lg">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-100">
                 <tr>
@@ -966,8 +966,8 @@ const HorarioTable = () => {
       {/* Modal agregar curso */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h3 className="text-lg font-bold mb-4">Add Course to Slot</h3>
+          <div className="bg-white p-6 rounded-md sm:rounded-lg shadow-xl max-w-md w-full">
+            <h3 className="text-base sm:text-lg font-bold mb-4">Add Course to Slot</h3>
             <div className="max-h-60 overflow-y-auto">
               {cursosDisponiblesParaCelda.length > 0 ? (
                 cursosDisponiblesParaCelda.map(curso => (
@@ -998,8 +998,8 @@ const HorarioTable = () => {
       {/* Modal confirmar borrado */}
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
-          <div className="bg-white p-6 rounded-lg shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Confirm Deletion</h3>
+          <div className="bg-white p-6 rounded-md sm:rounded-lg shadow-xl">
+            <h3 className="text-base sm:text-lg font-bold mb-4">Confirm Deletion</h3>
             <p>Are you sure you want to remove this course from the schedule?</p>
             <div className="flex justify-end gap-4 mt-6">
               <button
@@ -1023,3 +1023,4 @@ const HorarioTable = () => {
 };
 
 export default HorarioTable;
+

@@ -225,3 +225,4 @@ export function canAsignarDocenteEnBloque({ reglas = {}, indice, docenteId, dia,
   if (!isReglaActiva(reglas, NO_SOLAPE_KEY)) return true; // regla OFF
   return !hasSolape(indice, docenteId, dia, bloque);      // regla ON
 }
+

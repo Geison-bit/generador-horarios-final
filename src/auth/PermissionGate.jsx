@@ -12,3 +12,4 @@ export function PermissionGate({ need, children, fallback = null }) {
   const ok = req.every((p) => permissions.includes(p));
   return ok ? children : fallback;
 }
+

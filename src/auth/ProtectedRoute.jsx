@@ -49,3 +49,4 @@ export default function ProtectedRoute({ children, need = [] }) {
   console.log("[ROUTE] ✔ Acceso permitido");
   return children;
 }
+

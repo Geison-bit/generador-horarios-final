@@ -39,3 +39,4 @@ export default function useConsent() {
 
   return { needsConsent, loading, refetchConsent: check };
 }
+

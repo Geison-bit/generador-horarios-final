@@ -109,7 +109,7 @@ export default function RolePermsModal({ role, onClose }) {
     if (filtered.length === 0) return null;
 
     return (
-      <div className="mb-3 rounded-xl border bg-white shadow-sm">
+      <div className="mb-3 rounded-lg sm:rounded-xl border bg-white shadow-sm">
         <div className="px-3 py-2 border-b bg-slate-50 font-semibold text-sm">
           {title}
         </div>
@@ -129,7 +129,7 @@ export default function RolePermsModal({ role, onClose }) {
                 <button
                   onClick={() => toggle(key)}
                   className={
-                    "px-3 py-1 rounded-lg text-sm " +
+                    "px-3 py-1 rounded-md sm:rounded-lg text-sm " +
                     (isOn(key)
                       ? "bg-green-100 text-green-700"
                       : "bg-gray-200 text-gray-700")
@@ -154,7 +154,7 @@ export default function RolePermsModal({ role, onClose }) {
 
         {/* Header */}
         <div className="p-4 border-b flex items-center justify-between">
-          <h3 className="text-lg font-semibold">
+          <h3 className="text-base sm:text-lg font-semibold">
             Configuración del rol:{" "}
             <span className="text-violet-700">{role?.nombre}</span>
           </h3>
@@ -173,7 +173,7 @@ export default function RolePermsModal({ role, onClose }) {
             value={q}
             onChange={(e) => setQ(e.target.value)}
             placeholder="Buscar permiso o interfaz…"
-            className="w-full px-3 py-2 border rounded-xl mb-4"
+            className="w-full px-3 py-2 border rounded-lg sm:rounded-xl mb-4"
           />
 
           {loading ? (
@@ -210,3 +210,4 @@ export default function RolePermsModal({ role, onClose }) {
     </div>
   );
 }
+

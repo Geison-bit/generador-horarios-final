@@ -222,7 +222,7 @@ export default function HorarioPorDocente() {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+      <h2 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
         <User className="size-6 text-blue-600" /> Horario de Docente
       </h2>
 
@@ -319,7 +319,7 @@ export default function HorarioPorDocente() {
                             celdas.map((h, i2) => (
                               <div
                                 key={`${h.curso_id}-${h.grado_id}-${i2}`}
-                                className="mb-1 rounded-lg px-2 py-1 text-left"
+                                className="mb-1 rounded-md sm:rounded-lg px-2 py-1 text-left"
                                 style={{ background: colorCurso(h.curso_id) }}
                               >
                                 <div className="font-semibold">
@@ -352,3 +352,4 @@ export default function HorarioPorDocente() {
     </div>
   );
 }
+

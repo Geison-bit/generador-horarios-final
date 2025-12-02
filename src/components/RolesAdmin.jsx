@@ -195,13 +195,13 @@ export function RolesAdminInner() {
       <Breadcrumbs />
 
       <div className="flex items-center justify-between mb-4 mt-4">
-        <h1 className="text-2xl font-semibold">
+        <h1 className="text-xl sm:text-2xl font-semibold">
           Gestión de Roles ({nivelURL})
         </h1>
 
         <button
           onClick={onNewRole}
-          className="px-3 py-2 rounded-xl bg-blue-600 text-white"
+          className="px-3 py-2 rounded-lg sm:rounded-xl bg-blue-600 text-white"
         >
           Nuevo rol
         </button>
@@ -230,19 +230,19 @@ export function RolesAdminInner() {
                   <div className="flex gap-2">
                     <button
                       onClick={() => setOpenPermsFor(r)}
-                      className="px-2 py-1 bg-violet-600 text-white rounded-lg"
+                      className="px-2 py-1 bg-violet-600 text-white rounded-md sm:rounded-lg"
                     >
                       Permisos
                     </button>
                     <button
                       onClick={() => onEditRole(r)}
-                      className="px-2 py-1 bg-amber-500 text-white rounded-lg"
+                      className="px-2 py-1 bg-amber-500 text-white rounded-md sm:rounded-lg"
                     >
                       Editar
                     </button>
                     <button
                       onClick={() => onDeleteRole(r)}
-                      className="px-2 py-1 bg-rose-600 text-white rounded-lg"
+                      className="px-2 py-1 bg-rose-600 text-white rounded-md sm:rounded-lg"
                     >
                       Eliminar
                     </button>
@@ -278,7 +278,7 @@ export function RolesAdminInner() {
               <input
                 value={q}
                 onChange={(e) => setQ(e.target.value)}
-                className="px-3 py-2 border rounded-xl"
+                className="px-3 py-2 border rounded-lg sm:rounded-xl"
                 placeholder="Buscar usuario…"
               />
             </div>
@@ -312,7 +312,7 @@ export function RolesAdminInner() {
                           >
                             <button
                               onClick={() => toggle(u.id, r.id)}
-                              className={`px-2 py-1 rounded-lg ${
+                              className={`px-2 py-1 rounded-md sm:rounded-lg ${
                                 on
                                   ? "bg-green-100 text-green-700"
                                   : "bg-gray-200 text-gray-600"
@@ -339,7 +339,7 @@ export function RolesAdminInner() {
             onSubmit={onSaveRole}
             className="bg-white p-4 rounded-2xl max-w-lg w-full shadow-xl"
           >
-            <h2 className="text-xl font-semibold mb-3">
+            <h2 className="text-lg sm:text-xl font-semibold mb-3">
               {roleForm.id ? "Editar rol" : "Nuevo rol"}
             </h2>
 
@@ -351,7 +351,7 @@ export function RolesAdminInner() {
                   onChange={(e) =>
                     setRoleForm((f) => ({ ...f, nombre: e.target.value }))
                   }
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                 />
               </div>
 
@@ -366,7 +366,7 @@ export function RolesAdminInner() {
                       descripcion: e.target.value,
                     }))
                   }
-                  className="w-full px-3 py-2 border rounded-xl"
+                  className="w-full px-3 py-2 border rounded-lg sm:rounded-xl"
                 />
               </div>
             </div>
@@ -375,12 +375,12 @@ export function RolesAdminInner() {
               <button
                 type="button"
                 onClick={() => setOpenRoleForm(false)}
-                className="px-3 py-2 border rounded-xl"
+                className="px-3 py-2 border rounded-lg sm:rounded-xl"
               >
                 Cancelar
               </button>
 
-              <button className="px-3 py-2 rounded-xl bg-blue-600 text-white">
+              <button className="px-3 py-2 rounded-lg sm:rounded-xl bg-blue-600 text-white">
                 Guardar
               </button>
             </div>
@@ -398,3 +398,4 @@ export function RolesAdminInner() {
     </div>
   );
 }
+

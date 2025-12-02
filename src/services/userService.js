@@ -28,3 +28,4 @@ export async function createUser({ email, password, full_name }) {
 
   return data;
 }
+

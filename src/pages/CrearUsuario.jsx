@@ -36,8 +36,8 @@ export default function CrearUsuario() {
       <Breadcrumbs />
 
       {/* 🔹 Contenido centrado */}
-      <div className="p-8 max-w-xl mx-auto bg-white rounded-xl shadow mt-6">
-        <h2 className="text-2xl font-bold mb-6">Crear nuevo usuario</h2>
+      <div className="p-8 max-w-xl mx-auto bg-white rounded-lg sm:rounded-xl shadow mt-6">
+        <h2 className="text-xl sm:text-2xl font-bold mb-6">Crear nuevo usuario</h2>
 
         <form onSubmit={handleSubmit} className="space-y-4">
 
@@ -85,3 +85,4 @@ export default function CrearUsuario() {
     </div>
   );
 }
+

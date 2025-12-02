@@ -101,14 +101,14 @@ export default function Breadcrumbs() {
             
             {/* Nivel */}
             <div className="inline-flex items-center gap-3">
-              <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 p-2 ring-1 ring-blue-200">
+              <div className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-700 p-2 ring-1 ring-blue-200">
                 <GraduationCap className="size-5" aria-hidden="true" />
               </div>
               <div className="flex items-center gap-2">
                 <span className="text-sm font-medium text-slate-600">Nivel</span>
                 <select
                   aria-label="Seleccionar nivel"
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="rounded-md sm:rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                   value={nivel}
                   onChange={(e) => onNivelChange(e.target.value)}
                 >
@@ -126,7 +126,7 @@ export default function Breadcrumbs() {
                     {idx === 0 ? (
                       <button
                         onClick={() => irA("/")}
-                        className="inline-flex items-center gap-1.5 rounded-lg px-2 py-1 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
+                        className="inline-flex items-center gap-1.5 rounded-md sm:rounded-lg px-2 py-1 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600"
                       >
                         <Home className="size-4" aria-hidden="true" />
                         <span className="font-medium">{c.label}</span>
@@ -192,3 +192,4 @@ export default function Breadcrumbs() {
     </div>
   );
 }
+
