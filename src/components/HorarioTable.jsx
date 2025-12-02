@@ -696,13 +696,13 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+      <div className="flex flex-col sm:flex-row sm:flex-wrap gap-3 sm:justify-between sm:items-center mb-4 w-full">
         <h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
           <CalendarRange className="h-6 w-6 text-indigo-600" />
           Generate School Schedule - {nivel}
         </h2>
 
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-1 sm:flex sm:items-center gap-2 w-full sm:w-auto">
           {/* Origen claro para humanos */}
           {nivel !== "Primaria" && (
             <span
@@ -732,7 +732,7 @@ const HorarioTable = () => {
           )}
 
           {ultimaEdicion && (
-            <div className="flex items-center gap-2 text-xs px-3 py-1 rounded bg-gray-100 border">
+            <div className="flex flex-col sm:flex-row gap-1 sm:gap-2 text-xs px-3 py-1 rounded bg-gray-100 border w-full sm:w-auto">
               <Clock3 className="w-4 h-4" />
               <span>
                 Last edit: <b>{ultimaEdicion.actor_email || "unknown"}</b> ·{" "}
@@ -743,7 +743,15 @@ const HorarioTable = () => {
           <button
             onClick={generarHorario}
             disabled={cargando}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-3 sm:px-4 lg:px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
+            className="
+  bg-purple-600 hover:bg-purple-700 text-white
+  px-4 py-2
+  w-full sm:w-auto
+  rounded shadow-lg
+  transition-transform transform hover:scale-105
+  disabled:bg-purple-300 disabled:cursor-wait
+"
+
           >
             {cargando ? "Generating..." : "🗓️ Generate Schedule"}
           </button>
