@@ -1,4 +1,4 @@
-// src/auth/ProtectedRoute.jsx
+﻿// src/auth/ProtectedRoute.jsx
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "./AuthContext";
 import useConsent from "../consent/useConsent";
@@ -10,7 +10,7 @@ export default function ProtectedRoute({ children, need = [] }) {
   const location = useLocation();
 
   console.groupCollapsed(
-    `%c[ROUTE] ProtectedRoute → ${location.pathname}`,
+    `%c[ROUTE] ProtectedRoute â†’ ${location.pathname}`,
     "color:#03a9f4;font-weight:bold"
   );
   console.log("initializedSession:", initializedSession);
@@ -20,48 +20,36 @@ export default function ProtectedRoute({ children, need = [] }) {
   console.log("user perms:", permissions);
   console.groupEnd();
 
-  // 1) Esperando carga inicial de sesión
+  // 1) Esperando carga inicial de sesiÃ³n
   if (!initializedSession) {
-    return <div style={{ padding: 40, fontSize: 18 }}>Cargando… (session)</div>;
+    return (
+      <div style={{ padding: 40, fontSize: 18 }}>Cargandoâ€¦ (session)</div>
+    );
   }
 
   // 2) Roles/permisos cargando
   if (loading) {
-    return <div style={{ padding: 40, fontSize: 18 }}>Cargando… (roles)</div>;
+    return (
+      <div style={{ padding: 40, fontSize: 18 }}>Cargandoâ€¦ (roles)</div>
+    );
   }
 
-  // 3) No hay usuario → login
+  // 3) No hay usuario â†’ login
   if (!user) {
-    console.warn("[ROUTE] ✕ Sin usuario → /login");
+    console.warn("[ROUTE] âŒ Sin usuario â†’ /login");
     return <Navigate to="/login" replace />;
-  }
-
-  // 3.5) Consentimiento pendiente
-  if (consentLoading) {
-    return <div style={{ padding: 40, fontSize: 18 }}>Cargando… (consent)</div>;
   }
 
   // 4) Validar permisos
   if (need.length > 0) {
     const ok = need.every((p) => permissions.includes(p));
     if (!ok) {
-      console.warn("[ROUTE] ✕ Permisos insuficientes → /403");
+      console.warn("[ROUTE] âŒ Permisos insuficientes â†’ /403");
       return <Navigate to="/403" replace />;
     }
   }
 
-  console.log("[ROUTE] ✓ Acceso permitido");
-  return (
-    <>
-      {children}
-      {needsConsent && (
-        <ConsentModal
-          open={true}
-          onClose={() => {
-            refetchConsent();
-          }}
-        />
-      )}
-    </>
-  );
+  console.log("[ROUTE] âœ” Acceso permitido");
+  return children;
 }
+
