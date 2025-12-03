@@ -173,6 +173,7 @@ export function AuthProvider({ children }) {
           const allowed = await validateBan(u);
           if (!allowed) {
             setRolesLoaded(true);
+            setInitializedSession(true);
             setLoading(false);
             return;
           }
@@ -181,6 +182,7 @@ export function AuthProvider({ children }) {
           setUser(u);
           setRolesLoaded(false);
           await fetchPermsAndRoles(u);
+          setInitializedSession(true);
         }
 
         setLoading(false);
