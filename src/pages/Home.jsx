@@ -90,7 +90,8 @@ export default function Home() {
   // logout
   const handleLogout = async () => {
     await supabase.auth.signOut();
-    navigate("/login", { replace: true });
+    // Redirección dura para evitar loops de navegación y limpiar estado
+    window.location.href = "/login";
   };
 
   if (loadingRole) {

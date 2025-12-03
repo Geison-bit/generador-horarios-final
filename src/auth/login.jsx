@@ -77,7 +77,8 @@ export default function Login() {
       return;
     }
 
-    navigate(from, { replace: true });
+    // Redirección dura para evitar race en el listener de AuthContext
+    window.location.replace(from);
   };
 
   /* ================================================

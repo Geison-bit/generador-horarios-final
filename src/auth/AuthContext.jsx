@@ -162,6 +162,7 @@ export function AuthProvider({ children }) {
           setRoles([]);
           setPermissions([]);
           setRolesLoaded(true);
+          setInitializedSession(true);
           setLoading(false);
           return;
         }
