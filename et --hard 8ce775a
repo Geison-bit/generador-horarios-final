@@ -1,0 +1,54 @@
+* [33mc7531fc[m[33m ([m[1;36mHEAD[m[33m -> [m[1;32mmain[m[33m, [m[1;31morigin/main[m[33m)[m final_10
+* [33m3289b02[m final_9
+* [33m6580f6a[m final_8
+* [33m0e969fe[m final_7
+* [33ma228a46[m final_6
+* [33m6247436[m final_5
+* [33m72c7264[m final_4
+* [33mbc98f6e[m final_3
+* [33mad3624d[m final_2
+* [33m16246e8[m final_1
+* [33mdc94add[m Integración de Breadcrumbs en CrearUsuario.jsx y mejoras UI
+* [33m247d3ef[m Rediseño claro e institucional del login
+* [33m83eb4d5[m solucion de problemas
+* [33m0b0dda8[m backup total antes de corregir pantalla en blanco
+* [33m8ce775a[m[33m ([m[1;31mfork/main[m[33m)[m feat: versión estable con generador Python y reglas 1–5
+* [33mc4dafb7[m pre seguridad
+* [33mb2cc6c8[m Version 13 - Verificacion de cambios
+* [33md9eb048[m Version 12 - Verificacion de cambios
+* [33m8a549aa[m Agrega la función para exportar a Excel y otros cambios
+* [33mc78fc9c[m 🚀 Versión_10
+* [33m2cefbf9[m 🚀 Versión_8
+* [33m8cb53f4[m 🚀 Versión_7
+* [33mb193100[m 🔧 Actualización app.py: se agregó host 0.0.0.0 y puerto dinámico para Railway
+* [33mf691da1[m Versión_6
+* [33m2f49f54[m Versión_5
+* [33m4b4e9a6[m Versión_4
+* [33m106221b[m Versión_3
+* [33m2094d83[m Versión_2
+* [33m4d97299[m Versión_1
+* [33m421b71c[m Versión corregida con CORS habilitado
+* [33m1a8d95c[m Fix CORS error en app.py y listo para pruebas
+* [33m6442bf5[m Versión final
+* [33m5bf44e4[m detalles finales_3
+* [33m3a99f5f[m detalles finales_2
+* [33mcc6f9ea[m detalles finales
+* [33mb4a25ff[m Agregando curso Ed. Física y mejoras finales
+* [33m9b29b4f[m Termino de interfazces
+* [33m410cceb[m Fix: Filtrado correcto de aulas por nivel en registro de docentes
+* [33m0bcae4f[m 🚀 Fix: Agregado vercel.json para manejo correcto de rutas
+* [33m9ea4698[m 🐛 Fix: error de sintaxis en horarioService.js corregido para build Vercel
+* [33mc7d2e29[m 🔧 Fix: Agregado dominio temporal de Vercel al CORS
+* [33m481d337[m 🔧 Fix: se agregó el dominio correcto en CORS
+* [33m1c11ccb[m 🚀 Fix: Se agregó VITE_API_URL para conexión con backend
+* [33m0bfb022[m 🎯 Build de producción generado con Vite
+* [33m538e167[m primera prueba
+* [33m1045a21[m ✨ Actualización de Breadcrumbs, horarioService
+* [33m0161c45[m 📦 Fix: Añadido paquete 'supabase' a requirements.txt para evitar error en Railway
+* [33m3d007dd[m 🐍 Fix: Añadido python-dotenv para evitar error de importación en Railway
+* [33mce6acb0[m 🔧 Fix: Dockerfile actualizado con MiniZinc 2.9.3 desde enlace funcional de GitHub
+* [33m90b24fc[m 🐛 Corregido enlace y método de descarga del archivo MiniZinc .tgz
+* [33mb37d79f[m ✅ Corregido enlace de descarga de MiniZinc para despliegue en Railway
+* [33m5730e55[m ✅ Añadir Dockerfile y configuración para despliegue en Railway_2
+* [33m86b1449[m Agregado Dockerfile y configuración para despliegue en Railway
+* [33m8d669a7[m Primera versión final

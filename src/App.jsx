@@ -1,7 +1,9 @@
 import { BrowserRouter as Router, Routes, Route } from "react-router-dom";
 import Home from "./pages/Home";
+import Login from "./auth/Login";
+import ProtectedRoute from "./auth/ProtectedRoute";
 
-// ✅ Rutas existentes
+// ƒo. Rutas existentes
 import DocentesForm from "./components/DocentesForm";
 import FranjasHorariasForm from "./components/FranjasHorariasForm";
 import RestriccionesForm from "./components/RestriccionesForm"; // Disponibilidad del profesor
@@ -10,10 +12,10 @@ import HorarioPorDocente from "./components/HorarioPorDocente";
 import AsignacionDocentesPage from "./pages/AsignacionDocentesPage";
 import AulasForm from "./components/AulasForm";
 
-// ✅ NUEVO: Panel de restricciones (no reemplaza al form de disponibilidad)
+// ƒo. NUEVO: Panel de restricciones (no reemplaza al form de disponibilidad)
 import RestriccionesPanel from "./components/RestriccionesPanel";
 
-// ✅ NUEVO: Gestión (CRUD) y Roles
+// ƒo. NUEVO: GestiÇün (CRUD) y Roles
 import DocentesAdmin from "./components/DocentesAdmin";
 import RolesAdmin from "./components/RolesAdmin";
 
@@ -22,26 +24,104 @@ function App() {
     <Router>
       <Routes>
         {/* Home */}
-        <Route path="/" element={<Home />} />
+        <Route path="/login" element={<Login />} />
+        <Route
+          path="/"
+          element={
+            <ProtectedRoute>
+              <Home />
+            </ProtectedRoute>
+          }
+        />
 
         {/* Formularios / flujos actuales */}
-        <Route path="/docentes" element={<DocentesForm />} />
-        <Route path="/franjas" element={<FranjasHorariasForm />} />
-        <Route path="/asignacion" element={<AsignacionDocentesPage />} />
+        <Route
+          path="/docentes"
+          element={
+            <ProtectedRoute>
+              <DocentesForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/franjas"
+          element={
+            <ProtectedRoute>
+              <FranjasHorariasForm />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/asignacion"
+          element={
+            <ProtectedRoute>
+              <AsignacionDocentesPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* 👉 Esta ruta sigue siendo el formulario de disponibilidad */}
-        <Route path="/restricciones" element={<RestriccionesForm />} />
+        {/* ÐY'% Esta ruta sigue siendo el formulario de disponibilidad */}
+        <Route
+          path="/restricciones"
+          element={
+            <ProtectedRoute>
+              <RestriccionesForm />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* 👉 NUEVO panel general de restricciones (Aplica / No aplica) */}
-        <Route path="/restricciones-panel" element={<RestriccionesPanel />} />
+        {/* ÐY'% NUEVO panel general de restricciones (Aplica / No aplica) */}
+        <Route
+          path="/restricciones-panel"
+          element={
+            <ProtectedRoute>
+              <RestriccionesPanel />
+            </ProtectedRoute>
+          }
+        />
 
-        <Route path="/horario" element={<HorarioTable />} />
-        <Route path="/horario-docente" element={<HorarioPorDocente />} />
-        <Route path="/aulas" element={<AulasForm />} />
+        <Route
+          path="/horario"
+          element={
+            <ProtectedRoute>
+              <HorarioTable />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/horario-docente"
+          element={
+            <ProtectedRoute>
+              <HorarioPorDocente />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/aulas"
+          element={
+            <ProtectedRoute>
+              <AulasForm />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* ✅ NUEVAS PANTALLAS DE ADMINISTRACIÓN */}
-        <Route path="/admin/docentes" element={<DocentesAdmin />} />
-        <Route path="/admin/roles" element={<RolesAdmin />} />
+        {/* ƒo. NUEVAS PANTALLAS DE ADMINISTRACIÇ"N */}
+        <Route
+          path="/admin/docentes"
+          element={
+            <ProtectedRoute>
+              <DocentesAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/roles"
+          element={
+            <ProtectedRoute>
+              <RolesAdmin />
+            </ProtectedRoute>
+          }
+        />
 
         {/* (Opcional) 404 simple */}
         <Route path="*" element={<div className="p-6">Ruta no encontrada</div>} />
