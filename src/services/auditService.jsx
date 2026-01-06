@@ -21,3 +21,21 @@ export async function listAuditLogs({ table, rowId, limit = 50 }) {
 
   return q.order("created_at", { ascending: false });
 }
+
+// Helper genérico: ejecuta fn() y registra auditoría si la tabla audit_logs existe
+export async function withAudit(fn, meta = {}) {
+  const result = await fn();
+  try {
+    if (meta.action || meta.entity || meta.details) {
+      await supabase.from("audit_logs").insert({
+        action: meta.action || "unknown",
+        entity: meta.entity || "unknown",
+        details: meta.details || null,
+      });
+    }
+  } catch (e) {
+    // No bloquear si la tabla no existe o falla el insert
+    console.warn("Audit log falló:", e?.message || e);
+  }
+  return result;
+}
