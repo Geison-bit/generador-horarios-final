@@ -3,27 +3,28 @@ import Home from "./pages/Home";
 import Login from "./auth/Login";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
-// ƒo. Rutas existentes
+// Rutas existentes
 import DocentesForm from "./components/DocentesForm";
 import FranjasHorariasForm from "./components/FranjasHorariasForm";
-import RestriccionesForm from "./components/RestriccionesForm"; // Disponibilidad del profesor
+import RestriccionesForm from "./components/RestriccionesForm";
 import HorarioTable from "./components/HorarioTable";
 import HorarioPorDocente from "./components/HorarioPorDocente";
 import AsignacionDocentesPage from "./pages/AsignacionDocentesPage";
 import AulasForm from "./components/AulasForm";
 
-// ƒo. NUEVO: Panel de restricciones (no reemplaza al form de disponibilidad)
+// Panel de restricciones
 import RestriccionesPanel from "./components/RestriccionesPanel";
 
-// ƒo. NUEVO: GestiÇün (CRUD) y Roles
+// Gestión y roles
 import DocentesAdmin from "./components/DocentesAdmin";
 import RolesAdmin from "./components/RolesAdmin";
+import CrearUsuario from "./pages/CrearUsuario";
+import BitacoraAuditoriaPage from "./pages/BitacoraAuditoriaPage";
 
 function App() {
   return (
     <Router>
       <Routes>
-        {/* Home */}
         <Route path="/login" element={<Login />} />
         <Route
           path="/"
@@ -34,7 +35,6 @@ function App() {
           }
         />
 
-        {/* Formularios / flujos actuales */}
         <Route
           path="/docentes"
           element={
@@ -60,7 +60,6 @@ function App() {
           }
         />
 
-        {/* ÐY'% Esta ruta sigue siendo el formulario de disponibilidad */}
         <Route
           path="/restricciones"
           element={
@@ -69,8 +68,6 @@ function App() {
             </ProtectedRoute>
           }
         />
-
-        {/* ÐY'% NUEVO panel general de restricciones (Aplica / No aplica) */}
         <Route
           path="/restricciones-panel"
           element={
@@ -105,7 +102,6 @@ function App() {
           }
         />
 
-        {/* ƒo. NUEVAS PANTALLAS DE ADMINISTRACIÇ"N */}
         <Route
           path="/admin/docentes"
           element={
@@ -122,8 +118,23 @@ function App() {
             </ProtectedRoute>
           }
         />
+        <Route
+          path="/admin/usuarios/crear"
+          element={
+            <ProtectedRoute>
+              <CrearUsuario />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/auditoria"
+          element={
+            <ProtectedRoute>
+              <BitacoraAuditoriaPage />
+            </ProtectedRoute>
+          }
+        />
 
-        {/* (Opcional) 404 simple */}
         <Route path="*" element={<div className="p-6">Ruta no encontrada</div>} />
       </Routes>
     </Router>

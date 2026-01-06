@@ -12,6 +12,8 @@ import {
   IdCard,
   UserCog,
   ShieldCheck,
+  UserPlus,
+  FileSearch,
 } from "lucide-react";
 
 export default function Home() {
@@ -141,23 +143,41 @@ export default function Home() {
             accent="from-indigo-600/10 to-indigo-600/0"
           />
 
-          {/* ======== Administración / Seguridad ======== */}
+          {/* ======== Administracion / Seguridad ======== */}
           <ActionCard
             to="/admin/docentes"
             icon={UserCog}
-            title="Gestión de Docentes"
+            title="Gestion de Docentes"
             desc="Lista, crea/edita y activa/desactiva docentes."
-            ariaLabel="Ir a gestión de docentes"
+            ariaLabel="Ir a gestion de docentes"
             accent="from-sky-600/10 to-sky-600/0"
           />
 
           <ActionCard
             to="/admin/roles"
             icon={ShieldCheck}
-            title="Gestión de Roles"
-            desc="Crea roles y asígnalos a docentes para controlar permisos."
-            ariaLabel="Ir a gestión de roles"
+            title="Gestion de Roles"
+            desc="Crea roles y asignalos a docentes para controlar permisos."
+            ariaLabel="Ir a gestion de roles"
             accent="from-teal-600/10 to-teal-600/0"
+          />
+
+          <ActionCard
+            to="/admin/usuarios/crear"
+            icon={UserPlus}
+            title="Crear Usuario"
+            desc="Registra cuentas nuevas con nombre, correo y contrasena inicial."
+            ariaLabel="Ir a crear usuario"
+            accent="from-emerald-600/10 to-emerald-600/0"
+          />
+
+          <ActionCard
+            to="/admin/auditoria"
+            icon={FileSearch}
+            title="Bitacora de Auditoria"
+            desc="Revisa las acciones recientes registradas en el sistema."
+            ariaLabel="Ir a bitacora de auditoria"
+            accent="from-orange-500/10 to-orange-500/0"
           />
         </div>
       </main>
