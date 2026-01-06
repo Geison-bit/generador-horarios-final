@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
 import SelectorNivel from "../components/SelectorNivel";
+import { useAuth } from "../auth/AuthContext";
 import { motion } from "framer-motion";
 import {
   Users,
@@ -14,10 +15,16 @@ import {
   ShieldCheck,
   UserPlus,
   FileSearch,
+  User,
+  AtSign,
+  LogOut,
 } from "lucide-react";
 
 export default function Home() {
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
+  const { user, roles, signOut } = useAuth();
+  const displayName = user?.user_metadata?.full_name || user?.email || "Usuario";
+  const roleLabel = roles?.[0] || "sin rol";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
@@ -25,23 +32,49 @@ export default function Home() {
       <header className="relative overflow-hidden">
         <div className="absolute inset-0 -z-10 bg-[radial-gradient(60%_60%_at_50%_-20%,#93c5fd33,transparent)]" />
         <div className="mx-auto max-w-6xl px-6 pt-10 pb-4">
-          <motion.h1
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
-          >
-            Bienvenido al <span className="text-blue-700">Generador de Horarios</span>
-          </motion.h1>
-          <motion.p
-            initial={{ opacity: 0, y: 8 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.6, delay: 0.05 }}
-            className="mt-2 text-slate-600 max-w-2xl"
-          >
-            Selecciona un nivel y accede a los módulos para configurar docentes, aulas,
-            restricciones y construir tu horario óptimo.
-          </motion.p>
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+            <div>
+              <motion.h1
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.5 }}
+                className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
+              >
+                Bienvenido al <span className="text-blue-700">Generador de Horarios</span>
+              </motion.h1>
+              <motion.p
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                transition={{ duration: 0.6, delay: 0.05 }}
+                className="mt-2 text-slate-600 max-w-2xl"
+              >
+                Selecciona un nivel y accede a los modulos para configurar docentes, aulas,
+                restricciones y construir tu horario optimo.
+              </motion.p>
+            </div>
+
+            <div className="flex flex-col items-start gap-2">
+              <div className="inline-flex items-center gap-3 rounded-lg border border-slate-200 bg-white px-3 py-2 shadow-sm">
+                <div className="flex items-center gap-2 text-sm text-slate-700">
+                  <User className="size-4 text-slate-500" />
+                  <span className="font-semibold">{displayName}</span>
+                </div>
+                <div className="h-4 w-px bg-slate-200" />
+                <div className="flex items-center gap-2 text-xs text-slate-600">
+                  <AtSign className="size-4 text-slate-500" />
+                  <span>Rol:</span>
+                  <span className="font-semibold text-slate-800">{roleLabel}</span>
+                </div>
+              </div>
+              <button
+                onClick={signOut}
+                className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-1.5 text-sm text-slate-700 shadow-sm hover:bg-slate-50"
+              >
+                <LogOut className="size-4" />
+                Cerrar sesion
+              </button>
+            </div>
+          </div>
         </div>
       </header>
 
@@ -52,7 +85,7 @@ export default function Home() {
             <div>
               <h2 className="text-base font-semibold text-slate-800 flex items-center gap-2">
                 <School className="size-5 text-blue-600" aria-hidden="true" />
-                Nivel y sección
+                Nivel y seccion
               </h2>
               <p className="text-sm text-slate-600">Define el contexto antes de continuar.</p>
             </div>
@@ -87,22 +120,20 @@ export default function Home() {
             accent="from-indigo-700/10 to-indigo-700/0"
           />
 
-          {/* 🔹 Formulario de disponibilidad (ruta existente) */}
           <ActionCard
             to={`/restricciones?nivel=${nivelSeleccionado}`}
             icon={Ban}
             title="Disponibilidad del Profesor"
-            desc="Marca qué horas puede impartir clase cada docente."
+            desc="Marca que horas puede impartir clase cada docente."
             ariaLabel="Ir al formulario de disponibilidad"
             accent="from-rose-600/10 to-rose-600/0"
           />
 
-          {/* 🔹 NUEVO: Panel de restricciones (Aplica / No aplica) */}
           <ActionCard
             to={`/restricciones-panel?nivel=${nivelSeleccionado}`}
             icon={Ban}
             title="Panel de Restricciones"
-            desc="Visualiza todas las reglas y decide cuáles aplicar."
+            desc="Visualiza todas las reglas y decide cuales aplicar."
             ariaLabel="Ir al panel de restricciones"
             accent="from-fuchsia-600/10 to-fuchsia-600/0"
           />
@@ -111,7 +142,7 @@ export default function Home() {
             to={`/franjas?nivel=${nivelSeleccionado}`}
             icon={Clock3}
             title="Franjas Horarias"
-            desc="Configura turnos, bloques pedagógicos y jornadas."
+            desc="Configura turnos, bloques pedagogicos y jornadas."
             ariaLabel="Ir a franjas horarias"
             accent="from-amber-500/10 to-amber-500/0"
           />
@@ -120,8 +151,8 @@ export default function Home() {
             to={`/asignacion?nivel=${nivelSeleccionado}`}
             icon={BookOpen}
             title="Asignar Materias"
-            desc="Vincula cursos con docentes y grupos según carga horaria."
-            ariaLabel="Ir a asignación de materias"
+            desc="Vincula cursos con docentes y grupos segun carga horaria."
+            ariaLabel="Ir a asignacion de materias"
             accent="from-emerald-600/10 to-emerald-600/0"
           />
 
@@ -129,7 +160,7 @@ export default function Home() {
             to={`/horario?nivel=${nivelSeleccionado}`}
             icon={CalendarDays}
             title="Horario General"
-            desc="Visualiza el mapa completo por días, aulas y secciones."
+            desc="Visualiza el mapa completo por dias, aulas y secciones."
             ariaLabel="Ir al horario general"
             accent="from-violet-600/10 to-violet-600/0"
           />
@@ -143,7 +174,7 @@ export default function Home() {
             accent="from-indigo-600/10 to-indigo-600/0"
           />
 
-          {/* ======== Administracion / Seguridad ======== */}
+          {/* Administracion / Seguridad */}
           <ActionCard
             to="/admin/docentes"
             icon={UserCog}
