@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 from pathlib import Path
 from supabase import create_client
 from generador_python import generar_horario
+import traceback
 
 app = Flask(__name__)
 
@@ -188,8 +189,12 @@ def generar_horario_general():
         }), 200
 
     except Exception as e:
-        print("❌ Excepción general:", str(e))
-        return jsonify({"error": str(e)}), 500
+        print("[ERROR] Excepción general:", repr(e))
+        traceback.print_exc()
+        return jsonify({
+            "error": str(e),
+            "trace": traceback.format_exc()
+        }), 500
 
 # Run local / Railway
 if __name__ == "__main__":

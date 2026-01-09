@@ -1,259 +1,271 @@
-# generador_python.py
-
-import random
+from ortools.sat.python import cp_model
 import unicodedata
 
-# --- Constantes del horario (con tildes, como en la BD/UI) ---
+# Lista de días; se usará normalizada para comparar claves con o sin tilde.
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_DIAS = 5
 NUM_BLOQUES = 8
 
 
 def _normalize(s: str) -> str:
-    """Quita tildes y pasa a minúsculas (para tolerar claves sin tilde)."""
     if s is None:
         return ""
     return unicodedata.normalize("NFD", s).encode("ascii", "ignore").decode("ascii").lower()
 
 
+# Particiones pedagógicas sugeridas para repartir horas en bloques consecutivos
 def dividir_horas(horas: int):
-    """Particiones pedagógicas para las horas requeridas (para 'bloques_consecutivos')."""
     if horas <= 1:
         return []
     if horas == 2:
         return [[2]]
     if horas == 3:
-        return [[3], [2, 1]]
+        return [[3]]
     if horas == 4:
-        return [[2, 2], [3, 1]]
+        return [[2, 2]]
     if horas == 5:
-        return [[3, 2], [2, 3], [2, 2, 1], [2, 1, 2], [1, 2, 2]]
+        return [[3, 2], [2, 3]]
     if horas == 6:
-        return [[3, 3], [2, 2, 2], [3, 2, 1], [3, 1, 2], [2, 3, 1], [2, 1, 3], [1, 3, 2], [1, 2, 3]]
+        return [[3, 3], [2, 2, 2]]
     if horas == 7:
-        return [[3, 2, 2], [2, 3, 2], [2, 2, 3], [3, 3, 1], [3, 1, 3], [1, 3, 3]]
+        return [[3, 2, 2], [2, 3, 2], [2, 2, 3]]
     if horas == 8:
         return [[3, 3, 2], [3, 2, 3], [2, 3, 3], [2, 2, 2, 2]]
     # fallback
     return [[horas]]
 
 
-def son_consecutivos(bloques):
-    return all(b2 - b1 == 1 for b1, b2 in zip(bloques, bloques[1:]))
+def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
+    model = cp_model.CpModel()
 
-
-def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
-    """
-    'restricciones' esperado:
-    - Puede venir plano { "<docenteId>": { "miércoles-3": true, ... } }
-      o dentro de la llave 'disponibilidad': { "disponibilidad": { ... } }
-
-    Semántica:
-    - En Primaria o si la regla está desactivada -> no se restringe.
-    - Si un docente NO tiene mapa -> NO disponible (default False).
-    - Si tiene mapa -> disponible SOLO cuando existe la clave "<día>-<bloque>"
-      con True. Se tolera tanto con tilde ("miércoles-3") como sin tilde ("miercoles-3").
-    """
-    if not docentes or not asignaciones or not horas_curso_grado:
-        raise ValueError("Faltan datos de entrada requeridos para generar el horario.")
-
-    # Reglas (defaults ON)
+    # ======== Reglas desde UI ========
     reglas = (restricciones or {}).get("reglas", {}) or {}
-    regla_disponibilidad = bool(reglas.get("disponibilidad_docente", True))
-    regla_no_solape_docente = bool(reglas.get("no_solape_docente", True))
-    regla_bloques_consecutivos = bool(reglas.get("bloques_consecutivos", True))
-    regla_distribuir_en_dias = bool(reglas.get("distribuir_en_dias_distintos", True))
-    regla_omitir_cursos_1h = bool(reglas.get("omitir_cursos_1h", True))
+    r_disp = bool(reglas.get("disponibilidad_docente", True))
+    r_nosolape = bool(reglas.get("no_solape_docente", True))
 
-    # Mapa que puede venir plano o dentro de "disponibilidad"
     disponibilidad_map = (restricciones or {}).get("disponibilidad", restricciones or {})
 
-    # Estructuras
-    # horario[dia][bloque][grado_id] = curso_id
-    horario = {d: {b: {} for b in range(NUM_BLOQUES)} for d in range(NUM_DIAS)}
-    # Para chequear 'no_solape_docente'
-    bloques_ocupados = {doc["id"]: set() for doc in docentes}
-    # Métricas
-    horas_asignadas = {}
-    required_hours = {}
-    fallidos = 0
+    # ======== Conjuntos ========
+    C = []
+    G = set()
+    prof = {}
+    Hreq = {}
 
-    def bloque_disponible(docente_id, dia_nombre, bloque_idx):
-        """Evalúa disponibilidad del docente para un (día, bloque)."""
-        if not regla_disponibilidad or nivel == "Primaria":
-            return True
+    regla_omitir_cursos_1h = bool(reglas.get("omitir_cursos_1h", True))
 
-        reglas_doc = disponibilidad_map.get(str(docente_id))
-        # Sin configuración para este docente => NO disponible
-        if not reglas_doc:
-            return False
+    for curso_id, grados in asignaciones.items():
+        curso_id = int(curso_id)
+        C.append(curso_id)
 
-        # Probar clave exacta (con tildes) y normalizada (sin tildes)
-        key_exact = f"{dia_nombre}-{int(bloque_idx)}"
-        key_norm = f"{_normalize(dia_nombre)}-{int(bloque_idx)}"
-        return bool(reglas_doc.get(key_exact) or reglas_doc.get(key_norm))
-
-    # Preparar lista de asignaciones (ordenada por horas requeridas desc)
-    asignaciones_ordenadas = []
-    for curso_id, grados in (asignaciones or {}).items():
-        for grado_str, datos in (grados or {}).items():
+        for grado_str, datos in grados.items():
             grado = int(grado_str)
-            horas_req = int((horas_curso_grado.get(str(curso_id), {}) or {}).get(str(grado), 0))
             docente_id = int(datos["docente_id"])
-            required_hours[(int(curso_id), grado)] = horas_req
-            asignaciones_ordenadas.append((int(curso_id), grado, docente_id, horas_req))
-    asignaciones_ordenadas.sort(key=lambda x: -x[3])  # más horas primero
+            G.add(grado)
 
-    # Asignación
-    for curso_id, grado, docente_id, horas in asignaciones_ordenadas:
-        # Regla 5: omitir cursos con 1 hora
-        if horas <= 1 and regla_omitir_cursos_1h:
-            horas_asignadas[(curso_id, grado)] = 0
-            continue
+            prof[(curso_id, grado)] = docente_id
+            horas_req = int((horas_curso_grado.get(str(curso_id), {}) or {}).get(str(grado), 0))
+            if regla_omitir_cursos_1h and horas_req <= 1:
+                horas_req = 0
+            Hreq[(curso_id, grado)] = horas_req
 
-        combinaciones = sorted(dividir_horas(horas), key=len)
-        # Si 'bloques_consecutivos' está OFF, permitimos todo 1x1
-        if not regla_bloques_consecutivos and horas > 0:
-            if [1] * horas not in combinaciones:
-                combinaciones.insert(0, [1] * horas)
+    G = sorted(list(G))
+    D = list(range(NUM_DIAS))
+    H = list(range(NUM_BLOQUES))
 
-        asignado_ok = False
+    # ======== Variables ========
+    x = {}
+    s = {}
 
-        for combo in combinaciones:
-            # Regla 4: distribuir en días distintos
-            dias_usados = set() if regla_distribuir_en_dias else None
-            asign_temp = []
+    for c in C:
+        for g in G:
+            for d in D:
+                for h in H:
+                    x[(c, g, d, h)] = model.NewBoolVar(f"x_c{c}_g{g}_d{d}_h{h}")
 
-            for cantidad in combo:
-                dia_elegido = None
-                bloques_asignables = []
+            s[(c, g)] = model.NewIntVar(0, Hreq[(c, g)], f"s_c{c}_g{g}")
 
-                dias_shuffle = list(range(NUM_DIAS))
-                random.shuffle(dias_shuffle)
+    # ======== 1) Carga horaria exacta con slack ========
+    for c in C:
+        for g in G:
+            model.Add(
+                sum(x[(c, g, d, h)] for d in D for h in H) + s[(c, g)] == Hreq[(c, g)]
+            )
+            # Limitar carga diaria para forzar distribución (evita concentrar todas las horas en un día)
+            for d in D:
+                model.Add(sum(x[(c, g, d, h)] for h in H) <= 3)
+            # Limitar carga diaria para forzar distribución (evita meter todas las horas de un curso en un solo día)
+            for d in D:
+                model.Add(sum(x[(c, g, d, h)] for h in H) <= 3)  # máx 3 bloques por día
 
-                for dia in dias_shuffle:
-                    if dias_usados is not None and dia in dias_usados:
-                        continue
+    # ======== 2) Un curso por grado y bloque ========
+    for g in G:
+        for d in D:
+            for h in H:
+                model.Add(
+                    sum(x[(c, g, d, h)] for c in C) <= 1
+                )
 
-                    dia_nombre = DIAS[dia]
-                    libres = []
+    # ======== 3) Disponibilidad docente ========
+    def disponible(docente, d, h):
+        if not r_disp or nivel == "Primaria":
+            return True
+        reglas_doc = disponibilidad_map.get(str(docente), {})
+        # Si no hay mapa para este docente, no restringimos (disponible por defecto)
+        if not reglas_doc:
+            return True
+        key1 = f"{DIAS[d]}-{h}"
+        key2 = f"{_normalize(DIAS[d])}-{h}"
+        return bool(reglas_doc.get(key1) or reglas_doc.get(key2))
 
-                    # Buscar bloques libres cumpliendo reglas 1 y 2
-                    for b in range(NUM_BLOQUES):
-                        # 1) disponibilidad
-                        if not bloque_disponible(docente_id, dia_nombre, b):
-                            continue
-                        # 2) no solapar docente
-                        if regla_no_solape_docente and (dia, b) in bloques_ocupados[docente_id]:
-                            continue
-                        # no pisar curso ya puesto en ese grado (el grado ya tiene algo en ese bloque)
-                        if grado in horario[dia][b]:
-                            continue
-                        # además, si hay otra clase con el mismo docente en ese bloque (otro grado)
-                        if regla_no_solape_docente:
-                            ya_asignado = any(
-                                asignaciones.get(str(c_existente), {}).get(str(g), {}).get("docente_id") == docente_id
-                                for g, c_existente in horario[dia][b].items()
-                                if c_existente
+    for c in C:
+        for g in G:
+            p = prof[(c, g)]
+            for d in D:
+                for h in H:
+                    if not disponible(p, d, h):
+                        model.Add(x[(c, g, d, h)] == 0)
+
+    # ======== 4) No solape de docente ========
+    if r_nosolape:
+        for p in {prof[k] for k in prof}:
+            for d in D:
+                for h in H:
+                    model.Add(
+                        sum(
+                            x[(c, g, d, h)]
+                            for (c, g), dp in prof.items()
+                            if dp == p
+                        ) <= 1
+                    )
+
+    # ======== 5) Bloques consecutivos por curso/grado/día (evita 1-0-1) ========
+    for c in C:
+        for g in G:
+            for d in D:
+                for h1 in range(NUM_BLOQUES):
+                    for h3 in range(h1 + 2, NUM_BLOQUES):
+                        for h2 in range(h1 + 1, h3):
+                            model.Add(
+                                x[(c, g, d, h1)] + x[(c, g, d, h3)] - x[(c, g, d, h2)] <= 1
                             )
-                            if ya_asignado:
-                                continue
 
-                        libres.append(b)
+    # ======== 5) Limitar carga diaria por docente/grado (evita saturar un grado con varios cursos del mismo docente) ========
+    MAX_POR_DIA_DOCENTE_GRADO = 3
+    for p in {prof[k] for k in prof}:
+        for g in G:
+            for d in D:
+                model.Add(
+                    sum(
+                        x[(c, g, d, h)]
+                        for c in C
+                        if prof.get((c, g)) == p
+                        for h in H
+                    ) <= MAX_POR_DIA_DOCENTE_GRADO
+                )
 
-                    libres.sort()
+    # ======== 6) Prohibir sesiones sueltas (evitar bloques aislados de 1 hora) por curso/grado/día ========
+    for c in C:
+        for g in G:
+            for d in D:
+                ones = sum(x[(c, g, d, h)] for h in H)
+                b0 = model.NewBoolVar(f"c{c}_g{g}_d{d}_es0")
+                bge2 = model.NewBoolVar(f"c{c}_g{g}_d{d}_ge2")
+                model.Add(ones == 0).OnlyEnforceIf(b0)
+                model.Add(ones != 0).OnlyEnforceIf(b0.Not())
+                model.Add(ones >= 2).OnlyEnforceIf(bge2)
+                model.Add(ones <= 1).OnlyEnforceIf(bge2.Not())
+                model.AddBoolOr([b0, bge2])
 
-                    # Regla 3: bloques consecutivos
-                    if regla_bloques_consecutivos and cantidad > 1:
-                        for i in range(len(libres) - cantidad + 1):
-                            segmento = libres[i:i + cantidad]
-                            if son_consecutivos(segmento):
-                                bloques_asignables = [(dia, bn) for bn in segmento]
-                                dia_elegido = dia
-                                break
-                    else:
-                        if len(libres) >= cantidad:
-                            bloques_asignables = [(dia, bn) for bn in libres[:cantidad]]
-                            dia_elegido = dia
+    # ======== Penalización por fragmentar bloques (preferir consecutivos) ========
+    # Prioriza bloques agrupados aunque eso implique dejar horas sin asignar.
+    break_vars = []
+    for c in C:
+        for g in G:
+            for d in D:
+                for h in range(1, NUM_BLOQUES):
+                    bvar = model.NewBoolVar(f"break_c{c}_g{g}_d{d}_h{h}")
+                    model.Add(x[(c, g, d, h)] - x[(c, g, d, h - 1)] <= bvar)
+                    model.Add(x[(c, g, d, h - 1)] - x[(c, g, d, h)] <= bvar)
+                    break_vars.append(bvar)
 
-                    if bloques_asignables:
-                        break  # encontramos sitio para este segmento
+    # ======== Penalizar huecos intermedios (preferir huecos al final del día) ========
+    gap_vars = []
+    for g in G:
+        for d in D:
+            for h in range(NUM_BLOQUES - 1):
+                tiene_clase_despues = model.NewBoolVar(f"after_c{g}_d{d}_h{h}")
+                model.Add(sum(x[(c, g, d, hh)] for c in C for hh in range(h + 1, NUM_BLOQUES)) >= 1).OnlyEnforceIf(tiene_clase_despues)
+                model.Add(sum(x[(c, g, d, hh)] for c in C for hh in range(h + 1, NUM_BLOQUES)) == 0).OnlyEnforceIf(tiene_clase_despues.Not())
+                gap = model.NewBoolVar(f"gap_c{g}_d{d}_h{h}")
+                model.Add(sum(x[(c, g, d, h)] for c in C) == 0).OnlyEnforceIf(gap)
+                model.Add(sum(x[(c, g, d, h)] for c in C) >= 1).OnlyEnforceIf(gap.Not())
+                gap_vars.append(model.NewBoolVar(f"gap_active_c{g}_d{d}_h{h}"))
+                model.AddBoolAnd([gap, tiene_clase_despues]).OnlyEnforceIf(gap_vars[-1])
+                model.AddBoolOr([gap.Not(), tiene_clase_despues.Not()]).OnlyEnforceIf(gap_vars[-1].Not())
 
-                if bloques_asignables:
-                    # Colocar segmento
-                    for dia, b in bloques_asignables:
-                        horario[dia][b][grado] = int(curso_id)
-                        if regla_no_solape_docente:
-                            bloques_ocupados[docente_id].add((dia, b))
-                        asign_temp.append((dia, b))
-                    if dias_usados is not None and dia_elegido is not None:
-                        dias_usados.add(dia_elegido)
-                else:
-                    # no se pudo colocar este segmento
-                    break
+    # ======== OBJETIVO: priorizar calidad del horario sobre completar a toda costa ========
+    # Penalizamos fuerte los huecos intermedios y la fragmentación; el slack sigue contando,
+    # pero ya no domina completamente para evitar asignaciones "al azar" sólo por completar.
+    model.Minimize(200 * sum(gap_vars) + 50 * sum(break_vars) + 100 * sum(s.values()))
 
-            # ¿colocamos todos los segmentos de la combinación?
-            if len(asign_temp) == sum(combo):
-                asignado_ok = True
-                horas_asignadas[(curso_id, grado)] = sum(combo)
-                break
+    # ======== RESOLVER ========
+    solver = cp_model.CpSolver()
+    solver.parameters.max_time_in_seconds = 30
+    solver.parameters.num_search_workers = 8
 
-        if not asignado_ok:
-            fallidos += 1
-            horas_asignadas[(curso_id, grado)] = 0
-            print(f"[!] No se pudo asignar: curso {curso_id}, grado {grado}")
+    status = solver.Solve(model)
 
-    # Métricas y salida
-    total_bloques = sum(
-        1
-        for dia in horario.values()
-        for bloque in dia.values()
-        for curso in bloque.values()
-        if isinstance(curso, int) and curso > 0
-    )
+    horario = {d: {h: {} for h in H} for d in D}
 
-    detalle_asignaciones = []
-    exitosas = 0
-    for (curso_id, grado), horas_req in (required_hours or {}).items():
-        asignadas = int(horas_asignadas.get((curso_id, grado), 0))
-        docente_id = int((asignaciones.get(str(curso_id), {}) or {}).get(str(grado), {}).get("docente_id", 0))
-        ok = asignadas >= horas_req and horas_req > 0
-        if ok:
-            exitosas += 1
-        detalle_asignaciones.append(
-            {
-                "curso_id": int(curso_id),
-                "grado_id": int(grado),
-                "docente_id": docente_id,
-                "horas_asignadas": asignadas,
-                "horas_requeridas": int(horas_req),
-                "ok": bool(ok),
-            }
-        )
+    total_asignado = 0
+    asignaciones_fallidas = 0
+    detalle = []
 
-    print("\n[INFO] Asignación completada.")
-    print(f"[INFO] Cursos no asignados completamente: {fallidos}")
-    print("\n[INFO] Resumen de asignación de horas:")
-    for item in sorted(detalle_asignaciones, key=lambda x: (x["curso_id"], x["grado_id"])):
-        estado = "✅ OK" if item["ok"] else "❌ FALTAN"
-        print(
-            f"- Curso {item['curso_id']}, Grado {item['grado_id']}: "
-            f"{item['horas_asignadas']}/{item['horas_requeridas']} horas -> {estado}"
-        )
-    print(f"\n[INFO] Total asignado: {total_bloques} bloques")
+    for (c, g) in Hreq:
+        horas_asig = sum(solver.Value(x[(c, g, d, h)]) for d in D for h in H)
+        slack = solver.Value(s[(c, g)])
+        docente = prof[(c, g)]
+
+        if slack > 0:
+            asignaciones_fallidas += 1
+
+        for d in D:
+            for h in H:
+                if solver.Value(x[(c, g, d, h)]) == 1:
+                    horario[d][h][g] = c
+                    total_asignado += 1
+
+        detalle.append({
+            "curso_id": c,
+            "grado_id": g,
+            "docente_id": docente,
+            "horas_asignadas": horas_asig,
+            "horas_requeridas": Hreq[(c, g)],
+            "horas_faltantes": slack,
+            "ok": slack == 0
+        })
+
+    # Log resumido: qué cursos quedaron incompletos
+    incompletos = [d for d in detalle if not d["ok"]]
+    if incompletos:
+        print("⚠️ Cursos con horas faltantes:")
+        for d in incompletos:
+            faltan = d["horas_faltantes"]
+            print(f" - Curso {d['curso_id']} grado {d['grado_id']}: faltan {faltan} hora(s)")
+    else:
+        print("✅ Todos los cursos asignados completamente.")
 
     return {
         "horario": horario,
-        "asignaciones_exitosas": exitosas,
-        "asignaciones_fallidas": fallidos,
-        "total_bloques_asignados": total_bloques,
-        "detalle_asignaciones": detalle_asignaciones,
-        "resumen_por_docente": {},
-        "reglas_aplicadas": {
-            "disponibilidad_docente": regla_disponibilidad,
-            "no_solape_docente": regla_no_solape_docente,
-            "bloques_consecutivos": regla_bloques_consecutivos,
-            "distribuir_en_dias_distintos": regla_distribuir_en_dias,
-            "omitir_cursos_1h": regla_omitir_cursos_1h,
-        },
+        "detalle_asignaciones": detalle,
+        "total_asignado": total_asignado,
+        "total_requerido": sum(Hreq.values()),
+        "asignaciones_fallidas": asignaciones_fallidas,
+        "estado_solver": status,
+        "optimo": status == cp_model.OPTIMAL,
     }
+
+
+# Wrapper para mantener la firma esperada por app.py
+def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
+    return generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel)  

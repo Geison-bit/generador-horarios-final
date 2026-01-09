@@ -1,5 +1,6 @@
 // src/services/horarioService.js
-const baseURL = import.meta.env.VITE_API_URL;
+// En desarrollo usa proxy de Vite (ruta relativa). En producción toma VITE_API_URL.
+const baseURL = import.meta.env.DEV ? "" : import.meta.env.VITE_API_URL || "";
 
 import {
   loadReglasParaNivel,
