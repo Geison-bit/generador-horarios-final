@@ -18,6 +18,7 @@ import {
   User,
   AtSign,
   LogOut,
+  Users2,
 } from "lucide-react";
 
 export default function Home() {
@@ -191,6 +192,14 @@ export default function Home() {
             desc="Crea roles y asignalos a docentes para controlar permisos."
             ariaLabel="Ir a gestion de roles"
             accent="from-teal-600/10 to-teal-600/0"
+          />
+          <ActionCard
+            to="/admin/cuentas"
+            icon={Users2}
+            title="Gestion de Cuentas"
+            desc="Activa/desactiva perfiles y edita datos de cuenta."
+            ariaLabel="Ir a gestion de cuentas"
+            accent="from-cyan-600/10 to-cyan-600/0"
           />
 
           <ActionCard

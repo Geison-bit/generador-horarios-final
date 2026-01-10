@@ -20,6 +20,7 @@ import DocentesAdmin from "./components/DocentesAdmin";
 import RolesAdmin from "./components/RolesAdmin";
 import CrearUsuario from "./pages/CrearUsuario";
 import BitacoraAuditoriaPage from "./pages/BitacoraAuditoriaPage";
+import GestionCuentas from "./components/GestionCuentas";
 
 function App() {
   return (
@@ -115,6 +116,14 @@ function App() {
           element={
             <ProtectedRoute>
               <RolesAdmin />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/cuentas"
+          element={
+            <ProtectedRoute>
+              <GestionCuentas />
             </ProtectedRoute>
           }
         />

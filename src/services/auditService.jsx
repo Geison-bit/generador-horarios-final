@@ -39,3 +39,19 @@ export async function withAudit(fn, meta = {}) {
   }
   return result;
 }
+
+// Inserta un registro de auditoría sin envolver otra operación
+export async function logAudit(meta = {}) {
+  try {
+    if (meta.action || meta.entity || meta.details) {
+      await supabase.from("audit_logs").insert({
+        action: meta.action || "unknown",
+        entity: meta.entity || "unknown",
+        entity_id: meta.entityId || null,
+        details: meta.details || null,
+      });
+    }
+  } catch (e) {
+    console.warn("Audit log falló:", e?.message || e);
+  }
+}
