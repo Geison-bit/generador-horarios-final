@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from "react";
+﻿import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import ProtectedRoute from "../auth/ProtectedRoute";
@@ -64,7 +64,7 @@ export function RolesAdminInner() {
       (usuariosRaw || []).map((u) => ({
         id: u.user_id,
         nombreCompleto: u.full_name || "Sin Perfil",
-        // Si status viene vacío/null lo consideramos activo para no ocultar usuarios nuevos
+        // Si status viene vacÃ­o/null lo consideramos activo para no ocultar usuarios nuevos
         activo: !u.status || (u.status || "").toLowerCase() === "active",
       }))
     );
@@ -238,7 +238,7 @@ export function RolesAdminInner() {
                 </label>
               </div>
 
-              <input value={q} onChange={(e) => setQ(e.target.value)} className="px-3 py-2 border rounded-lg sm:rounded-xl" placeholder="Buscar usuario…" />
+              <input value={q} onChange={(e) => setQ(e.target.value)} className="px-3 py-2 border rounded-lg sm:rounded-xl" placeholder="Buscar usuario..." />
             </div>
 
             <div className="overflow-x-auto">
@@ -265,7 +265,9 @@ export function RolesAdminInner() {
                           <td key={`${u.id}-${r.id}`} className="px-3 py-2 text-center">
                             <button
                               onClick={() => toggle(u.id, r.id)}
-                              className={`px-2 py-1 rounded-md sm:rounded-lg ${on ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"}`}
+                              className={`px-2 py-1 rounded-md sm:rounded-lg ${
+                                on ? "bg-green-100 text-green-700" : "bg-gray-200 text-gray-600"
+                              }`}
                             >
                               {on ? "✓" : "—"}
                             </button>
@@ -322,3 +324,4 @@ export function RolesAdminInner() {
     </div>
   );
 }
+

@@ -140,7 +140,7 @@ export default function AulasForm() {
     else cargarAulas();
   }
 
-  // --- Auditoría: “Last edit” de la tabla aulas ---
+  // --- Auditoría: “?ltima edici?n” de la tabla aulas ---
   useEffect(() => {
     const fetchUltima = async () => {
       const { data, error } = await supabase
@@ -150,8 +150,18 @@ export default function AulasForm() {
         .order("created_at", { ascending: false })
         .limit(1);
 
-      if (!error && data?.length) setUltimaEdicion(data[0]);
-      else setUltimaEdicion(null);
+      if (!error && data?.length) {
+        let registro = data[0];
+        if (registro.actor_email) {
+          const { data: udata } = await supabase
+            .from("view_user_accounts")
+            .select("full_name")
+            .eq("email", registro.actor_email)
+            .limit(1);
+          if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+        }
+        setUltimaEdicion(registro);
+      } else setUltimaEdicion(null);
     };
     fetchUltima();
   }, [nivel, aulas.length]); // refresca cuando cambia el nivel o la lista
@@ -171,7 +181,18 @@ export default function AulasForm() {
               .eq("table_name", "aulas")
               .order("created_at", { ascending: false })
               .limit(1);
-            if (data?.length) setUltimaEdicion(data[0]);
+            if (data?.length) {
+              let registro = data[0];
+              if (registro.actor_email) {
+                const { data: udata } = await supabase
+                  .from("view_user_accounts")
+                  .select("full_name")
+                  .eq("email", registro.actor_email)
+                  .limit(1);
+                if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+              }
+              setUltimaEdicion(registro);
+            }
           })();
         }
       )
@@ -186,7 +207,7 @@ export default function AulasForm() {
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      {/* Header con título a la izquierda y “Last edit” a la derecha */}
+      {/* Header con título a la izquierda y última edición a la derecha */}
       <div className="mb-4 flex items-center justify-between">
         <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
@@ -195,9 +216,22 @@ export default function AulasForm() {
         <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
           <Clock3 className="size-4" />
           <span>
-            <span className="text-gray-600">Last edit:</span>{" "}
-            <b>{ultimaEdicion?.actor_email || "unknown"}</b> ·{" "}
-            {ultimaEdicion?.created_at ? new Date(ultimaEdicion.created_at).toLocaleString() : "—"}
+            {(() => {
+              const actorNombre =
+                ultimaEdicion?.actor_name ||
+                ultimaEdicion?.actor_full_name ||
+                ultimaEdicion?.actor_email ||
+                "Desconocido";
+              const fecha = ultimaEdicion?.created_at
+                ? new Date(ultimaEdicion.created_at).toLocaleString()
+                : "—";
+              return (
+                <>
+                  <span className="text-gray-600">Última edición:</span>{" "}
+                  <b>{actorNombre}</b> · {fecha}
+                </>
+              );
+            })()}
           </span>
         </div>
       </div>

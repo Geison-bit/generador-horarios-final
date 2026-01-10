@@ -5,15 +5,16 @@ import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { Clock8, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
 
-// Mini “pill” Last edit (coherente con otras pantallas)
+// Mini pill Última edición (coherente con otras pantallas)
 const LastEditPill = ({ edit }) => {
-  const email = edit?.actor_email || "unknown";
+  const actorNombre =
+    edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
     <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
       <History className="w-4 h-4" />
       <span>
-        <span className="text-slate-600">Last edit:</span> <b>{email}</b> · {fecha}
+        <span className="text-slate-600">Última edición:</span> <b>{actorNombre}</b> · {fecha}
       </span>
     </div>
   );
@@ -58,8 +59,18 @@ const FranjasHorariasForm = () => {
         .eq("table_name", "franjas_horarias")
         .order("created_at", { ascending: false })
         .limit(1);
-      if (!error && data?.length) setUltimaEdicion(data[0]);
-      else setUltimaEdicion(null);
+      if (!error && data?.length) {
+        let registro = data[0];
+        if (registro.actor_email) {
+          const { data: udata } = await supabase
+            .from("view_user_accounts")
+            .select("full_name")
+            .eq("email", registro.actor_email)
+            .limit(1);
+          if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+        }
+        setUltimaEdicion(registro);
+      } else setUltimaEdicion(null);
     };
     fetchUltima();
   }, [nivel, bloques.length]);
@@ -78,7 +89,18 @@ const FranjasHorariasForm = () => {
             .eq("table_name", "franjas_horarias")
             .order("created_at", { ascending: false })
             .limit(1);
-          if (data?.length) setUltimaEdicion(data[0]);
+          if (data?.length) {
+            let registro = data[0];
+            if (registro.actor_email) {
+              const { data: udata } = await supabase
+                .from("view_user_accounts")
+                .select("full_name")
+                .eq("email", registro.actor_email)
+                .limit(1);
+              if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+            }
+            setUltimaEdicion(registro);
+          }
         }
       )
       .subscribe();

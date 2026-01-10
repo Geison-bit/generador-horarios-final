@@ -35,15 +35,16 @@ const getDiaIndexFromStr = (diaStr) => {
   return normList.indexOf(n);
 };
 
-// Pill Last edit
+// Pill Última edición
 const LastEditPill = ({ edit }) => {
-  const email = edit?.actor_email || "unknown";
+  const actorNombre =
+    edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
     <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
       <History className="w-4 h-4" />
       <span>
-        <span className="text-slate-600">Last edit:</span> <b>{email}</b> · {fecha}
+        <span className="text-slate-600">Última edición:</span> <b>{actorNombre}</b> · {fecha}
       </span>
     </div>
   );
@@ -219,21 +220,24 @@ const RestriccionesForm = () => {
 
     setSaving(true);
 
-    // 1) Construir set de claves “dia-bloque (0-based)” a partir de los eventos
+    // 1) Construir set de claves día/bloque (0-based) a partir de los eventos
     const diaSemanaUi = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-    const clavesDisponibles = new Set();
+    const clavesDisponibles = new Map(); // key normalizada -> { diaBD, diaKey, bloque0 }
 
     for (const { start, end } of eventos) {
       const diaUi = diaSemanaUi[start.getDay()].toLowerCase();
       if (!DIAS_UI.includes(diaUi)) continue;
 
-      const diaNorm = normalize(diaUi);
-      const diaIdx = getDiaIndexFromStr(diaNorm);
+      const diaKey = normalize(diaUi); // sin acentos, para llaves y contexto
+      const diaIdx = getDiaIndexFromStr(diaKey);
       if (diaIdx < 0) continue;
 
       const indices = bloquesCubiertosPorEvento(start, end);
       indices.forEach((idx) => {
-        clavesDisponibles.add(`${diaNorm}-${idx}`); // 0-based
+        const key = `${diaKey}-${idx}`;
+        if (!clavesDisponibles.has(key)) {
+          clavesDisponibles.set(key, { diaBD: diaUi, diaKey, bloque0: idx });
+        }
       });
     }
 
@@ -246,12 +250,10 @@ const RestriccionesForm = () => {
     const filas = [];
     const restriccionesMap = {};
 
-    for (const clave of clavesDisponibles) {
-      const [diaNorm, bloqueStr] = clave.split("-");
-      const bloque0 = parseInt(bloqueStr, 10);
+    for (const { diaBD, diaKey, bloque0 } of clavesDisponibles.values()) {
       const bloqueDB = bloqueOneBased ? bloque0 + 1 : bloque0;
-      filas.push({ docente_id: docente.id, dia: diaNorm, bloque: bloqueDB, nivel: nivelURL });
-      restriccionesMap[`${diaNorm}-${bloque0}`] = true; // SIEMPRE 0-based para el generador
+      filas.push({ docente_id: docente.id, dia: diaBD, bloque: bloqueDB, nivel: nivelURL });
+      restriccionesMap[`${diaKey}-${bloque0}`] = true; // SIEMPRE 0-based para el generador
     }
 
     // 3) Persistir en BD y sincronizar contexto
@@ -319,8 +321,18 @@ const RestriccionesForm = () => {
         .eq("table_name", "restricciones_docente")
         .order("created_at", { ascending: false })
         .limit(1);
-      if (!error && data?.length) setUltimaEdicion(data[0]);
-      else setUltimaEdicion(null);
+      if (!error && data?.length) {
+        let registro = data[0];
+        if (registro.actor_email) {
+          const { data: udata } = await supabase
+            .from("view_user_accounts")
+            .select("full_name")
+            .eq("email", registro.actor_email)
+            .limit(1);
+          if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+        }
+        setUltimaEdicion(registro);
+      } else setUltimaEdicion(null);
     };
     fetchUltima();
   }, [nivelURL, docenteSeleccionado, eventos.length]);
@@ -339,7 +351,18 @@ const RestriccionesForm = () => {
             .eq("table_name", "restricciones_docente")
             .order("created_at", { ascending: false })
             .limit(1);
-          if (data?.length) setUltimaEdicion(data[0]);
+          if (data?.length) {
+            let registro = data[0];
+            if (registro.actor_email) {
+              const { data: udata } = await supabase
+                .from("view_user_accounts")
+                .select("full_name")
+                .eq("email", registro.actor_email)
+                .limit(1);
+              if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
+            }
+            setUltimaEdicion(registro);
+          }
         }
       )
       .subscribe();
@@ -417,6 +440,7 @@ const RestriccionesForm = () => {
             <div className="bg-white border border-slate-200 rounded-lg" style={{ height: 600 }}>
               <RBCalendar
                 localizer={localizer}
+                culture="es"
                 events={eventos}
                 startAccessor="start"
                 endAccessor="end"
@@ -425,6 +449,7 @@ const RestriccionesForm = () => {
                 views={["week"]}
                 timeslots={1}
                 step={45}
+                showAllDay={false}
                 onSelectSlot={manejarSeleccion}
                 onDoubleClickEvent={manejarDobleClickEvento}
                 defaultDate={new Date(2024, 3, 22)}

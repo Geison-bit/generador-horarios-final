@@ -1,4 +1,4 @@
-// src/components/HorarioTable.jsx
+﻿// src/components/HorarioTable.jsx
 import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
@@ -13,7 +13,7 @@ import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { CalendarRange, Clock3 } from "lucide-react";
 import { loadReglasParaNivel } from "../services/restriccionesService";
 
-// --- PALETA Y MAPA DE COLORES (persistente en sesión) ---
+// --- PALETA Y MAPA DE COLORES (persistente en sesiÃ³n) ---
 const coloresDisponibles = [
   "bg-red-300","bg-blue-300","bg-green-300","bg-yellow-300","bg-pink-300",
   "bg-purple-300","bg-indigo-300","bg-orange-300","bg-teal-300","bg-lime-300",
@@ -34,15 +34,15 @@ const getColorPorDocente = (nombreDocente) => {
   return mapaDocenteColor[nombreDocente];
 };
 
-// Horario vacío helper
+// Horario vacÃ­o helper
 const esHorarioVacio = (horario) =>
   !horario?.some(dia => dia.some(bloque => bloque.some(curso => curso > 0)));
 
-// helpers días (evita problema con acentos)
+// helpers dias (evita problema con acentos)
 const normalize = (s) =>
   (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
-// índice -> día en SQL (sin acentos)
+// Ã­ndice -> dÃ­a en SQL (sin acentos)
 const diasSql = ["lunes", "martes", "miercoles", "jueves", "viernes"];
 
 // Reglas por defecto
@@ -59,7 +59,7 @@ const RULES_ORDER = [
   { key: "disponibilidad_docente",       idx: 1, label: "Respetar disponibilidad del docente" },
   { key: "no_solape_docente",            idx: 2, label: "Evitar solape del mismo docente por bloque" },
   { key: "bloques_consecutivos",         idx: 3, label: "Usar bloques consecutivos por segmento" },
-  { key: "distribuir_en_dias_distintos", idx: 4, label: "Distribuir segmentos en días distintos" },
+  { key: "distribuir_en_dias_distintos", idx: 4, label: "Distribuir segmentos en dÃ­as distintos" },
   { key: "omitir_cursos_1h",             idx: 5, label: "Omitir cursos con 1h" },
 ];
 
@@ -83,7 +83,7 @@ async function cargarHorarioDesdeBD(nivel) {
   );
 
   data.forEach((r) => {
-    const d = dias.indexOf((r.dia || "").toLowerCase());
+    const d = dias.indexOf(normalize(r.dia || ""));
     const b = r.bloque;
     const g = nivel === "Primaria" ? r.grado_id - 6 : r.grado_id - 1;
     if (d >= 0 && b >= 0 && g >= 0) horario[d][b][g] = r.curso_id;
@@ -112,14 +112,14 @@ const HorarioTable = () => {
   const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
   const [aulasDesdeDB, setAulasDesdeDB] = useState([]);
 
-  // edición manual
+  // ediciÃ³n manual
   const [celdaActiva, setCeldaActiva] = useState(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [cursosDisponiblesParaCelda, setCursosDisponiblesParaCelda] = useState([]);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [cursoAEliminar, setCursoAEliminar] = useState(null);
 
-  // Última edición (opcional, desde audit_logs)
+  // Ãšltima ediciÃ³n (opcional, desde audit_logs)
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
 
   // --- NUEVO: restricciones efectivas (panel vs DB) ---
@@ -136,7 +136,7 @@ const HorarioTable = () => {
     ? ["1°", "2°", "3°", "4°", "5°", "6°"]
     : ["1°", "2°", "3°", "4°", "5°"];
 
-  // Horario visible: puntero actual del historial de edición
+  // Horario visible: puntero actual del historial de ediciÃ³n
   const horarioVisible = historyStack[historyPointer];
 
   // --- EFECTOS ---
@@ -155,7 +155,7 @@ const HorarioTable = () => {
     (async () => {
       const almacenado = localStorage.getItem("historialHorarios");
       const historico = almacenado ? JSON.parse(almacenado) : [];
-      // Si ya hay historial en localStorage, no sobrescribimos (se respeta la versión local)
+      // Si ya hay historial en localStorage, no sobrescribimos (se respeta la versiÃ³n local)
       if (historico.length > 0) return;
 
       const horarioBD = await cargarHorarioDesdeBD(nivel);
@@ -180,7 +180,15 @@ const HorarioTable = () => {
         .eq("nivel", nivel)
         .order("bloque");
       if (!error && data?.length) {
-        setBloquesHorario(data.map(b => `${b.hora_inicio} - ${b.hora_fin}`));
+        setBloquesHorario(data.map(b => {
+          const format = (h) => {
+            if (!h) return "";
+            const parts = h.split(":");
+            if (parts.length >= 2) return `${parts[0].padStart(2, "0")}:${parts[1].padStart(2, "0")}`;
+            return h;
+          };
+          return `${format(b.hora_inicio)} - ${format(b.hora_fin)}`;
+        }));
         const minBloque = Math.min(...data.map(x => Number(x.bloque)));
         setBloqueOneBased(minBloque === 1);
       } else {
@@ -213,7 +221,7 @@ const HorarioTable = () => {
     cargarDatos();
   }, [nivel]);
 
-  // Cargar última edición (opcional)
+  // Cargar Ãºltima ediciÃ³n (opcional)
   useEffect(() => {
     const cargarUltimaEdicion = async () => {
       const { data, error } = await supabase
@@ -269,7 +277,7 @@ const HorarioTable = () => {
         });
         setDisponibilidadEfectiva(base);
 
-        // 3) Reglas efectivas desde BD (catálogo + overrides)
+        // 3) Reglas efectivas desde BD (catÃ¡logo + overrides)
         let reglasBD = null;
         try { reglasBD = await loadReglasParaNivel(nivel); } catch {}
         setReglasEfectivas(reglasBD || { ...(restricciones?.reglas || DEFAULT_REGLAS) });
@@ -304,7 +312,7 @@ const HorarioTable = () => {
     return { nombre: docente.nombre, aula: aulaNombre };
   };
 
-  // ¿El docente está disponible según disponibilidadEfectiva?
+  // Â¿El docente estÃ¡ disponible segÃºn disponibilidadEfectiva?
   const isDocenteDisponibleEnKey = (docenteId, diaIndex, bloqueIndex) => {
     if (!docenteId) return true;
     const byDoc = disponibilidadEfectiva?.[String(docenteId)] || {};
@@ -435,7 +443,7 @@ const HorarioTable = () => {
       const destinoInvalido =
         !validarEnHorario(nuevoHorario, docenteIdOrigen, dstDia, dstBloque, dstGrado);
       if (destinoInvalido) {
-        alert("❌ Movimiento inválido: el docente no está disponible o ya tiene clase en ese bloque.");
+        alert("✖ Movimiento inválido: el docente no está disponible o ya tiene clase en ese bloque.");
         return;
       }
     }
@@ -445,7 +453,7 @@ const HorarioTable = () => {
       const origenInvalido =
         !validarEnHorario(nuevoHorario, docenteIdDestino, srcDia, srcBloque, srcGrado);
       if (origenInvalido) {
-        alert("❌ Movimiento inválido: el docente (destino) no está disponible en el bloque de origen.");
+        alert("✖ Movimiento inválido: el docente (destino) no está disponible en el bloque de origen.");
         return;
       }
     }
@@ -463,7 +471,7 @@ const HorarioTable = () => {
     if (!Array.isArray(bloques)) return;
     const B = bloques.length;
 
-    // cursoId -> posiciones (bloques) donde aparece en este día/columna
+    // cursoId -> posiciones (bloques) donde aparece en este dÃ­a/columna
     const posPorCurso = new Map();
     for (let b = 0; b < B; b++) {
       const cursoId = bloques[b]?.[gradoIndex] || 0;
@@ -483,7 +491,7 @@ const HorarioTable = () => {
         const objetivo = prev + 1;
         if (from === objetivo) continue;
 
-        // burbujear hacia la izquierda por huecos vacíos validando reglas
+        // burbujear hacia la izquierda por huecos vacÃ­os validando reglas
         let cursor = from;
         const docenteId = obtenerDocenteIdPorCursoYGrado(cursoId, gradoIndex);
 
@@ -542,7 +550,7 @@ const HorarioTable = () => {
         ])
       );
 
-      // Si la regla de disponibilidad está OFF, no enviamos disponibilidad
+      // Si la regla de disponibilidad estÃ¡ OFF, no enviamos disponibilidad
       const disponibilidadParaEnviar = reglasEfectivas.disponibilidad_docente
         ? (disponibilidadEfectiva || {})
         : {};
@@ -561,24 +569,24 @@ const HorarioTable = () => {
       );
 
       if (!resultado?.horario || esHorarioVacio(resultado.horario)) {
-        throw new Error("El generador no retornó una asignación válida (horario vacío).");
+        throw new Error("El generador no retornÃ³ una asignaciÃ³n vÃ¡lida (horario vacÃ­o).");
       }
 
-      // ★ Aplicar Regla 3 local (compactación)
+      // â˜… Aplicar Regla 3 local (compactaciÃ³n)
       const horarioOptimizado = aplicarBloquesConsecutivosSiCorresponde(resultado.horario);
 
       const nuevoHistorial = [...historialGeneraciones, horarioOptimizado];
-      if (nuevoHistorial.length > 3) nuevoHistorial.shift(); // máx 3 versiones
+      if (nuevoHistorial.length > 3) nuevoHistorial.shift(); // mÃ¡x 3 versiones
       localStorage.setItem("historialHorarios", JSON.stringify(nuevoHistorial));
       setHistorialGeneraciones(nuevoHistorial);
       setIndiceSeleccionado(nuevoHistorial.length - 1);
       setHorarioGeneral(horarioOptimizado);
 
-      // resetear pila de edición para la nueva versión
+      // resetear pila de ediciÃ³n para la nueva versiÃ³n
       setHistoryStack([horarioOptimizado]);
       setHistoryPointer(0);
     } catch (err) {
-      alert("❌ Error generando horario: " + (err?.message || String(err)));
+      alert("✖ Error generando horario: " + (err?.message || String(err)));
     } finally {
       setCargando(false);
     }
@@ -643,7 +651,7 @@ const HorarioTable = () => {
     setHistoryStack(nuevoStack);
     setHistoryPointer(nuevoStack.length - 1);
 
-    // Persistir versión seleccionada en historial
+    // Persistir versiÃ³n seleccionada en historial
     const nuevasGeneraciones = [...historialGeneraciones];
     nuevasGeneraciones[indiceSeleccionado] = nuevoHorario;
     setHistorialGeneraciones(nuevasGeneraciones);
@@ -685,7 +693,7 @@ const HorarioTable = () => {
       if (diaIndex > 0) pdf.addPage();
       pdf.addImage(imgData, "PNG", 20, 40, pdfWidth - 40, pdfHeight - 40);
       pdf.text(
-        `Schedule for ${["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]} - ${nivel}`,
+        `Horario de ${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]} - ${nivel}`,
         20, 20
       );
     }
@@ -700,19 +708,19 @@ const HorarioTable = () => {
     }
     const wb = XLSX.utils.book_new();
     horarioVisible.forEach((bloquesDia, diaIndex) => {
-      const sheetData = [["Time", ...grados]];
+      const sheetData = [["Hora", ...grados]];
       bloquesHorario.forEach((hora, bloqueIndex) => {
         const fila = [hora];
         grados.forEach((_, gradoIndex) => {
           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
           const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
           const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
-          fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre} (${aula || "N/A"})` : "");
+          fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre} (${aula || "N/D"})` : "");
         });
         sheetData.push(fila);
       });
       const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(wb, ws, ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]);
+      XLSX.utils.book_append_sheet(wb, ws, ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]);
     });
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
     saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${nivel}.xlsx`);
@@ -732,7 +740,7 @@ const HorarioTable = () => {
       }
     });
     return {
-      texto: activos.join("") || "—",
+      texto: activos.join("") || "â€”",
       tooltip:
         `Activas:\n${labelsActivos.length ? labelsActivos.join("\n") : "Ninguna"}\n\n` +
         `Inactivas:\n${labelsInactivos.length ? labelsInactivos.join("\n") : "Ninguna"}`,
@@ -748,7 +756,7 @@ const HorarioTable = () => {
       <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <CalendarRange className="h-6 w-6 text-indigo-600" />
-          Generate School Schedule - {nivel}
+          Generar horario escolar - {nivel}
         </h2>
 
         <div className="flex items-center gap-3">
@@ -784,7 +792,7 @@ const HorarioTable = () => {
             <div className="flex items-center gap-2 text-xs px-3 py-1 rounded bg-gray-100 border">
               <Clock3 className="w-4 h-4" />
               <span>
-                Last edit: <b>{ultimaEdicion.actor_email || "unknown"}</b> ·{" "}
+                Última edición: <b>{ultimaEdicion.actor_email || "desconocido"}</b> ·{" "}
                 {new Date(ultimaEdicion.created_at).toLocaleString()}
               </span>
             </div>
@@ -794,39 +802,39 @@ const HorarioTable = () => {
             disabled={cargando}
             className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
           >
-            {cargando ? "Generating..." : "🗓️ Generate Schedule"}
+            {cargando ? "Generando..." : "Generar horario"}
           </button>
         </div>
       </div>
 
       {cargando && (
         <p className="text-center text-purple-600 font-semibold my-4">
-          Generating schedule, please wait...
+          Generando horario, por favor espera...
         </p>
       )}
 
-      {historialGeneraciones.length > 0 && (
+          {historialGeneraciones.length > 0 && (
         <div className="flex flex-wrap items-center gap-4 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border">
           <div className="flex items-center gap-2">
-            <label className="font-semibold text-sm">Version:</label>
+            <label className="font-semibold text-sm">Versión:</label>
             <select
               className="border px-2 py-1 rounded-md text-sm"
               value={indiceSeleccionado}
               onChange={(e) => handleVersionChange(e.target.value)}
             >
               {historialGeneraciones.map((_, i) => (
-                <option key={i} value={i}>Schedule #{i + 1}</option>
+                <option key={i} value={i}>Horario #{i + 1}</option>
               ))}
             </select>
           </div>
 
           <div className="flex items-center gap-2 border-l pl-4">
-            <span className="font-semibold text-sm">Edit:</span>
+            <span className="font-semibold text-sm">Edición:</span>
             <button
               onClick={handleUndo}
               disabled={historyPointer <= 0}
               className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              title="Undo (Ctrl+Z)"
+              title="Deshacer (Ctrl+Z)"
             >
               ↶
             </button>
@@ -834,14 +842,14 @@ const HorarioTable = () => {
               onClick={handleRedo}
               disabled={historyPointer >= historyStack.length - 1}
               className="bg-gray-500 text-white px-3 py-1 rounded hover:bg-gray-600 disabled:bg-gray-300 disabled:cursor-not-allowed"
-              title="Redo (Ctrl+Y)"
+              title="Rehacer (Ctrl+Y)"
             >
               ↷
             </button>
           </div>
 
           <div className="flex items-center gap-3 border-l pl-4">
-            <span className="font-semibold text-sm">Completion:</span>
+            <span className="font-semibold text-sm">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
             </span>
@@ -864,11 +872,11 @@ const HorarioTable = () => {
         </div>
       )}
 
-      {/* Barra real de completion (misma métrica filtrada) */}
+      {/* Barra real de completion (misma mÃ©trica filtrada) */}
       {Array.isArray(horarioVisible) && (
         <div className="mb-4">
           <div className="inline-flex items-center gap-2 text-sm">
-            <span className="font-semibold">Completion:</span>
+            <span className="font-semibold">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
             </span>
@@ -881,14 +889,14 @@ const HorarioTable = () => {
           {horarioVisible.map((bloquesDia, diaIndex) => (
             <div key={diaIndex} id={`dia-${diaIndex}`} className="mb-6">
               <h4 className="text-xl font-bold mb-2 text-gray-700">
-                {["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"][diaIndex]}
+                {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]}
               </h4>
 
               <div className="overflow-x-auto border shadow-md rounded-lg max-w-screen-xl mx-auto">
                 <table className="w-full text-sm text-center border-collapse">
                   <thead className="bg-gray-100">
                     <tr>
-                      <th className="border border-gray-300 px-2 py-2">Time</th>
+                      <th className="border border-gray-300 px-2 py-2">Hora</th>
                       {grados.map((grado) => (
                         <th key={grado} className="border border-gray-300 px-2 py-2 font-medium">
                           {grado}
@@ -929,7 +937,7 @@ const HorarioTable = () => {
                                             {...provided2.dragHandleProps}
                                             onDoubleClick={() => eliminarCurso(diaIndex, bloqueIndex, gradoIndex)}
                                             className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow ${getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
-                                            title="Double click to delete"
+                                            title="Doble clic para eliminar"
                                           >
                                             <div className="font-semibold">{cursoNombre}</div>
                                             <div className="italic text-xs">
@@ -966,12 +974,12 @@ const HorarioTable = () => {
       {/* Tabla de horas faltantes */}
       {Array.isArray(horarioVisible) && (
         <div className="mt-8">
-          <h3 className="text-xl font-bold mb-3">🕒 Missing Hours Summary</h3>
+          <h3 className="text-xl font-bold mb-3">🕒 Resumen de horas faltantes</h3>
           <div className="overflow-x-auto border shadow-md rounded-lg">
             <table className="w-full text-sm text-left">
               <thead className="bg-gray-100">
                 <tr>
-                  <th className="border px-4 py-2">Course</th>
+                  <th className="border px-4 py-2">Curso</th>
                   {grados.map(g => (
                     <th key={g} className="border px-4 py-2 text-center">
                       {g}
@@ -1000,7 +1008,7 @@ const HorarioTable = () => {
                           key={i}
                           className={`border px-4 py-2 text-center ${h.faltantes > 0 ? "text-red-600 font-bold" : "text-green-600"}`}
                         >
-                          {h.esperadas > 0 ? (h.faltantes > 0 ? `${h.faltantes} missing` : "✓") : "-"}
+                          {h.esperadas > 0 ? (h.faltantes > 0 ? `${h.faltantes} faltantes` : "✓") : "-"}
                         </td>
                       ))}
                     </tr>
@@ -1016,7 +1024,7 @@ const HorarioTable = () => {
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl max-w-md w-full">
-            <h3 className="text-lg font-bold mb-4">Add Course to Slot</h3>
+            <h3 className="text-lg font-bold mb-4">Agregar curso al bloque</h3>
             <div className="max-h-60 overflow-y-auto">
               {cursosDisponiblesParaCelda.length > 0 ? (
                 cursosDisponiblesParaCelda.map(curso => (
@@ -1029,7 +1037,7 @@ const HorarioTable = () => {
                   </button>
                 ))
               ) : (
-                <p className="text-gray-500">No available courses for this slot.</p>
+                <p className="text-gray-500">No hay cursos disponibles para este bloque.</p>
               )}
             </div>
             <div className="text-right mt-4">
@@ -1037,7 +1045,7 @@ const HorarioTable = () => {
                 onClick={() => setIsModalOpen(false)}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
               >
-                Close
+                Cerrar
               </button>
             </div>
           </div>
@@ -1048,20 +1056,20 @@ const HorarioTable = () => {
       {showConfirmModal && (
         <div className="fixed inset-0 bg-black/50 flex justify-center items-center z-50">
           <div className="bg-white p-6 rounded-lg shadow-xl">
-            <h3 className="text-lg font-bold mb-4">Confirm Deletion</h3>
-            <p>Are you sure you want to remove this course from the schedule?</p>
+            <h3 className="text-lg font-bold mb-4">Confirmar eliminación</h3>
+            <p>¿Seguro que deseas quitar este curso del horario?</p>
             <div className="flex justify-end gap-4 mt-6">
               <button
                 onClick={() => setShowConfirmModal(false)}
                 className="bg-gray-300 hover:bg-gray-400 text-black px-4 py-2 rounded"
               >
-                Cancel
+                Cancelar
               </button>
               <button
                 onClick={handleConfirmDelete}
                 className="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
               >
-                Delete
+                Eliminar
               </button>
             </div>
           </div>
@@ -1072,3 +1080,4 @@ const HorarioTable = () => {
 };
 
 export default HorarioTable;
+
