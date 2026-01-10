@@ -139,31 +139,31 @@ export default function RestriccionesPanel() {
           <span>Restricciones aplicadas</span>
         </h1>
 
-        <div className="flex items-center gap-2">
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full sm:w-auto">
           <button
             onClick={aplicarTodas}
             disabled={cargando}
-            className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-emerald-600 text-white hover:bg-emerald-700 disabled:opacity-50 w-full sm:w-auto"
           >
             Aplicar todas
           </button>
           <button
             onClick={noAplicarTodas}
             disabled={cargando}
-            className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50"
+            className="px-3 py-1.5 rounded bg-rose-600 text-white hover:bg-rose-700 disabled:opacity-50 w-full sm:w-auto"
           >
             No aplicar todas
           </button>
           <button
             onClick={guardar}
             disabled={cargando}
-            className="px-4 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50"
+            className="px-4 py-1.5 rounded bg-indigo-600 text-white hover:bg-indigo-700 disabled:opacity-50 w-full sm:w-auto"
           >
             Guardar cambios
           </button>
           <button
             onClick={() => navigate(-1)}
-            className="px-3 py-1.5 rounded border"
+            className="px-3 py-1.5 rounded border w-full sm:w-auto"
           >
             Cerrar
           </button>

@@ -23,7 +23,7 @@ const LastEditPill = ({ edit }) => {
     edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
-    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm">
+    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm w-full sm:w-auto">
       <Clock3 className="w-4 h-4" />
       <span>
         <span className="text-gray-600">Última edición:</span>{" "}
@@ -424,7 +424,7 @@ useEffect(() => {
   	  <Breadcrumbs />
 
   	  {/* ➜ más espacio debajo del menú/breadcrumbs */}
-  	  <div className="mt-6 md:mt-8 flex items-center justify-between">
+  	  <div className="mt-6 md:mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
   		<h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
   		  <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
   			<UserPlus className="h-5 w-5" aria-hidden="true" />

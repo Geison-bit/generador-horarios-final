@@ -11,7 +11,7 @@ const LastEditPill = ({ edit }) => {
     edit?.actor_name || edit?.actor_full_name || edit?.actor_email || "Desconocido";
   const fecha = edit?.created_at ? new Date(edit.created_at).toLocaleString() : "—";
   return (
-    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm">
+    <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-slate-100 border border-slate-200 text-slate-700 shadow-sm w-full sm:w-auto">
       <History className="w-4 h-4" />
       <span>
         <span className="text-slate-600">Última edición:</span> <b>{actorNombre}</b> · {fecha}
@@ -209,7 +209,7 @@ const FranjasHorariasForm = () => {
       {/* ======= Encabezado principal sticky con icono ======= */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
         <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
               <Clock8 className="size-6 text-blue-700" />
               <div>
@@ -225,11 +225,11 @@ const FranjasHorariasForm = () => {
               </div>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
               <LastEditPill edit={ultimaEdicion} />
               <button
                 onClick={guardarConfiguracion}
-                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-70"
+                className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-70 w-full sm:w-auto"
                 disabled={saving || cargando}
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}

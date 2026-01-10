@@ -757,13 +757,13 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="flex flex-wrap gap-3 justify-between items-center mb-4">
+      <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
         <h2 className="text-2xl font-bold flex items-center gap-2">
           <CalendarRange className="h-6 w-6 text-indigo-600" />
           Generar horario escolar - {nivel}
         </h2>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-col gap-2 w-full sm:flex-row sm:items-center sm:gap-3 md:w-auto">
           {/* Origen claro para humanos */}
           {nivel !== "Primaria" && (
             <span
@@ -804,7 +804,7 @@ const HorarioTable = () => {
           <button
             onClick={generarHorario}
             disabled={cargando}
-            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait"
+            className="bg-purple-600 hover:bg-purple-700 text-white px-6 py-2 rounded shadow-lg transition-transform transform hover:scale-105 disabled:bg-purple-300 disabled:cursor-wait w-full sm:w-auto"
           >
             {cargando ? "Generando..." : "Generar horario"}
           </button>
@@ -818,8 +818,8 @@ const HorarioTable = () => {
       )}
 
           {historialGeneraciones.length > 0 && (
-        <div className="flex flex-wrap items-center gap-4 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border md:flex-row md:items-center">
+          <div className="flex items-center gap-2 w-full md:w-auto">
             <label className="font-semibold text-sm">Versión:</label>
             <select
               className="border px-2 py-1 rounded-md text-sm"
@@ -832,7 +832,7 @@ const HorarioTable = () => {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 border-l pl-4">
+          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
             <span className="font-semibold text-sm">Edición:</span>
             <button
               onClick={handleUndo}
@@ -852,14 +852,14 @@ const HorarioTable = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-3 border-l pl-4">
+          <div className="flex items-center gap-3 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
             <span className="font-semibold text-sm">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
             </span>
           </div>
 
-          <div className="flex items-center gap-2 border-l pl-4">
+          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
             <label className="font-semibold text-sm">Vista:</label>
             <button
               onClick={() => setVistaModo("grados")}
@@ -875,16 +875,16 @@ const HorarioTable = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 border-l pl-4 ml-auto">
+          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0 md:ml-auto">
             <button
               onClick={exportarPDF}
-              className="bg-red-600 text-white px-4 py-1.5 rounded hover:bg-red-700 transition-colors text-sm"
+              className="bg-red-600 text-white px-4 py-1.5 rounded hover:bg-red-700 transition-colors text-sm w-full sm:w-auto"
             >
               PDF
             </button>
             <button
               onClick={exportarExcel}
-              className="bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 transition-colors text-sm"
+              className="bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 transition-colors text-sm w-full sm:w-auto"
             >
               Excel
             </button>

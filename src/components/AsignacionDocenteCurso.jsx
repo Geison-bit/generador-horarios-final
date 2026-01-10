@@ -397,7 +397,7 @@ export default function AsignacionDocenteCurso() {
       {/* ======= Encabezado principal sticky con icono ======= */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
         <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
-          <div className="flex items-center justify-between gap-4">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
               <ClipboardList className="size-6 text-blue-700" />
               <div>
@@ -416,7 +416,7 @@ export default function AsignacionDocenteCurso() {
             <button
               onClick={guardarTodo}
               disabled={saving || loading}
-              className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-70"
+              className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-70 w-full sm:w-auto"
             >
               {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
               Guardar todo
