@@ -2,39 +2,28 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ChevronRight, GraduationCap } from "lucide-react";
 
-/**
- * Breadcrumbs.jsx — Barra de navegación contextual mejorada
- * - Persiste ?nivel= (también en localStorage)
- * - Breadcrumb accesible + chips de navegación
- * - Mantiene el nivel al cambiar de ruta
- */
-
-// 🔹 Catálogo de rutas visibles como chips
+// Catálogo de rutas visibles como chips
 const RUTAS = [
   { label: "Registrar Docentes", path: "/docentes" },
   { label: "Registrar Aulas", path: "/aulas" },
   { label: "Asignar Materias", path: "/asignacion" },
   { label: "Franjas Horarias", path: "/franjas" },
-
-  // 👇 Mantén “Restricciones” como disponibilidad del profesor
   { label: "Disponibilidad", path: "/restricciones" },
-
-  // 👇 Nuevo: Panel de reglas (no reemplaza a “Restricciones”)
   { label: "Panel de restricciones", path: "/restricciones-panel" },
-
   { label: "Horario General", path: "/horario" },
   { label: "Horario por Docente", path: "/horario-docente" },
-
-  // ✅ Administración
-  { label: "Gestión de Docentes", path: "/admin/docentes" },
-  { label: "Gestión de Roles", path: "/admin/roles" },
+  // Administración
+  { label: "Gestion de Docentes", path: "/admin/docentes" },
+  { label: "Gestion de Roles", path: "/admin/roles" },
+  { label: "Gestion de Cuentas", path: "/admin/cuentas" },
+  { label: "Crear Usuario", path: "/admin/usuarios/crear" },
+  { label: "Bitacora de Auditoria", path: "/admin/auditoria" },
 ];
 
 export default function Breadcrumbs() {
   const location = useLocation();
   const navigate = useNavigate();
 
-  // ----- Nivel seleccionado: URL -> localStorage -> fallback -----
   const [nivel, setNivel] = useState("Primaria");
   useEffect(() => {
     const params = new URLSearchParams(location.search);
@@ -48,7 +37,6 @@ export default function Breadcrumbs() {
     }
   }, [location.search]);
 
-  // Cambiar nivel mantiene la ruta actual
   const onNivelChange = (nuevo) => {
     setNivel(nuevo);
     localStorage.setItem("nivelSeleccionado", nuevo);
@@ -57,13 +45,11 @@ export default function Breadcrumbs() {
     navigate(`${location.pathname}?${params.toString()}`, { replace: true });
   };
 
-  // Ruta actual (coincidencia por prefix)
   const rutaActual = useMemo(
     () => RUTAS.find((r) => location.pathname.startsWith(r.path)),
     [location.pathname]
   );
 
-  // Breadcrumb items (Inicio > etiqueta)
   const crumbs = useMemo(() => {
     const items = [{ label: "Inicio", path: "/" }];
     if (rutaActual) items.push({ label: rutaActual.label, path: rutaActual.path });
@@ -72,7 +58,6 @@ export default function Breadcrumbs() {
 
   const irA = (path) => {
     const params = new URLSearchParams(location.search);
-    // asegura que el nivel viaje siempre
     params.set("nivel", nivel);
     navigate(`${path}?${params.toString()}`);
   };
@@ -81,9 +66,7 @@ export default function Breadcrumbs() {
     <div className="w-full px-4">
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5">
-          {/* Fila superior: Nivel + Breadcrumb */}
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-            {/* Nivel */}
             <div className="inline-flex items-center gap-3">
               <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 p-2 ring-1 ring-blue-200">
                 <GraduationCap className="size-5" aria-hidden="true" />
@@ -102,7 +85,6 @@ export default function Breadcrumbs() {
               </div>
             </div>
 
-            {/* Breadcrumb */}
             <nav aria-label="Breadcrumb" className="text-sm">
               <ol className="flex items-center gap-2 text-slate-600">
                 {crumbs.map((c, idx) => (
@@ -118,16 +100,13 @@ export default function Breadcrumbs() {
                     ) : (
                       <span className="font-medium text-slate-800">{c.label}</span>
                     )}
-                    {idx < crumbs.length - 1 && (
-                      <ChevronRight className="size-4 text-slate-400" aria-hidden="true" />
-                    )}
+                    {idx < crumbs.length - 1 && <ChevronRight className="size-4 text-slate-400" aria-hidden="true" />}
                   </li>
                 ))}
               </ol>
             </nav>
           </div>
 
-          {/* Navegación rápida (chips) */}
           <div className="mt-4">
             <div className="flex items-center justify-between mb-2">
               <span className="text-xs uppercase tracking-wide text-slate-500">Módulos</span>
@@ -136,11 +115,7 @@ export default function Breadcrumbs() {
               </button>
             </div>
 
-            <div
-              className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory"
-              role="tablist"
-              aria-label="Navegación de módulos"
-            >
+            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory" role="tablist" aria-label="Navegación de módulos">
               {RUTAS.map((ruta) => {
                 const activo = location.pathname.startsWith(ruta.path);
                 return (
