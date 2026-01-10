@@ -23,9 +23,9 @@ import {
 
 export default function Home() {
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
-  const { user, roles, signOut } = useAuth();
+  const { user, role, signOut } = useAuth();
   const displayName = user?.user_metadata?.full_name || user?.email || "Usuario";
-  const roleLabel = roles?.[0] || "sin rol";
+  const roleLabel = role || "sin rol";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">

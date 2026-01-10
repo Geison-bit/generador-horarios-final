@@ -60,13 +60,14 @@ export function RolesAdminInner() {
         }))
       );
 
-      setUsuarios(
-        (usuariosRaw || []).map((u) => ({
-          id: u.user_id,
-          nombreCompleto: u.full_name || "Sin Perfil",
-          activo: (u.status || "").toLowerCase() === "active",
-        }))
-      );
+    setUsuarios(
+      (usuariosRaw || []).map((u) => ({
+        id: u.user_id,
+        nombreCompleto: u.full_name || "Sin Perfil",
+        // Si status viene vacío/null lo consideramos activo para no ocultar usuarios nuevos
+        activo: !u.status || (u.status || "").toLowerCase() === "active",
+      }))
+    );
 
       setAsignaciones(asignRaw || []);
     } catch (e) {

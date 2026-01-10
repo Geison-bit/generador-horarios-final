@@ -31,8 +31,7 @@ export function AuthProvider({ children }) {
             .eq("user_id", currentSession.user.id)
             .maybeSingle();
 
-          // PGRST116 => no rows found; 42703 => column does not exist (schema distinta)
-          if (roleError && !["PGRST116", "42703"].includes(roleError.code)) {
+          if (roleError && !["PGRST116", "42703", "PGRST205", "404"].includes(roleError.code)) {
             throw roleError;
           }
 
