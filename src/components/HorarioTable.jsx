@@ -63,6 +63,35 @@ const RULES_ORDER = [
   { key: "omitir_cursos_1h",             idx: 5, label: "Omitir cursos con 1h" },
 ];
 
+// Cargar horario guardado en BD y reconstruir la matriz
+async function cargarHorarioDesdeBD(nivel) {
+  const { data, error } = await supabase
+    .from("horarios")
+    .select("dia, bloque, curso_id, grado_id")
+    .eq("nivel", nivel);
+
+  if (error || !data || data.length === 0) return null;
+
+  const dias = ["lunes", "martes", "miercoles", "jueves", "viernes"];
+  const maxBloque = Math.max(...data.map((r) => r.bloque));
+  const maxGrado = Math.max(...data.map((r) => r.grado_id));
+
+  const horario = Array.from({ length: 5 }, () =>
+    Array.from({ length: maxBloque + 1 }, () =>
+      Array.from({ length: maxGrado }, () => 0)
+    )
+  );
+
+  data.forEach((r) => {
+    const d = dias.indexOf((r.dia || "").toLowerCase());
+    const b = r.bloque;
+    const g = nivel === "Primaria" ? r.grado_id - 6 : r.grado_id - 1;
+    if (d >= 0 && b >= 0 && g >= 0) horario[d][b][g] = r.curso_id;
+  });
+
+  return horario;
+}
+
 const HorarioTable = () => {
   // --- STATE PRINCIPAL ---
   const [bloquesHorario, setBloquesHorario] = useState([]);
@@ -120,6 +149,27 @@ const HorarioTable = () => {
       setIndiceSeleccionado(0);
     }
   }, []);
+
+  // Cargar horario desde BD al cambiar de nivel
+  useEffect(() => {
+    (async () => {
+      const almacenado = localStorage.getItem("historialHorarios");
+      const historico = almacenado ? JSON.parse(almacenado) : [];
+      // Si ya hay historial en localStorage, no sobrescribimos (se respeta la versión local)
+      if (historico.length > 0) return;
+
+      const horarioBD = await cargarHorarioDesdeBD(nivel);
+      if (horarioBD) {
+        setHistorialGeneraciones([horarioBD]);
+        setIndiceSeleccionado(0);
+        setHistoryStack([horarioBD]);
+        setHistoryPointer(0);
+        setHorarioGeneral(horarioBD);
+        localStorage.setItem("historialHorarios", JSON.stringify([horarioBD]));
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivel]);
 
   // Cargar franjas horarias + detectar 1-based
   useEffect(() => {
