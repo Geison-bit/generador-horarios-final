@@ -102,6 +102,8 @@ const HorarioTable = () => {
     return almacenado ? JSON.parse(almacenado) : [];
   });
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
+  
+  const [vistaModo, setVistaModo] = useState("grados"); // "grados" | "dias"
 
   // Undo/Redo
   const [historyStack, setHistoryStack] = useState([]);   // array de horarios
@@ -300,6 +302,8 @@ const HorarioTable = () => {
   }, [nivel, restricciones, bloqueOneBased]);
 
   // --- HELPERS ---
+  const indicesGradosVisibles = grados.map((_, idx) => idx);
+
   const obtenerInfoDocente = (cursoId, gradoIndex) => {
     const gradoId = (nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1);
     const asignacion = asignacionesDesdeDB.find(
@@ -855,6 +859,22 @@ const HorarioTable = () => {
             </span>
           </div>
 
+          <div className="flex items-center gap-2 border-l pl-4">
+            <label className="font-semibold text-sm">Vista:</label>
+            <button
+              onClick={() => setVistaModo("grados")}
+              className={`px-3 py-1 rounded border text-sm ${vistaModo === "grados" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-blue-600 border-blue-200"}`}
+            >
+              Por grados
+            </button>
+            <button
+              onClick={() => setVistaModo("dias")}
+              className={`px-3 py-1 rounded border text-sm ${vistaModo === "dias" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-blue-600 border-blue-200"}`}
+            >
+              Por días
+            </button>
+          </div>
+
           <div className="flex items-center gap-2 border-l pl-4 ml-auto">
             <button
               onClick={exportarPDF}
@@ -884,7 +904,7 @@ const HorarioTable = () => {
         </div>
       )}
 
-      {Array.isArray(horarioVisible) && (
+      {Array.isArray(horarioVisible) && vistaModo === "grados" && (
         <DragDropContext onDragEnd={onDragEnd}>
           {horarioVisible.map((bloquesDia, diaIndex) => (
             <div key={diaIndex} id={`dia-${diaIndex}`} className="mb-6">
@@ -897,9 +917,9 @@ const HorarioTable = () => {
                   <thead className="bg-gray-100">
                     <tr>
                       <th className="border border-gray-300 px-2 py-2">Hora</th>
-                      {grados.map((grado) => (
-                        <th key={grado} className="border border-gray-300 px-2 py-2 font-medium">
-                          {grado}
+                      {indicesGradosVisibles.map((gradoIdx) => (
+                        <th key={gradoIdx} className="border border-gray-300 px-2 py-2 font-medium">
+                          {grados[gradoIdx]}
                         </th>
                       ))}
                     </tr>
@@ -911,7 +931,7 @@ const HorarioTable = () => {
                           {horaLabel}
                         </td>
 
-                        {grados.map((_, gradoIndex) => {
+                        {indicesGradosVisibles.map((gradoIndex) => {
                           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
                           const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
                           const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
@@ -971,6 +991,60 @@ const HorarioTable = () => {
         </DragDropContext>
       )}
 
+      {Array.isArray(horarioVisible) && vistaModo === "dias" && (
+        <div className="space-y-6">
+          {grados.map((gradoLabel, gradoIndex) => (
+            <div key={gradoLabel} className="overflow-x-auto border shadow-md rounded-lg max-w-screen-xl mx-auto">
+              <div className="px-3 py-2 border-b bg-slate-50 text-sm font-semibold">
+                Grado {gradoLabel}
+              </div>
+              <table className="w-full text-sm text-center border-collapse">
+                <thead className="bg-gray-100">
+                  <tr>
+                    <th className="border border-gray-300 px-2 py-2">Hora</th>
+                    {["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"].map((dia) => (
+                      <th key={dia} className="border border-gray-300 px-2 py-2 font-medium">
+                        {dia}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {bloquesHorario.map((horaLabel, bloqueIndex) => (
+                    <tr key={bloqueIndex} className="hover:bg-gray-50">
+                      <td className="border border-gray-300 px-2 py-1 font-medium bg-gray-100">
+                        {horaLabel}
+                      </td>
+                      {horarioVisible.map((bloquesDia, diaIndex) => {
+                        const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
+                        const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
+                        const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
+                        return (
+                          <td key={`${diaIndex}-${bloqueIndex}`} className="border border-gray-300 px-2 py-2 align-top text-left">
+                            {cursoId > 0 ? (
+                              <div className="text-xs leading-tight">
+                                <div className="font-semibold">{cursoNombre}</div>
+                                {docenteNombre && (
+                                  <div className="italic">
+                                    {docenteNombre} {aula && <span>({aula})</span>}
+                                  </div>
+                                )}
+                              </div>
+                            ) : (
+                              <span className="text-gray-400 text-xs">—</span>
+                            )}
+                          </td>
+                        );
+                      })}
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Tabla de horas faltantes */}
       {Array.isArray(horarioVisible) && (
         <div className="mt-8">
@@ -980,11 +1054,11 @@ const HorarioTable = () => {
               <thead className="bg-gray-100">
                 <tr>
                   <th className="border px-4 py-2">Curso</th>
-                  {grados.map(g => (
-                    <th key={g} className="border px-4 py-2 text-center">
-                      {g}
-                    </th>
-                  ))}
+                      {indicesGradosVisibles.map((idx) => (
+                        <th key={idx} className="border px-4 py-2 text-center">
+                          {grados[idx]}
+                        </th>
+                      ))}
                 </tr>
               </thead>
               <tbody>
@@ -1003,14 +1077,17 @@ const HorarioTable = () => {
                   return (
                     <tr key={curso.id} className="hover:bg-gray-50">
                       <td className="border px-4 py-2 font-medium">{curso.nombre}</td>
-                      {horasFaltantesRow.map((h, i) => (
-                        <td
-                          key={i}
-                          className={`border px-4 py-2 text-center ${h.faltantes > 0 ? "text-red-600 font-bold" : "text-green-600"}`}
-                        >
-                          {h.esperadas > 0 ? (h.faltantes > 0 ? `${h.faltantes} faltantes` : "✓") : "-"}
-                        </td>
-                      ))}
+                      {indicesGradosVisibles.map((i) => {
+                        const h = horasFaltantesRow[i];
+                        return (
+                          <td
+                            key={i}
+                            className={`border px-4 py-2 text-center ${h.faltantes > 0 ? "text-red-600 font-bold" : "text-green-600"}`}
+                          >
+                            {h.esperadas > 0 ? (h.faltantes > 0 ? `${h.faltantes} faltantes` : "✓") : "-"}
+                          </td>
+                        );
+                      })}
                     </tr>
                   );
                 })}
