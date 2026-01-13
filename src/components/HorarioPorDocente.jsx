@@ -9,7 +9,24 @@ import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import { supabase } from "../supabaseClient";
 import { Download, FileSpreadsheet, Printer, User } from "lucide-react";
 
-const DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]; // L-V
+const DIAS_KEYS = ["lunes", "martes", "miercoles", "jueves", "viernes"]; // L-V
+const DIAS_UI = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+
+const normalizeDia = (value) => {
+  if (!value) return "";
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+};
+
+const formatHora = (value) => {
+  if (!value) return "";
+  const parts = String(value).split(":");
+  const h = (parts[0] || "").padStart(2, "0");
+  const m = (parts[1] || "00").padStart(2, "0");
+  return `${h}:${m}`;
+};
 
 export default function HorarioPorDocente() {
   const { search } = useLocation();
@@ -52,6 +69,8 @@ export default function HorarioPorDocente() {
 
   const [franjas, setFranjas] = useState([]);               // [{bloque, hora_inicio, hora_fin}]
   const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
+  const [asignaciones, setAsignaciones] = useState([]);     // [{curso_id, grado_id, docente_id}]
+  const [historialLocal, setHistorialLocal] = useState([]); // matriz por version desde localStorage
   const [versiones, setVersiones] = useState([]);           // [1,2,3,...]
   const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version: rows[]}
   const [versionActual, setVersionActual] = useState(1);
@@ -62,7 +81,10 @@ export default function HorarioPorDocente() {
   // ------- Cargas iniciales -------
   useEffect(() => {
     (async () => {
-      await Promise.all([cargarFranjas(), cargarCursos()]);
+      await Promise.all([cargarFranjas(), cargarCursos(), cargarAsignaciones()]);
+      const almacenado = localStorage.getItem("historialHorarios");
+      const historico = almacenado ? JSON.parse(almacenado) : [];
+      setHistorialLocal(Array.isArray(historico) ? historico : []);
     })();
   }, [nivel]);
 
@@ -86,15 +108,71 @@ export default function HorarioPorDocente() {
     if (!error) setCursosMap(Object.fromEntries((data || []).map((c) => [c.id, c.nombre])));
   }
 
+  async function cargarAsignaciones() {
+    const { data, error } = await supabase
+      .from("asignaciones")
+      .select("curso_id, grado_id, docente_id")
+      .eq("nivel", nivel);
+    if (!error) setAsignaciones(data || []);
+  }
+
+  const asignacionMap = useMemo(() => {
+    const map = new Map();
+    (asignaciones || []).forEach((a) => {
+      map.set(`${a.curso_id}-${a.grado_id}`, a.docente_id);
+    });
+    return map;
+  }, [asignaciones]);
+
+  const construirDesdeHistorialLocal = () => {
+    if (!docenteId || !historialLocal?.length || asignacionMap.size === 0) return null;
+    const map = {};
+    historialLocal.forEach((horario, idxVersion) => {
+      const rows = [];
+      for (let d = 0; d < (horario?.length || 0); d++) {
+        for (let b = 0; b < (horario[d]?.length || 0); b++) {
+          const grados = horario[d]?.[b] || [];
+          for (let g = 0; g < grados.length; g++) {
+            const cursoId = grados[g];
+            if (!cursoId || cursoId <= 0) continue;
+            const gradoId = nivel === "Primaria" ? g + 6 : g + 1;
+            const docente = asignacionMap.get(`${cursoId}-${gradoId}`);
+            if (String(docente) === String(docenteId)) {
+              rows.push({
+                dia: DIAS_KEYS[d],
+                bloque: b,
+                curso_id: cursoId,
+                grado_id: gradoId,
+              });
+            }
+          }
+        }
+      }
+      map[idxVersion + 1] = rows;
+    });
+    const versionesLocal = Array.from({ length: historialLocal.length }, (_, i) => i + 1);
+    return { map, versionesLocal };
+  };
+
   // Cargar horarios por docente
   useEffect(() => {
     (async () => {
       if (!docenteId) {
         setHorariosPorVersion({});
         setVersiones([]);
+        setLoading(false);
         return;
       }
+
       setLoading(true);
+      const desdeLocal = construirDesdeHistorialLocal();
+      if (desdeLocal) {
+        setHorariosPorVersion(desdeLocal.map);
+        setVersiones(desdeLocal.versionesLocal);
+        setVersionActual(desdeLocal.versionesLocal.length > 0 ? 1 : 0);
+        setLoading(false);
+        return;
+      }
       const { data, error } = await supabase
         .from("horarios")
         .select("horario, dia, bloque, curso_id, grado_id")
@@ -129,7 +207,7 @@ export default function HorarioPorDocente() {
       setVersionActual(nuevasVersiones.length > 0 ? 1 : 0);
       setLoading(false);
     })();
-  }, [docenteId, nivel]);
+  }, [docenteId, nivel, historialLocal, asignacionMap]);
 
   const horarioActual = horariosPorVersion[versionActual] || [];
 
@@ -159,7 +237,7 @@ export default function HorarioPorDocente() {
     if (franjas.length) {
       // admite franja por índice o por número de bloque (1..N)
       const f = franjas[idx] || franjas.find((x) => x.bloque === idx || x.bloque === idx + 1);
-      if (f) return `${f.hora_inicio} - ${f.hora_fin}`;
+      if (f) return `${formatHora(f.hora_inicio)} - ${formatHora(f.hora_fin)}`;
     }
     const fallback = [
       "07:15 - 08:00",
@@ -256,8 +334,8 @@ export default function HorarioPorDocente() {
               <thead className="bg-slate-50">
                 <tr>
                   <th className="border border-slate-300 px-2 py-2 text-left">Hora</th>
-                  {DIAS.map((dia) => (
-                    <th key={dia} className="border border-slate-300 px-2 py-2 capitalize">
+                  {DIAS_UI.map((dia) => (
+                    <th key={dia} className="border border-slate-300 px-2 py-2">
                       {dia}
                     </th>
                   ))}
@@ -269,43 +347,44 @@ export default function HorarioPorDocente() {
                     <td className="border border-slate-300 px-2 py-2 font-medium text-left whitespace-nowrap">
                       {bloqueLabel(idx)}
                     </td>
-                    {DIAS.map((diaNombre) => {
+                    {DIAS_UI.map((diaLabel, diaIndex) => {
+                      const diaKey = DIAS_KEYS[diaIndex];
                       const celdas = horarioActual.filter(
-                        (h) => h.dia === diaNombre && matchBloque(h.bloque, idx)
+                        (h) => normalizeDia(h.dia) === diaKey && matchBloque(h.bloque, idx)
                       );
+                      const celdasOrdenadas = celdas.slice().sort((a, b) => a.grado_id - b.grado_id);
+                      const celda = celdasOrdenadas[0];
                       return (
-                        <td key={`${diaNombre}-${idx}`} className="border border-slate-300 px-2 py-2 align-top">
-                          {celdas.length === 0 ? (
-                            <span className="text-xs text-slate-400">—</span>
+                        <td key={`${diaKey}-${idx}`} className="border border-slate-300 px-2 py-2 align-top">
+                          {!celda ? (
+                            <span className="text-xs text-slate-400">-</span>
                           ) : (
-                            celdas.map((h, i2) => (
-                              <div
-                                key={`${h.curso_id}-${h.grado_id}-${i2}`}
-                                className="mb-1 rounded-lg px-2 py-1 text-left"
-                                style={{ background: colorCurso(h.curso_id) }}
-                              >
-                                <div className="font-semibold">
-                                  {cursosMap[h.curso_id] || `Curso ${h.curso_id}`}
-                                </div>
-                                <div className="text-[11px] text-slate-600">
-                                  Docente: <span className="italic">{docenteNombre}</span>
-                                </div>
-                                <div className="text-[11px] text-slate-600">
-                                  Grado: {nivel === "Primaria" ? h.grado_id - 5 : h.grado_id}°
-                                </div>
+                            <div
+                              className="rounded-lg px-2 py-1 text-left"
+                              style={{ background: colorCurso(celda.curso_id) }}
+                            >
+                              <div className="font-semibold">
+                                {cursosMap[celda.curso_id] || `Curso ${celda.curso_id}`}
                               </div>
-                            ))
+                              <div className="text-[11px] text-slate-600">
+                                Docente: <span className="italic">{docenteNombre}</span>
+                              </div>
+                              <div className="text-[11px] text-slate-600">
+                                Grado: {nivel === "Primaria" ? celda.grado_id - 5 : celda.grado_id}
+                              </div>
+                            </div>
                           )}
                         </td>
                       );
                     })}
+
                   </tr>
                 ))}
               </tbody>
             </table>
           </div>
 
-          {loading && <p className="mt-3 text-sm text-slate-600">Cargando horarios…</p>}
+          {loading && <p className="mt-3 text-sm text-slate-600">Cargando horarios...</p>}
           {!loading && horarioActual.length === 0 && (
             <p className="mt-3 text-sm text-slate-600">No se encontraron horarios para este docente.</p>
           )}

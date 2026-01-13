@@ -203,14 +203,13 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                 model.AddBoolAnd([gap, tiene_clase_despues]).OnlyEnforceIf(gap_vars[-1])
                 model.AddBoolOr([gap.Not(), tiene_clase_despues.Not()]).OnlyEnforceIf(gap_vars[-1].Not())
 
-    # ======== OBJETIVO: priorizar calidad del horario sobre completar a toda costa ========
-    # Penalizamos fuerte los huecos intermedios y la fragmentación; el slack sigue contando,
-    # pero ya no domina completamente para evitar asignaciones "al azar" sólo por completar.
-    model.Minimize(200 * sum(gap_vars) + 50 * sum(break_vars) + 100 * sum(s.values()))
+    # ======== OBJETIVO: completar horas primero, luego calidad ========
+    # Penalizamos muy fuerte el slack (horas faltantes), luego huecos y fragmentacion.
+    model.Minimize(100000 * sum(s.values()) + 200 * sum(gap_vars) + 50 * sum(break_vars))
 
     # ======== RESOLVER ========
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 30
+    solver.parameters.max_time_in_seconds = 120
     solver.parameters.num_search_workers = 8
 
     status = solver.Solve(model)
