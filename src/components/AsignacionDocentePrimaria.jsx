@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { ClipboardList } from "lucide-react";
 
 const gradosPrimaria = ["1°", "2°", "3°", "4°", "5°", "6°"];
 
@@ -184,7 +185,12 @@ const AsignacionDocentePrimaria = () => {
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
-      <h2 className="text-2xl font-semibold mb-4">Asignación de Docentes y Horas - Primaria</h2>
+      <div className="mt-4 mb-4 flex items-center gap-2">
+        <ClipboardList className="size-6 text-blue-600" />
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800">
+          Asignación de Docentes y Horas - Primaria
+        </h2>
+      </div>
 
       <div className="flex items-center mb-6 gap-4">
         <input

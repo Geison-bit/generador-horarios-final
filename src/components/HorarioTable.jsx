@@ -757,9 +757,9 @@ const HorarioTable = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="flex flex-col gap-3 mb-4 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-2xl font-bold flex items-center gap-2">
-          <CalendarRange className="h-6 w-6 text-indigo-600" />
+      <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <CalendarRange className="size-6 text-blue-600" />
           Generar horario escolar - {nivel}
         </h2>
 

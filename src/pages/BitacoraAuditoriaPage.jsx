@@ -30,11 +30,12 @@ export default function BitacoraAuditoriaPage() {
   }, []);
 
   return (
-    <div className="p-3 sm:p-4 lg:p-6 w-full max-w-[1200px] mx-auto">
+    <div className="p-4 md:p-6 w-full max-w-7xl mx-auto">
       <Breadcrumbs />
 
       <div className="mt-4 mb-4 flex items-center justify-between">
-        <h2 className="text-lg sm:text-xl md:text-xl sm:text-2xl font-semibold text-slate-800">
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <Clock3 className="size-6 text-blue-600" />
           Bitácora de Auditoría
         </h2>
 

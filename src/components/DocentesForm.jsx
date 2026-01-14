@@ -424,13 +424,13 @@ useEffect(() => {
   	  <Breadcrumbs />
 
   	  {/* ➜ más espacio debajo del menú/breadcrumbs */}
-  	  <div className="mt-6 md:mt-8 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-  		<h2 className="text-xl sm:text-2xl font-bold flex items-center gap-2">
-  		  <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-indigo-50 text-indigo-700 p-2 ring-1 ring-indigo-200">
-  			<UserPlus className="h-5 w-5" aria-hidden="true" />
-  		  </span>
-  		  <span>Registrar Docente — {nivelURL}</span>
-  		</h2>
+	  <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+		<h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+		  <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-200 size-10">
+			<UserPlus className="size-6" aria-hidden="true" />
+		  </span>
+		  <span>Registrar Docente — {nivelURL}</span>
+		</h2>
   		<LastEditPill edit={ultimaEdicion} />
   	  </div>
 

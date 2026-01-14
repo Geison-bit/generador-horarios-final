@@ -7,11 +7,7 @@ const AsignacionDocentesPage = () => {
   const location = useLocation();
   const nivel = new URLSearchParams(location.search).get("nivel") || "Secundaria";
 
-  return (
-    <div className="p-6 max-w-6xl mx-auto">
-      {nivel === "Primaria" ? <AsignacionDocentePrimaria /> : <AsignacionDocenteCurso />}
-    </div>
-  );
+  return nivel === "Primaria" ? <AsignacionDocentePrimaria /> : <AsignacionDocenteCurso />;
 };
 
 export default AsignacionDocentesPage;

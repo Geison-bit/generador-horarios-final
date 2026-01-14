@@ -3,6 +3,7 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "./Breadcrumbs"; // ✅ agregado
+import { Users } from "lucide-react";
 
 // Modelo base alineado a tu BD
 const emptyForm = {
@@ -162,8 +163,10 @@ export default function DocentesAdmin() {
       {/* ✅ Breadcrumbs arriba */}
       <Breadcrumbs />
 
-      <div className="flex items-center justify-between mb-4 mt-4">
-        <h1 className="text-2xl font-semibold">Gestión de Docentes ({nivelURL})</h1>
+      <div className="mt-4 mb-4 flex items-center justify-between">
+        <h1 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <Users className="size-6 text-blue-600" />
+          Gestión de Docentes ({nivelURL})</h1>
         <button onClick={onNew} className="px-3 py-2 rounded-xl bg-blue-600 text-white hover:opacity-90">
           Nuevo Docente
         </button>

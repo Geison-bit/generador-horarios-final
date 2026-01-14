@@ -208,7 +208,7 @@ export default function AulasForm() {
       <Breadcrumbs />
 
       {/* Header con título a la izquierda y última edición a la derecha */}
-      <div className="mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+      <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
         <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
         </h2>

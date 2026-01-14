@@ -1,6 +1,7 @@
 import React, { useState } from "react";
 import { createUser } from "../services/userService";
 import Breadcrumbs from "../components/Breadcrumbs";
+import { UserPlus } from "lucide-react";
 
 export default function CrearUsuario() {
   const [form, setForm] = useState({
@@ -45,11 +46,14 @@ export default function CrearUsuario() {
   }
 
   return (
-    <div className="w-full">
-      <Breadcrumbs />
+    <div className="p-4 md:p-6 max-w-7xl mx-auto">
+          <Breadcrumbs />
+      <div className="mt-4 mb-4 flex items-center gap-2">
+        <UserPlus className="size-6 text-blue-600" />
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800">Crear nuevo usuario</h2>
+      </div>
 
-      <div className="p-8 max-w-xl mx-auto bg-white rounded-lg sm:rounded-xl shadow mt-6">
-        <h2 className="text-xl sm:text-2xl font-bold mb-6">Crear nuevo usuario</h2>
+      <div className="p-8 max-w-xl mx-auto bg-white rounded-lg sm:rounded-xl shadow">
 
         <form onSubmit={handleSubmit} className="space-y-4">
           <label className="block text-sm font-medium">

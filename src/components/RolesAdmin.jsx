@@ -4,6 +4,7 @@ import { supabase } from "../supabaseClient";
 import ProtectedRoute from "../auth/ProtectedRoute";
 import { withAudit } from "../services/auditService";
 import Breadcrumbs from "./Breadcrumbs";
+import { ShieldCheck } from "lucide-react";
 import RolePermsModal from "./RolePermsModal";
 
 const emptyRole = { id: null, nombre: "", descripcion: "" };
@@ -181,7 +182,10 @@ export function RolesAdminInner() {
       <Breadcrumbs />
 
       <div className="flex items-center justify-between mb-4 mt-4">
-        <h1 className="text-xl sm:text-2xl font-semibold">Gestion de Roles ({nivelURL})</h1>
+        <h1 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <ShieldCheck className="size-6 text-blue-600" />
+          Gestion de Roles ({nivelURL})
+        </h1>
 
         <button onClick={onNewRole} className="px-3 py-2 rounded-lg sm:rounded-xl bg-blue-600 text-white">
           Nuevo rol

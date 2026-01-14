@@ -66,16 +66,16 @@ export default function Breadcrumbs() {
     <div className="w-full px-4">
       <div className="mx-auto max-w-7xl">
         <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between min-h-[52px]">
             <div className="inline-flex items-center gap-3">
-              <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 p-2 ring-1 ring-blue-200">
+              <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-200 size-10">
                 <GraduationCap className="size-5" aria-hidden="true" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600">Nivel</span>
+                <span className="text-sm font-medium text-slate-600 leading-9">Nivel</span>
                 <select
                   aria-label="Seleccionar nivel"
-                  className="rounded-lg border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
+                  className="h-9 min-w-[140px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
                   value={nivel}
                   onChange={(e) => onNivelChange(e.target.value)}
                 >
@@ -85,7 +85,7 @@ export default function Breadcrumbs() {
               </div>
             </div>
 
-            <nav aria-label="Breadcrumb" className="text-sm">
+            <nav aria-label="Breadcrumb" className="text-sm min-h-[36px] flex items-center">
               <ol className="flex items-center gap-2 text-slate-600">
                 {crumbs.map((c, idx) => (
                   <li key={c.path} className="inline-flex items-center gap-2">

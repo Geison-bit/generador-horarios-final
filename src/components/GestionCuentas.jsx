@@ -3,6 +3,7 @@ import { supabase } from "../supabaseClient";
 import { withAudit, logAudit } from "../services/auditService";
 import Breadcrumbs from "./Breadcrumbs";
 import ProtectedRoute from "../auth/ProtectedRoute";
+import { Users } from "lucide-react";
 
 function GestionCuentasInner() {
   const [users, setUsers] = useState([]);
@@ -103,8 +104,11 @@ function GestionCuentasInner() {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="flex justify-between items-center my-4">
-        <h1 className="text-xl sm:text-2xl font-semibold">Gestión de Cuentas de Usuario</h1>
+      <div className="mt-4 mb-4 flex justify-between items-center">
+        <h1 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <Users className="size-6 text-blue-600" />
+          Gestion de Cuentas de Usuario
+        </h1>
       </div>
 
       {loading ? (

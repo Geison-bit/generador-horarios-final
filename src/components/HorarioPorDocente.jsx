@@ -262,14 +262,14 @@ export default function HorarioPorDocente() {
   // Color estable por curso (hash hue)
   function colorCurso(id) {
     const h = (Number(id) * 47) % 360;
-    return `hsl(${h} 70% 92%)`;
+    return `hsl(${h} 90% 75%)`;
   }
 
   return (
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <h2 className="text-xl md:text-2xl font-semibold text-slate-800 mb-4 flex items-center gap-2">
+      <h2 className="mt-4 mb-4 text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
         <User className="size-6 text-blue-600" /> Horario de Docente
       </h2>
 
@@ -310,21 +310,21 @@ export default function HorarioPorDocente() {
             </select>
             <button
               onClick={exportarPDF}
-              className="inline-flex items-center gap-2 rounded bg-rose-600 px-3 py-2 text-white hover:bg-rose-700"
+              className="bg-red-600 text-white px-4 py-1.5 rounded hover:bg-red-700 transition-colors text-sm w-full sm:w-auto"
             >
-              <Download className="size-4" /> Exportar PDF
+              PDF
             </button>
             <button
               onClick={exportarExcel}
-              className="inline-flex items-center gap-2 rounded bg-emerald-600 px-3 py-2 text-white hover:bg-emerald-700"
+              className="bg-green-600 text-white px-4 py-1.5 rounded hover:bg-green-700 transition-colors text-sm w-full sm:w-auto"
             >
-              <FileSpreadsheet className="size-4" /> Exportar Excel
+              Excel
             </button>
             <button
               onClick={() => window.print()}
-              className="inline-flex items-center gap-2 rounded bg-slate-700 px-3 py-2 text-white hover:bg-slate-800"
+              className="bg-slate-700 text-white px-4 py-1.5 rounded hover:bg-slate-800 transition-colors text-sm w-full sm:w-auto"
             >
-              <Printer className="size-4" /> Imprimir
+              Imprimir
             </button>
           </div>
 
@@ -360,16 +360,16 @@ export default function HorarioPorDocente() {
                             <span className="text-xs text-slate-400">-</span>
                           ) : (
                             <div
-                              className="rounded-lg px-2 py-1 text-left"
+                              className="rounded-lg px-2 py-1 text-left text-black"
                               style={{ background: colorCurso(celda.curso_id) }}
                             >
                               <div className="font-semibold">
                                 {cursosMap[celda.curso_id] || `Curso ${celda.curso_id}`}
                               </div>
-                              <div className="text-[11px] text-slate-600">
+                              <div className="text-[11px] text-black">
                                 Docente: <span className="italic">{docenteNombre}</span>
                               </div>
-                              <div className="text-[11px] text-slate-600">
+                              <div className="text-[11px] text-black">
                                 Grado: {nivel === "Primaria" ? celda.grado_id - 5 : celda.grado_id}
                               </div>
                             </div>
