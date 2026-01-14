@@ -42,6 +42,16 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     reglas = (restricciones or {}).get("reglas", {}) or {}
     r_disp = bool(reglas.get("disponibilidad_docente", True))
     r_nosolape = bool(reglas.get("no_solape_docente", True))
+    r_limitar_carga = bool(
+        reglas.get("distribuir_en_dias_distintos",
+        reglas.get("limitar_carga_diaria", True))
+    )
+    r_limitar_docente_grado = bool(reglas.get("limitar_carga_docente_grado", True))
+    r_prohibir_1h = bool(reglas.get("prohibir_sesiones_1h", False))
+    r_mejorar_continuidad = bool(
+        reglas.get("bloques_consecutivos",
+        reglas.get("mejorar_continuidad", True))
+    )
 
     disponibilidad_map = (restricciones or {}).get("disponibilidad", restricciones or {})
 
@@ -75,34 +85,30 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     # ======== Variables ========
     x = {}
     s = {}
+    pares = list(Hreq.keys())
 
-    for c in C:
-        for g in G:
-            for d in D:
-                for h in H:
-                    x[(c, g, d, h)] = model.NewBoolVar(f"x_c{c}_g{g}_d{d}_h{h}")
+    for c, g in pares:
+        for d in D:
+            for h in H:
+                x[(c, g, d, h)] = model.NewBoolVar(f"x_c{c}_g{g}_d{d}_h{h}")
 
-            s[(c, g)] = model.NewIntVar(0, Hreq[(c, g)], f"s_c{c}_g{g}")
+        s[(c, g)] = model.NewIntVar(0, Hreq[(c, g)], f"s_c{c}_g{g}")
 
     # ======== 1) Carga horaria exacta con slack ========
-    for c in C:
-        for g in G:
-            model.Add(
-                sum(x[(c, g, d, h)] for d in D for h in H) + s[(c, g)] == Hreq[(c, g)]
-            )
-            # Limitar carga diaria para forzar distribución (evita concentrar todas las horas en un día)
+    for c, g in pares:
+        model.Add(
+            sum(x[(c, g, d, h)] for d in D for h in H) + s[(c, g)] == Hreq[(c, g)]
+        )
+        if r_limitar_carga:
             for d in D:
                 model.Add(sum(x[(c, g, d, h)] for h in H) <= 3)
-            # Limitar carga diaria para forzar distribución (evita meter todas las horas de un curso en un solo día)
-            for d in D:
-                model.Add(sum(x[(c, g, d, h)] for h in H) <= 3)  # máx 3 bloques por día
 
     # ======== 2) Un curso por grado y bloque ========
     for g in G:
         for d in D:
             for h in H:
                 model.Add(
-                    sum(x[(c, g, d, h)] for c in C) <= 1
+                    sum(x[(c, g, d, h)] for (c, g2) in pares if g2 == g) <= 1
                 )
 
     # ======== 3) Disponibilidad docente ========
@@ -117,8 +123,8 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
         key2 = f"{_normalize(DIAS[d])}-{h}"
         return bool(reglas_doc.get(key1) or reglas_doc.get(key2))
 
-    for c in C:
-        for g in G:
+    if r_disp and nivel != "Primaria":
+        for c, g in pares:
             p = prof[(c, g)]
             for d in D:
                 for h in H:
@@ -138,9 +144,9 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                         ) <= 1
                     )
 
-    # ======== 5) Bloques consecutivos por curso/grado/día (evita 1-0-1) ========
-    for c in C:
-        for g in G:
+    # ======== 5) Bloques consecutivos por curso/grado/dia (evita 1-0-1) ========
+    if r_mejorar_continuidad:
+        for c, g in pares:
             for d in D:
                 for h1 in range(NUM_BLOQUES):
                     for h3 in range(h1 + 2, NUM_BLOQUES):
@@ -151,21 +157,22 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
 
     # ======== 5) Limitar carga diaria por docente/grado (evita saturar un grado con varios cursos del mismo docente) ========
     MAX_POR_DIA_DOCENTE_GRADO = 3
-    for p in {prof[k] for k in prof}:
-        for g in G:
-            for d in D:
-                model.Add(
-                    sum(
-                        x[(c, g, d, h)]
-                        for c in C
-                        if prof.get((c, g)) == p
-                        for h in H
-                    ) <= MAX_POR_DIA_DOCENTE_GRADO
-                )
+    if r_limitar_docente_grado:
+        for p in {prof[k] for k in prof}:
+            for g in G:
+                for d in D:
+                    model.Add(
+                        sum(
+                            x[(c2, g2, d, h)]
+                            for (c2, g2), dp in prof.items()
+                            if dp == p and g2 == g
+                            for h in H
+                        ) <= MAX_POR_DIA_DOCENTE_GRADO
+                    )
 
-    # ======== 6) Prohibir sesiones sueltas (evitar bloques aislados de 1 hora) por curso/grado/día ========
-    for c in C:
-        for g in G:
+    # ======== 6) Prohibir sesiones sueltas (evitar bloques aislados de 1 hora) por curso/grado/dia ========
+    if r_prohibir_1h:
+        for c, g in pares:
             for d in D:
                 ones = sum(x[(c, g, d, h)] for h in H)
                 b0 = model.NewBoolVar(f"c{c}_g{g}_d{d}_es0")
@@ -176,11 +183,11 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                 model.Add(ones <= 1).OnlyEnforceIf(bge2.Not())
                 model.AddBoolOr([b0, bge2])
 
-    # ======== Penalización por fragmentar bloques (preferir consecutivos) ========
+    # ======== Penalizacion por fragmentar bloques (preferir consecutivos) ========
     # Prioriza bloques agrupados aunque eso implique dejar horas sin asignar.
     break_vars = []
-    for c in C:
-        for g in G:
+    if r_mejorar_continuidad:
+        for c, g in pares:
             for d in D:
                 for h in range(1, NUM_BLOQUES):
                     bvar = model.NewBoolVar(f"break_c{c}_g{g}_d{d}_h{h}")
@@ -188,24 +195,43 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                     model.Add(x[(c, g, d, h - 1)] - x[(c, g, d, h)] <= bvar)
                     break_vars.append(bvar)
 
-    # ======== Penalizar huecos intermedios (preferir huecos al final del día) ========
+    # ======== Penalizar huecos intermedios (preferir huecos al final del dia) ========
     gap_vars = []
-    for g in G:
-        for d in D:
-            for h in range(NUM_BLOQUES - 1):
-                tiene_clase_despues = model.NewBoolVar(f"after_c{g}_d{d}_h{h}")
-                model.Add(sum(x[(c, g, d, hh)] for c in C for hh in range(h + 1, NUM_BLOQUES)) >= 1).OnlyEnforceIf(tiene_clase_despues)
-                model.Add(sum(x[(c, g, d, hh)] for c in C for hh in range(h + 1, NUM_BLOQUES)) == 0).OnlyEnforceIf(tiene_clase_despues.Not())
-                gap = model.NewBoolVar(f"gap_c{g}_d{d}_h{h}")
-                model.Add(sum(x[(c, g, d, h)] for c in C) == 0).OnlyEnforceIf(gap)
-                model.Add(sum(x[(c, g, d, h)] for c in C) >= 1).OnlyEnforceIf(gap.Not())
-                gap_vars.append(model.NewBoolVar(f"gap_active_c{g}_d{d}_h{h}"))
-                model.AddBoolAnd([gap, tiene_clase_despues]).OnlyEnforceIf(gap_vars[-1])
-                model.AddBoolOr([gap.Not(), tiene_clase_despues.Not()]).OnlyEnforceIf(gap_vars[-1].Not())
+    if r_mejorar_continuidad:
+        for g in G:
+            for d in D:
+                for h in range(NUM_BLOQUES - 1):
+                    tiene_clase_despues = model.NewBoolVar(f"after_g{g}_d{d}_h{h}")
+                    model.Add(
+                        sum(
+                            x[(c, g, d, hh)]
+                            for (c, g2) in pares
+                            if g2 == g
+                            for hh in range(h + 1, NUM_BLOQUES)
+                        ) >= 1
+                    ).OnlyEnforceIf(tiene_clase_despues)
+                    model.Add(
+                        sum(
+                            x[(c, g, d, hh)]
+                            for (c, g2) in pares
+                            if g2 == g
+                            for hh in range(h + 1, NUM_BLOQUES)
+                        ) == 0
+                    ).OnlyEnforceIf(tiene_clase_despues.Not())
+                    gap = model.NewBoolVar(f"gap_g{g}_d{d}_h{h}")
+                    model.Add(sum(x[(c, g, d, h)] for (c, g2) in pares if g2 == g) == 0).OnlyEnforceIf(gap)
+                    model.Add(sum(x[(c, g, d, h)] for (c, g2) in pares if g2 == g) >= 1).OnlyEnforceIf(gap.Not())
+                    gv = model.NewBoolVar(f"gap_active_g{g}_d{d}_h{h}")
+                    model.AddBoolAnd([gap, tiene_clase_despues]).OnlyEnforceIf(gv)
+                    model.AddBoolOr([gap.Not(), tiene_clase_despues.Not()]).OnlyEnforceIf(gv.Not())
+                    gap_vars.append(gv)
 
     # ======== OBJETIVO: completar horas primero, luego calidad ========
-    # Penalizamos muy fuerte el slack (horas faltantes), luego huecos y fragmentacion.
-    model.Minimize(100000 * sum(s.values()) + 200 * sum(gap_vars) + 50 * sum(break_vars))
+    # Penalizamos muy fuerte el slack (horas faltantes).
+    if r_mejorar_continuidad:
+        model.Minimize(100000 * sum(s.values()) + 200 * sum(gap_vars) + 50 * sum(break_vars))
+    else:
+        model.Minimize(100000 * sum(s.values()))
 
     # ======== RESOLVER ========
     solver = cp_model.CpSolver()

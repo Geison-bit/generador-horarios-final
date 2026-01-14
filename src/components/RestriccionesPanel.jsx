@@ -189,7 +189,9 @@ export default function RestriccionesPanel() {
         </header>
 
         <ul className="divide-y">
-          {catalogo.map(({ key, nombre, descripcion }) => {
+          {catalogo
+            .filter(({ key }) => key !== "omitir_cursos_1h")
+            .map(({ key, nombre, descripcion }) => {
             const activo = !!reglas[key];
             return (
               <li
