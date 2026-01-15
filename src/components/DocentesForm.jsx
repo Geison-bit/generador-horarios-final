@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { Clock3, UserPlus, Link2, Unlink } from "lucide-react";
+import { Clock3, UserPlus } from "lucide-react";
 
 // --- Iconos SVG para acciones ---
 const IconoEditar = () => (
@@ -562,8 +562,7 @@ useEffect(() => {
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Horas</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Aula</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Especialidades</th>
-  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Cuenta vinculada</th>
-  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
+			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
   			</tr>
   		  </thead>
   		  <tbody>
@@ -578,32 +577,8 @@ useEffect(() => {
   				  {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join(", ")}
   				</td>
 
-  				{/* Cuenta vinculada + acciones de vincular/desvincular */}
-  				<td className="border-b px-4 py-2 text-sm">
-  				  <div className="flex items-center gap-2">
-  					<span className="text-gray-700">{d.cuenta_vinculada || "—"}</span>
-  					{d.cuenta_vinculada ? (
-  					  <button
-  						title="Desvincular"
-  						onClick={() => desvincularCuenta(d)}
-  						className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-rose-50 text-rose-700 border border-rose-200 hover:bg-rose-100"
-  					  >
-  						<Unlink className="w-4 h-4" /> Quitar
-  					  </button>
-  					) : (
-  					  <button
-  						title="Vincular cuenta"
-  						onClick={() => abrirModalVincular(d)}
-  						className="inline-flex items-center gap-1 px-2 py-1 text-xs rounded-md bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100"
-  					  >
-  						<Link2 className="w-4 h-4" /> Vincular
-  					  </button>
-  					)}
-  				  </div>
-  				</td>
-
-  				<td className="border-b px-4 py-2">
-  				  <div className="flex justify-center items-center gap-3">
+				<td className="border-b px-4 py-2">
+				  <div className="flex justify-center items-center gap-3">
   					<button onClick={() => editarDocente(d)} className="p-2 text-blue-600 hover:bg-blue-100 rounded-full transition-colors" title="Editar Docente">
   					  <IconoEditar />
   					</button>
@@ -616,7 +591,7 @@ useEffect(() => {
   			))}
   			{docentes.length === 0 && (
   			  <tr>
-  				<td className="px-4 py-6 text-center text-gray-500" colSpan={8}>
+				<td className="px-4 py-6 text-center text-gray-500" colSpan={7}>
   				  No hay docentes activos en {nivelURL}.
   				</td>
   			  </tr>

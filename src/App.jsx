@@ -17,7 +17,6 @@ import RestriccionesPanel from "./components/RestriccionesPanel";
 
 // Gestión y roles
 import DocentesAdmin from "./components/DocentesAdmin";
-import RolesAdmin from "./components/RolesAdmin";
 import CrearUsuario from "./pages/CrearUsuario";
 import BitacoraAuditoriaPage from "./pages/BitacoraAuditoriaPage";
 import GestionCuentas from "./components/GestionCuentas";
@@ -108,14 +107,6 @@ function App() {
           element={
             <ProtectedRoute>
               <DocentesAdmin />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/admin/roles"
-          element={
-            <ProtectedRoute>
-              <RolesAdmin />
             </ProtectedRoute>
           }
         />

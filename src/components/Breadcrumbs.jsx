@@ -14,8 +14,7 @@ const RUTAS = [
   { label: "Horario por Docente", path: "/horario-docente" },
   // Administración
   { label: "Gestion de Docentes", path: "/admin/docentes" },
-  { label: "Gestion de Roles", path: "/admin/roles" },
-  { label: "Gestion de Cuentas", path: "/admin/cuentas" },
+    { label: "Gestion de Cuentas", path: "/admin/cuentas" },
   { label: "Crear Usuario", path: "/admin/usuarios/crear" },
   { label: "Bitacora de Auditoria", path: "/admin/auditoria" },
 ];

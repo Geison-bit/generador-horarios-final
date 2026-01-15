@@ -12,20 +12,17 @@ import {
   CalendarDays,
   IdCard,
   UserCog,
-  ShieldCheck,
   UserPlus,
   FileSearch,
   User,
-  AtSign,
   LogOut,
   Users2,
 } from "lucide-react";
 
 export default function Home() {
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
-  const { user, role, signOut } = useAuth();
+  const { user, signOut } = useAuth();
   const displayName = user?.user_metadata?.full_name || user?.email || "Usuario";
-  const roleLabel = role || "sin rol";
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
@@ -59,12 +56,6 @@ export default function Home() {
                 <div className="flex items-center gap-2 text-sm text-slate-700">
                   <User className="size-4 text-slate-500" />
                   <span className="font-semibold">{displayName}</span>
-                </div>
-                <div className="h-4 w-px bg-slate-200" />
-                <div className="flex items-center gap-2 text-xs text-slate-600">
-                  <AtSign className="size-4 text-slate-500" />
-                  <span>Rol:</span>
-                  <span className="font-semibold text-slate-800">{roleLabel}</span>
                 </div>
               </div>
               <button
@@ -185,14 +176,6 @@ export default function Home() {
             accent="from-sky-600/10 to-sky-600/0"
           />
 
-          <ActionCard
-            to="/admin/roles"
-            icon={ShieldCheck}
-            title="Gestion de Roles"
-            desc="Crea roles y asignalos a docentes para controlar permisos."
-            ariaLabel="Ir a gestion de roles"
-            accent="from-teal-600/10 to-teal-600/0"
-          />
           <ActionCard
             to="/admin/cuentas"
             icon={Users2}
