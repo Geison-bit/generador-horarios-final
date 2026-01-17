@@ -316,6 +316,9 @@ const HorarioTable = () => {
     return { nombre: docente.nombre, aula: aulaNombre };
   };
 
+  const getColorHexPorDocenteId = (docenteId) =>
+    docentes.find((d) => d.id === docenteId)?.color || "";
+
   // Â¿El docente estÃ¡ disponible segÃºn disponibilidadEfectiva?
   const isDocenteDisponibleEnKey = (docenteId, diaIndex, bloqueIndex) => {
     if (!docenteId) return true;
@@ -935,6 +938,8 @@ const HorarioTable = () => {
                           const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
                           const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
                           const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
+                          const docenteId = obtenerDocenteIdPorCursoYGrado(cursoId, gradoIndex);
+                          const colorHex = getColorHexPorDocenteId(docenteId);
 
                           const droppableId = `dia-${diaIndex}-${bloqueIndex}-${gradoIndex}`;
                           const draggableId = `${diaIndex}-${bloqueIndex}-${gradoIndex}-${cursoId}`;
@@ -956,7 +961,8 @@ const HorarioTable = () => {
                                             {...provided2.draggableProps}
                                             {...provided2.dragHandleProps}
                                             onDoubleClick={() => eliminarCurso(diaIndex, bloqueIndex, gradoIndex)}
-                                            className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow ${getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
+                                            className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow ${colorHex ? "" : getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
+                                            style={colorHex ? { backgroundColor: colorHex, color: "#0f172a" } : undefined}
                                             title="Doble clic para eliminar"
                                           >
                                             <div className="font-semibold">{cursoNombre}</div>
@@ -1019,10 +1025,18 @@ const HorarioTable = () => {
                         const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
                         const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
                         const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
+                        const docenteId = obtenerDocenteIdPorCursoYGrado(cursoId, gradoIndex);
+                        const colorHex = getColorHexPorDocenteId(docenteId);
                         return (
-                          <td key={`${diaIndex}-${bloqueIndex}`} className="border border-gray-300 px-2 py-2 align-top text-left">
+                          <td
+                            key={`${diaIndex}-${bloqueIndex}`}
+                            className="border border-gray-300 px-2 py-2 align-top text-left"
+                          >
                             {cursoId > 0 ? (
-                              <div className="text-xs leading-tight">
+                              <div
+                                className="text-xs leading-tight rounded p-1"
+                                style={colorHex ? { backgroundColor: colorHex, color: "#0f172a" } : undefined}
+                              >
                                 <div className="font-semibold">{cursoNombre}</div>
                                 {docenteNombre && (
                                   <div className="italic">

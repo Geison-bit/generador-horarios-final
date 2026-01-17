@@ -128,18 +128,117 @@ function VincularCuentaModal({ open, onClose, onConfirm, docente }) {
 }
 
 
-const DocentesForm = () => {
-  const initialState = {
-    nombre: "",
-    apellido: "",
-    tipoProfesor: "",
-    jornada: "",
-    aulaId: "",
-    cursosSeleccionados: [],
-  };
+const COLOR_PRESETS = [
+  "#ef4444",
+  "#f97316",
+  "#f59e0b",
+  "#84cc16",
+  "#22c55e",
+  "#10b981",
+  "#14b8a6",
+  "#06b6d4",
+  "#0ea5e9",
+  "#3b82f6",
+  "#6366f1",
+  "#8b5cf6",
+  "#a855f7",
+  "#d946ef",
+  "#ec4899",
+  "#f43f5e",
+];
 
-  const [formData, setFormData] = useState(initialState);
-  const [errors, setErrors] = useState({});
+const clamp = (n, min, max) => Math.min(max, Math.max(min, n));
+
+const hexToRgb = (hex) => {
+  const clean = hex.replace("#", "");
+  const full = clean.length === 3
+    ? clean.split("").map((c) => c + c).join("")
+    : clean.padEnd(6, "0").slice(0, 6);
+  const num = parseInt(full, 16);
+  return {
+    r: (num >> 16) & 255,
+    g: (num >> 8) & 255,
+    b: num & 255,
+  };
+};
+
+const rgbToHsl = ({ r, g, b }) => {
+  const rn = r / 255;
+  const gn = g / 255;
+  const bn = b / 255;
+  const max = Math.max(rn, gn, bn);
+  const min = Math.min(rn, gn, bn);
+  const delta = max - min;
+  let h = 0;
+  let s = 0;
+  const l = (max + min) / 2;
+
+  if (delta !== 0) {
+    s = delta / (1 - Math.abs(2 * l - 1));
+    switch (max) {
+      case rn:
+        h = ((gn - bn) / delta) % 6;
+        break;
+      case gn:
+        h = (bn - rn) / delta + 2;
+        break;
+      default:
+        h = (rn - gn) / delta + 4;
+        break;
+    }
+    h = Math.round(h * 60);
+    if (h < 0) h += 360;
+  }
+
+  return {
+    h,
+    s: Math.round(s * 100),
+    l: Math.round(l * 100),
+  };
+};
+
+const hslToHex = ({ h, s, l }) => {
+  const s1 = clamp(s, 0, 100) / 100;
+  const l1 = clamp(l, 0, 100) / 100;
+  const c = (1 - Math.abs(2 * l1 - 1)) * s1;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l1 - c / 2;
+
+  let r1 = 0;
+  let g1 = 0;
+  let b1 = 0;
+
+  if (h >= 0 && h < 60) {
+    r1 = c; g1 = x; b1 = 0;
+  } else if (h < 120) {
+    r1 = x; g1 = c; b1 = 0;
+  } else if (h < 180) {
+    r1 = 0; g1 = c; b1 = x;
+  } else if (h < 240) {
+    r1 = 0; g1 = x; b1 = c;
+  } else if (h < 300) {
+    r1 = x; g1 = 0; b1 = c;
+  } else {
+    r1 = c; g1 = 0; b1 = x;
+  }
+
+  const toHex = (v) => Math.round((v + m) * 255).toString(16).padStart(2, "0");
+  return `#${toHex(r1)}${toHex(g1)}${toHex(b1)}`;
+};
+
+const DocentesForm = () => {
+  const initialState = {
+    nombre: "",
+    apellido: "",
+    tipoProfesor: "",
+    jornada: "",
+    aulaId: "",
+    cursosSeleccionados: [],
+    color: "#60a5fa",
+  };
+
+  const [formData, setFormData] = useState(initialState);
+  const [errors, setErrors] = useState({});
   const [aulas, setAulas] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [cursos, setCursos] = useState([]);
@@ -152,9 +251,26 @@ const DocentesForm = () => {
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
 
   // Vinculación modal
-  const [modalOpen, setModalOpen] = useState(false);
-  const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
-  const [loadingVincula, setLoadingVincula] = useState(false);
+  const [modalOpen, setModalOpen] = useState(false);
+  const [docenteSeleccionado, setDocenteSeleccionado] = useState(null);
+  const [loadingVincula, setLoadingVincula] = useState(false);
+
+  const actualizarColorDocente = async (docenteId, colorHex) => {
+    const { data, error } = await supabase
+      .from("docentes")
+      .update({ color: colorHex })
+      .eq("id", docenteId)
+      .select("id, color");
+    if (error) {
+      console.error("Error al actualizar color:", error);
+      alert(`No se pudo actualizar el color. ${error.message || ""}`.trim());
+      return;
+    }
+    if (!data || data.length === 0) {
+      console.warn("Actualizacion de color sin filas devueltas.");
+    }
+    await cargarDocentes();
+  };
 
   const location = useLocation();
   const params = new URLSearchParams(location.search);
@@ -179,15 +295,14 @@ const DocentesForm = () => {
   }, []);
 
   // --- Fetchers ---
-  const cargarDocentes = async () => {
-    // Usamos la vista con el correo de la cuenta vinculada
-    const { data, error } = await supabase
-      .from("v_docentes_extend")
-      .select("*, aulas(nombre), docente_curso:docente_curso(curso_id, cursos(nombre))")
-      .eq("nivel", nivelURL)
-      .eq("activo", true)
-      .order("apellido")
-      .order("nombre");
+  const cargarDocentes = async () => {
+    const { data, error } = await supabase
+      .from("docentes")
+      .select("*, aulas(nombre), docente_curso:docente_curso(curso_id, cursos(nombre))")
+      .eq("nivel", nivelURL)
+      .eq("activo", true)
+      .order("apellido")
+      .order("nombre");
 
     if (!error) setDocentes(data || []);
     else setDocentes([]);
@@ -206,11 +321,11 @@ const DocentesForm = () => {
   const aulasOcupadas = docentes.map((d) => d.aula_id);
 
   // --- Handlers ---
-  const handleInputChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
-    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
-  };
+  const handleInputChange = (e) => {
+    const { name, value } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: value }));
+    if (errors[name]) setErrors((prev) => ({ ...prev, [name]: null }));
+  };
 
   const toggleCursoSeleccionado = (id) => {
     const { cursosSeleccionados } = formData;
@@ -237,38 +352,64 @@ const DocentesForm = () => {
   	return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = async (e) => {
-  	e.preventDefault();
-  	if (!validateForm()) return;
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    if (!validateForm()) return;
 
-  	const payload = {
-  	  nombre: formData.nombre.trim(),
-  	  apellido: formData.apellido.trim(),
-  	  tipo_profesor: formData.tipoProfesor,
-  	  jornada_total: parseInt(formData.jornada, 10),
-  	  aula_id: parseInt(formData.aulaId, 10),
-  	  nivel: nivelURL,
-  	};
+    const reportError = (error, action) => {
+      if (!error) return false;
+      console.error(`Error al ${action}:`, error);
+      alert(`No se pudo ${action}. ${error.message || ""}`.trim());
+      return true;
+    };
 
-  	let docenteId = null;
+    const payload = {
+      nombre: formData.nombre.trim(),
+      apellido: formData.apellido.trim(),
+      tipo_profesor: formData.tipoProfesor,
+      jornada_total: parseInt(formData.jornada, 10),
+      aula_id: parseInt(formData.aulaId, 10),
+      nivel: nivelURL,
+      color: formData.color,
+    };
 
-  	if (modoEdicion && docenteEditandoId) {
-  	  await supabase.from("docentes").update(payload).eq("id", docenteEditandoId);
-  	  docenteId = docenteEditandoId;
-  	  await supabase.from("docente_curso").delete().eq("docente_id", docenteId);
-  	} else {
-  	  const { data } = await supabase.from("docentes").insert({ ...payload, activo: true }).select();
-  	  if (data && data.length > 0) docenteId = data[0].id;
-  	}
+    let docenteId = null;
 
-  	if (docenteId) {
-  	  const registros = formData.cursosSeleccionados.map((cid) => ({
-  		docente_id: docenteId,
-  		curso_id: cid,
-  		nivel: nivelURL,
-  	  }));
-  	  await supabase.from("docente_curso").insert(registros);
-  	}
+    if (modoEdicion && docenteEditandoId) {
+      const { data, error } = await supabase
+        .from("docentes")
+        .update(payload)
+        .eq("id", docenteEditandoId)
+        .select("id");
+      if (reportError(error, "actualizar el docente")) return;
+      if (!data || data.length === 0) {
+        alert("No se actualizo ningun docente. Verifica permisos o el id.");
+        return;
+      }
+      docenteId = docenteEditandoId;
+      const { error: errDel } = await supabase
+        .from("docente_curso")
+        .delete()
+        .eq("docente_id", docenteId);
+      if (reportError(errDel, "actualizar cursos del docente")) return;
+    } else {
+      const { data, error } = await supabase
+        .from("docentes")
+        .insert({ ...payload, activo: true })
+        .select();
+      if (reportError(error, "crear el docente")) return;
+      if (data && data.length > 0) docenteId = data[0].id;
+    }
+
+    if (docenteId) {
+      const registros = formData.cursosSeleccionados.map((cid) => ({
+        docente_id: docenteId,
+        curso_id: cid,
+        nivel: nivelURL,
+      }));
+      const { error } = await supabase.from("docente_curso").insert(registros);
+      if (reportError(error, "guardar cursos del docente")) return;
+    }
 
   	cancelarEdicion();
   	cargarDocentes();
@@ -277,14 +418,15 @@ const DocentesForm = () => {
   const editarDocente = (docente) => {
   	setModoEdicion(true);
   	setDocenteEditandoId(docente.id);
-  	setFormData({
-  	  nombre: docente.nombre,
-  	  apellido: docente.apellido || "",
-  	  tipoProfesor: docente.tipo_profesor || "",
-  	  jornada: (docente.jornada_total ?? "").toString(),
-  	  aulaId: (docente.aula_id ?? "").toString(),
-  	  cursosSeleccionados: docente.docente_curso?.map((dc) => dc.curso_id) || [],
-  	});
+    setFormData({
+      nombre: docente.nombre,
+      apellido: docente.apellido || "",
+      tipoProfesor: docente.tipo_profesor || "",
+      jornada: (docente.jornada_total ?? "").toString(),
+      aulaId: (docente.aula_id ?? "").toString(),
+      cursosSeleccionados: docente.docente_curso?.map((dc) => dc.curso_id) || [],
+      color: docente.color || "#60a5fa",
+    });
   	setErrors({});
   };
 
@@ -509,8 +651,8 @@ useEffect(() => {
   		  {errors.aulaId && <p className="text-red-600 text-xs mt-1">{errors.aulaId}</p>}
   		</div>
 
-  		<div className="relative flex flex-col" ref={dropdownRef}>
-  		  <label className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
+        <div className="relative flex flex-col" ref={dropdownRef}>
+          <label className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
   		  <button
   			type="button"
   			onClick={() => setMostrarDropdown(!mostrarDropdown)}
@@ -536,10 +678,79 @@ useEffect(() => {
   		  )}
   		</div>
 
-  		<div className="flex items-end gap-2 pt-6">
-  		  <button
-  			type="submit"
-  			className={`${modoEdicion ? "bg-yellow-500 hover:bg-yellow-full sm:w-600" : "bg-blue-600 hover:bg-blue-700"} text-white px-4 py-2 rounded-md font-semibold`}
+        <div className="flex flex-col">
+          <label htmlFor="color" className="mb-1 text-sm font-medium text-gray-700">
+            Color representativo
+          </label>
+          {(() => {
+            const hsl = rgbToHsl(hexToRgb(formData.color));
+            const updateHsl = (next) => {
+              const merged = { ...hsl, ...next };
+              const hex = hslToHex(merged);
+              setFormData((prev) => ({ ...prev, color: hex }));
+            };
+            return (
+              <>
+                <div className="flex items-center gap-3">
+                  <input
+                    id="color"
+                    name="color"
+                    type="color"
+                    value={formData.color}
+                    onChange={handleInputChange}
+                    className="h-10 w-14 rounded-md border border-gray-300 bg-white p-1"
+                    aria-label="Color representativo"
+                  />
+                  <div className="flex flex-wrap gap-2">
+                    {COLOR_PRESETS.map((hex) => (
+                      <button
+                        key={hex}
+                        type="button"
+                        onClick={() => setFormData((prev) => ({ ...prev, color: hex }))}
+                        className={`h-7 w-7 rounded-full border ${
+                          formData.color === hex ? "ring-2 ring-blue-500" : "border-gray-200"
+                        }`}
+                        style={{ backgroundColor: hex }}
+                        aria-label={`Usar color ${hex}`}
+                      />
+                    ))}
+                  </div>
+                </div>
+                <div className="mt-3 grid gap-2">
+                  <label className="text-xs text-gray-500">Tono</label>
+                  <input
+                    type="range"
+                    min="0"
+                    max="360"
+                    value={hsl.h}
+                    onChange={(e) => updateHsl({ h: Number(e.target.value) })}
+                  />
+                  <label className="text-xs text-gray-500">Saturacion</label>
+                  <input
+                    type="range"
+                    min="30"
+                    max="100"
+                    value={hsl.s}
+                    onChange={(e) => updateHsl({ s: Number(e.target.value) })}
+                  />
+                  <label className="text-xs text-gray-500">Claridad</label>
+                  <input
+                    type="range"
+                    min="30"
+                    max="85"
+                    value={hsl.l}
+                    onChange={(e) => updateHsl({ l: Number(e.target.value) })}
+                  />
+                </div>
+              </>
+            );
+          })()}
+        </div>
+
+        <div className="flex items-end gap-2 pt-6">
+          <button
+            type="submit"
+            className={`${modoEdicion ? "bg-yellow-500 hover:bg-yellow-full sm:w-600" : "bg-blue-600 hover:bg-blue-700"} text-white px-4 py-2 rounded-md font-semibold`}
   		  >
   			{modoEdicion ? "Guardar Cambios" : "Agregar Docente"}
   		  </button>
@@ -561,7 +772,8 @@ useEffect(() => {
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Tipo</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Horas</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Aula</th>
-  			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Especialidades</th>
+			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Especialidades</th>
+			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Color</th>
 			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
   			</tr>
   		  </thead>
@@ -573,9 +785,37 @@ useEffect(() => {
   				<td className="border-b px-4 py-2">{d.tipo_profesor}</td>
   				<td className="border-b px-4 py-2 text-center">{d.jornada_total}</td>
   				<td className="border-b px-4 py-2">{d.aulas?.nombre || "N/A"}</td>
-  				<td className="border-b px-4 py-2 text-xs">
-  				  {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join(", ")}
-  				</td>
+				<td className="border-b px-4 py-2 text-xs">
+				  {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join(", ")}
+				</td>
+				<td className="border-b px-4 py-2">
+				  <div className="flex items-center justify-center gap-2">
+					<input
+					  type="color"
+					  value={d.color || "#e5e7eb"}
+					  onChange={(e) => actualizarColorDocente(d.id, e.target.value)}
+					  className="h-7 w-7 rounded-md border border-gray-300 bg-white p-0.5"
+					  aria-label={`Color para ${d.nombre}`}
+					/>
+					<details className="relative">
+					  <summary className="cursor-pointer text-xs text-blue-600 select-none">
+						Paleta
+					  </summary>
+					  <div className="absolute right-0 z-10 mt-2 grid grid-cols-6 gap-1 rounded-lg border bg-white p-2 shadow">
+						{COLOR_PRESETS.map((hex) => (
+						  <button
+							key={hex}
+							type="button"
+							onClick={() => actualizarColorDocente(d.id, hex)}
+							className="h-5 w-5 rounded-full border border-gray-200"
+							style={{ backgroundColor: hex }}
+							aria-label={`Usar color ${hex}`}
+						  />
+						))}
+					  </div>
+					</details>
+				  </div>
+				</td>
 
 				<td className="border-b px-4 py-2">
 				  <div className="flex justify-center items-center gap-3">
@@ -591,7 +831,7 @@ useEffect(() => {
   			))}
   			{docentes.length === 0 && (
   			  <tr>
-				<td className="px-4 py-6 text-center text-gray-500" colSpan={7}>
+				<td className="px-4 py-6 text-center text-gray-500" colSpan={8}>
   				  No hay docentes activos en {nivelURL}.
   				</td>
   			  </tr>

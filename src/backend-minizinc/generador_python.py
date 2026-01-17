@@ -1,4 +1,5 @@
 from ortools.sat.python import cp_model
+import time
 import unicodedata
 
 # Lista de días; se usará normalizada para comparar claves con o sin tilde.
@@ -238,7 +239,9 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     solver.parameters.max_time_in_seconds = 120
     solver.parameters.num_search_workers = 8
 
+    t0 = time.perf_counter()
     status = solver.Solve(model)
+    t1 = time.perf_counter()
 
     horario = {d: {h: {} for h in H} for d in D}
 
@@ -280,12 +283,60 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     else:
         print("✅ Todos los cursos asignados completamente.")
 
+    # ======== Metricas tipo consola ========
+    total_requerido = sum(Hreq.values())
+    total_bloques_asignados = total_asignado
+    p = (total_bloques_asignados / total_requerido) if total_requerido > 0 else 0.0
+    asignaciones_exitosas = len(detalle) - asignaciones_fallidas
+    conflictos = solver.NumConflicts()
+    cumplimiento = "TOTAL" if asignaciones_fallidas == 0 else "PARCIAL"
+
+    p0 = 1.0
+    var = (1.0 / (4.0 * total_requerido)) if total_requerido > 0 else 0.0
+    se = var ** 0.5
+    z = ((p - p0) / se) if se > 0 else 0.0
+    sig = abs(z) >= 1.96
+
+    print(f"\n[INFO] Total asignado: {total_bloques_asignados} bloques")
+    print("\n================= METRICAS PARA TESIS =================")
+    print(f"Bloques requeridos: {total_requerido}")
+    print(f"Bloques asignados: {total_bloques_asignados}")
+    print(f"Proporcion de asignacion (p): {p:.3f} ({p*100:.2f}%)")
+    print(f"Conflictos detectados: {conflictos}")
+    print(f"Asignaciones exitosas: {asignaciones_exitosas}")
+    print(f"Asignaciones con deficit: {asignaciones_fallidas}")
+    print(f"Cumplimiento de restricciones duras: {cumplimiento}")
+
+    print("\n--- Test Estadistico Z para proporcion de bloques asignados ---")
+    print("Valor ideal esperado (p0): 1.0")
+    print(f"Varianza estimada (rule of continuity): Var = 1/(4n) = {var:.6f}")
+    print(f"Desviacion estandar (SE): sqrt(Var) = {se:.4f}")
+    print("\nCalculo con formula:")
+    print("Z = (p - p0) / SE")
+    print(f"Z = ({p:.3f} - 1.0) / {se:.4f}")
+    print(f"Z calculado = {z:.3f}")
+    print("\nInterpretacion:")
+    if sig:
+        print("La diferencia ES estadisticamente significativa (p <= 0.05).")
+        print("El sistema NO alcanza el 100% esperado.")
+    else:
+        print("La diferencia NO es estadisticamente significativa (p > 0.05).")
+        print("El sistema mantiene un nivel de asignacion compatible con el 100% esperado.")
+
+    print(f"\nTiempo de generacion: {t1 - t0:.3f} segundos")
+    print("=========================================================")
+
     return {
         "horario": horario,
         "detalle_asignaciones": detalle,
         "total_asignado": total_asignado,
-        "total_requerido": sum(Hreq.values()),
+        "total_bloques_asignados": total_bloques_asignados,
+        "total_requerido": total_requerido,
         "asignaciones_fallidas": asignaciones_fallidas,
+        "asignaciones_exitosas": asignaciones_exitosas,
+        "conflictos": conflictos,
+        "proporcion_asignacion": p,
+        "tiempo_generacion": t1 - t0,
         "estado_solver": status,
         "optimo": status == cp_model.OPTIMAL,
     }

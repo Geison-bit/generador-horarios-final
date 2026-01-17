@@ -42,7 +42,7 @@ export default function HorarioPorDocente() {
       (async () => {
         const { data, error } = await supabase
           .from("docentes")
-          .select("id, nombre, apellido, nivel, activo")
+          .select("id, nombre, apellido, nivel, activo, color")
           .eq("nivel", nivel)
           .eq("activo", true)
           .order("apellido", { ascending: true });
@@ -62,10 +62,15 @@ export default function HorarioPorDocente() {
   );
 
   const [docenteId, setDocenteId] = useState("");
+  const docenteColor = useMemo(
+    () => docentesFiltrados.find((d) => d.id === Number(docenteId))?.color || "",
+    [docentesFiltrados, docenteId]
+  );
   const docenteNombre = useMemo(
     () => docentesFiltrados.find((d) => d.id === Number(docenteId))?.nombre || "",
     [docentesFiltrados, docenteId]
   );
+  const [docenteColorDb, setDocenteColorDb] = useState("");
 
   const [franjas, setFranjas] = useState([]);               // [{bloque, hora_inicio, hora_fin}]
   const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
@@ -87,6 +92,22 @@ export default function HorarioPorDocente() {
       setHistorialLocal(Array.isArray(historico) ? historico : []);
     })();
   }, [nivel]);
+
+  // Color del docente (fallback directo a BD por si el context no lo trae)
+  useEffect(() => {
+    if (!docenteId) {
+      setDocenteColorDb("");
+      return;
+    }
+    (async () => {
+      const { data, error } = await supabase
+        .from("docentes")
+        .select("color")
+        .eq("id", Number(docenteId))
+        .maybeSingle();
+      if (!error && data?.color) setDocenteColorDb(data.color);
+    })();
+  }, [docenteId]);
 
   // Cargar franjas horarias por nivel (dinámicas)
   async function cargarFranjas() {
@@ -261,6 +282,8 @@ export default function HorarioPorDocente() {
 
   // Color estable por curso (hash hue)
   function colorCurso(id) {
+    const colorElegido = docenteColor || docenteColorDb;
+    if (colorElegido) return colorElegido;
     const h = (Number(id) * 47) % 360;
     return `hsl(${h} 90% 75%)`;
   }

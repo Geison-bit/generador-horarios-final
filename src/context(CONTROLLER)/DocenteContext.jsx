@@ -34,7 +34,7 @@ export const DocenteProvider = ({ children }) => {
       // ✅ DOCENTES: solo activos
       const { data: docentesData, error: docErr } = await supabase
         .from("docentes")
-        .select("id, nombre, apellido, tipo_profesor, jornada_total, aula_id, nivel, activo")
+        .select("id, nombre, apellido, tipo_profesor, jornada_total, aula_id, nivel, activo, color")
         .eq("activo", true)
         .order("apellido", { ascending: true });
       if (docErr) throw docErr;
