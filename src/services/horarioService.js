@@ -55,6 +55,85 @@ export const enviarDznAlServidor = async (
   }
 };
 
+export async function generarHorarioConProgreso({
+  docentes,
+  asignaciones,
+  restricciones,
+  horasCursos,
+  nivel,
+  onProgress,
+}) {
+  const response = await fetch(`${baseURL}/generar-horario-general-job`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      docentes,
+      asignaciones,
+      restricciones,
+      horas_curso_grado: horasCursos,
+      nivel,
+    }),
+  });
+
+  const data = await response.json();
+  if (!response.ok || !data?.job_id) {
+    throw new Error(data?.error || "No se pudo iniciar la generacion.");
+  }
+
+  const jobId = data.job_id;
+  const eventsUrl = `${baseURL}/generar-horario-general-job/${jobId}/events`;
+
+  return await new Promise((resolve, reject) => {
+    const es = new EventSource(eventsUrl);
+
+    const cleanup = () => {
+      try {
+        es.close();
+      } catch {
+        // noop
+      }
+    };
+
+    es.addEventListener("progress", (evt) => {
+      try {
+        const payload = JSON.parse(evt.data);
+        if (typeof payload?.progress === "number") {
+          onProgress?.(payload.progress, payload.stage || "");
+        }
+      } catch {
+        // noop
+      }
+    });
+
+    es.addEventListener("done", (evt) => {
+      cleanup();
+      try {
+        const payload = JSON.parse(evt.data);
+        resolve(payload?.result || null);
+      } catch (e) {
+        reject(e);
+      }
+    });
+
+    es.addEventListener("error", (evt) => {
+      cleanup();
+      let msg = "Error en el progreso.";
+      try {
+        const payload = JSON.parse(evt.data);
+        msg = payload?.error || msg;
+      } catch {
+        // noop
+      }
+      reject(new Error(msg));
+    });
+
+    es.onerror = () => {
+      cleanup();
+      reject(new Error("Se perdio la conexion del progreso."));
+    };
+  });
+}
+
 /* ============================================================================
  * 1) API de alto nivel: arma las REGLAS por nivel y llama al backend
  *    - Lee reglas efectivas (overrides + defaults)

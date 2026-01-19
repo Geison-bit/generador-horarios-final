@@ -48,7 +48,9 @@ const DEFAULTS_FALLBACK = [
   { key: "no_solape_docente",     default_aplica: true, orden: 2 },
   { key: "bloques_consecutivos",  default_aplica: true, orden: 3 },
   { key: "distribuir_en_dias_distintos", default_aplica: true, orden: 4 },
-  { key: "omitir_cursos_1h",      default_aplica: true, orden: 5 },
+  { key: "no_puentes_docente",    default_aplica: true, orden: 5 },
+  { key: "no_dias_consecutivos",  default_aplica: true, orden: 6 },
+  { key: "omitir_cursos_1h",      default_aplica: true, orden: 7 },
 ];
 
 /**
@@ -169,6 +171,8 @@ export function buildRestriccionesPayload(disponibilidadMap = {}, reglas = {}) {
       no_solape_docente: true,
       bloques_consecutivos: true,
       distribuir_en_dias_distintos: true,
+      no_puentes_docente: true,
+      no_dias_consecutivos: true,
       omitir_cursos_1h: true,
       // overrides efectivos
       ...reglas,

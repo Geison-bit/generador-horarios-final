@@ -1,4 +1,4 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import os
 from dotenv import load_dotenv
@@ -6,6 +6,11 @@ from pathlib import Path
 from supabase import create_client
 from generador_python import generar_horario
 import traceback
+import json
+import threading
+import time
+import uuid
+from queue import Queue, Empty
 
 app = Flask(__name__)
 
@@ -52,6 +57,25 @@ supabase = create_client(supabase_url, supabase_key)
 # Constantes
 DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
 NUM_BLOQUES = 8  # asegúrate que 'franjas_horarias' tenga bloques 0..7 por nivel
+
+# Jobs en memoria para progreso SSE
+_jobs = {}
+_jobs_lock = threading.Lock()
+
+def _push_event(job_id, event, payload):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+        if not job:
+            return
+        job["queue"].put((event, payload))
+
+def _cleanup_job(job_id, delay=300):
+    def _drop():
+        time.sleep(delay)
+        with _jobs_lock:
+            _jobs.pop(job_id, None)
+    t = threading.Thread(target=_drop, daemon=True)
+    t.start()
 
 @app.route("/health", methods=["GET"])
 def health():
@@ -195,6 +219,165 @@ def generar_horario_general():
             "error": str(e),
             "trace": traceback.format_exc()
         }), 500
+
+@app.route("/generar-horario-general-job", methods=["POST"])
+def generar_horario_job():
+    try:
+        data = request.get_json(force=True, silent=False)
+
+        docentes = data.get("docentes", [])
+        asignaciones = data.get("asignaciones", {})
+        restricciones = data.get("restricciones", {})
+        horas_curso_grado = data.get("horas_curso_grado", {})
+        nivel = data.get("nivel", "Secundaria")
+        overwrite = bool(data.get("overwrite", True))
+
+        if not docentes or not asignaciones or not horas_curso_grado:
+            return jsonify({"error": "Faltan datos requeridos para generar el horario."}), 400
+
+        job_id = str(uuid.uuid4())
+        q = Queue()
+        with _jobs_lock:
+            _jobs[job_id] = {"queue": q, "status": "running", "result": None, "error": None}
+
+        def _progress_cb(pct, stage=""):
+            _push_event(job_id, "progress", {"progress": int(pct), "stage": stage})
+
+        def _run():
+            try:
+                _progress_cb(2, "preparando")
+                resultado = generar_horario(
+                    docentes,
+                    asignaciones,
+                    restricciones,
+                    horas_curso_grado,
+                    nivel=nivel,
+                    progress_callback=_progress_cb
+                )
+                horario_dict = resultado.get("horario", {})
+                total_asignados = resultado.get("total_bloques_asignados", 0)
+                nueva_version = obtener_nuevo_numero_horario(nivel)
+
+                registros = []
+                for dia_key, bloques in (horario_dict or {}).items():
+                    try:
+                        dia_idx = int(dia_key)
+                    except Exception:
+                        continue
+                    if not (0 <= dia_idx < len(DIAS)):
+                        continue
+                    dia_nombre = DIAS[dia_idx]
+
+                    for blq_key, grados in (bloques or {}).items():
+                        try:
+                            bloque_idx = int(blq_key)
+                        except Exception:
+                            continue
+                        if not (0 <= bloque_idx < NUM_BLOQUES):
+                            continue
+
+                        for grado_key, curso_id in (grados or {}).items():
+                            if not isinstance(curso_id, int) or curso_id <= 0:
+                                continue
+                            try:
+                                grado_id = int(grado_key)
+                            except Exception:
+                                continue
+
+                            docente_id = (
+                                asignaciones
+                                .get(str(curso_id), {})
+                                .get(str(grado_id), {})
+                                .get("docente_id")
+                            )
+                            if docente_id:
+                                registros.append({
+                                    "docente_id": int(docente_id),
+                                    "curso_id": int(curso_id),
+                                    "grado_id": int(grado_id),
+                                    "dia": dia_nombre,
+                                    "bloque": int(bloque_idx),
+                                    "nivel": nivel,
+                                    "horario": int(nueva_version)
+                                })
+
+                if registros:
+                    CONFLICT_COLS = ["grado_id", "dia", "bloque"]
+                    if overwrite:
+                        supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                        supabase.table("horarios").insert(registros).execute()
+                    else:
+                        try:
+                            supabase.table("horarios").upsert(registros, on_conflict=CONFLICT_COLS).execute()
+                        except Exception as e:
+                            msg = str(e)
+                            if "42P10" in msg or "23505" in msg:
+                                supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                                supabase.table("horarios").insert(registros).execute()
+                            else:
+                                raise
+
+                grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
+                horario_lista = [
+                    [
+                        [
+                            (horario_dict.get(d, {}).get(b, {}).get(g, 0))
+                            for g in grados_ids
+                        ]
+                        for b in range(NUM_BLOQUES)
+                    ]
+                    for d in range(5)
+                ]
+
+                payload = {
+                    "horario": horario_lista,
+                    "asignaciones_exitosas": resultado.get("asignaciones_exitosas", 0),
+                    "asignaciones_fallidas": resultado.get("asignaciones_fallidas", 0),
+                    "total_bloques_asignados": total_asignados,
+                    "version": nueva_version
+                }
+                with _jobs_lock:
+                    _jobs[job_id]["status"] = "done"
+                    _jobs[job_id]["result"] = payload
+                _push_event(job_id, "done", {"result": payload})
+            except Exception as e:
+                with _jobs_lock:
+                    _jobs[job_id]["status"] = "error"
+                    _jobs[job_id]["error"] = str(e)
+                _push_event(job_id, "error", {"error": str(e)})
+            finally:
+                _cleanup_job(job_id, delay=300)
+
+        t = threading.Thread(target=_run, daemon=True)
+        t.start()
+
+        return jsonify({"job_id": job_id}), 202
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+@app.route("/generar-horario-general-job/<job_id>/events", methods=["GET"])
+def generar_horario_job_events(job_id):
+    with _jobs_lock:
+        job = _jobs.get(job_id)
+    if not job:
+        return jsonify({"error": "Job no encontrado"}), 404
+
+    def stream():
+        while True:
+            try:
+                event, payload = job["queue"].get(timeout=20)
+            except Empty:
+                yield ": ping\n\n"
+                continue
+            yield f"event: {event}\n"
+            yield f"data: {json.dumps(payload)}\n\n"
+            if event in ("done", "error"):
+                break
+
+    resp = Response(stream_with_context(stream()), mimetype="text/event-stream")
+    resp.headers["Cache-Control"] = "no-cache"
+    resp.headers["X-Accel-Buffering"] = "no"
+    return resp
 
 # Run local / Railway
 if __name__ == "__main__":

@@ -1,5 +1,6 @@
 from ortools.sat.python import cp_model
 import time
+import threading
 import unicodedata
 
 # Lista de días; se usará normalizada para comparar claves con o sin tilde.
@@ -36,7 +37,7 @@ def dividir_horas(horas: int):
     return [[horas]]
 
 
-def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
+def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria", progress_callback=None):
     model = cp_model.CpModel()
 
     # ======== Reglas desde UI ========
@@ -53,6 +54,8 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
         reglas.get("bloques_consecutivos",
         reglas.get("mejorar_continuidad", True))
     )
+    r_no_puentes = bool(reglas.get("no_puentes_docente", True))
+    r_no_dias_consecutivos = bool(reglas.get("no_dias_consecutivos", True))
 
     disponibilidad_map = (restricciones or {}).get("disponibilidad", restricciones or {})
 
@@ -145,6 +148,22 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                         ) <= 1
                     )
 
+    # ======== 4.1) Evitar puentes del docente (sin huecos intermedios) ========
+    if r_no_puentes:
+        docentes_ids = {prof[k] for k in prof}
+        for p in docentes_ids:
+            for d in D:
+                def docente_slot(h):
+                    return sum(
+                        x[(c, g, d, h)]
+                        for (c, g), dp in prof.items()
+                        if dp == p
+                    )
+                for h1 in range(NUM_BLOQUES - 1):
+                    for h3 in range(h1 + 2, NUM_BLOQUES):
+                        for h2 in range(h1 + 1, h3):
+                            model.Add(docente_slot(h1) + docente_slot(h3) - docente_slot(h2) <= 1)
+
     # ======== 5) Bloques consecutivos por curso/grado/dia (evita 1-0-1) ========
     if r_mejorar_continuidad:
         for c, g in pares:
@@ -183,6 +202,33 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                 model.Add(ones >= 2).OnlyEnforceIf(bge2)
                 model.Add(ones <= 1).OnlyEnforceIf(bge2.Not())
                 model.AddBoolOr([b0, bge2])
+
+    # ======== 7) Evitar dias consecutivos por curso/grado (solo >4 horas) ========
+    consec_day_vars = []
+    if r_no_dias_consecutivos:
+        for c, g in pares:
+            if Hreq[(c, g)] <= 4:
+                continue
+            day_has = []
+            for d in D:
+                has = model.NewBoolVar(f"has_c{c}_g{g}_d{d}")
+                model.Add(sum(x[(c, g, d, h)] for h in H) >= 1).OnlyEnforceIf(has)
+                model.Add(sum(x[(c, g, d, h)] for h in H) == 0).OnlyEnforceIf(has.Not())
+                day_has.append(has)
+            # No permitir 3 dias seguidos
+            for d in range(NUM_DIAS - 2):
+                model.Add(day_has[d] + day_has[d + 1] + day_has[d + 2] <= 2)
+            # Penalizar dias consecutivos (si no se puede, se permiten)
+            adj_vars = []
+            for d in range(NUM_DIAS - 1):
+                adj = model.NewBoolVar(f"adj_c{c}_g{g}_d{d}")
+                model.Add(day_has[d] + day_has[d + 1] == 2).OnlyEnforceIf(adj)
+                model.Add(day_has[d] + day_has[d + 1] <= 1).OnlyEnforceIf(adj.Not())
+                adj_vars.append(adj)
+                consec_day_vars.append(adj)
+            # Si el curso tiene 7h o mas, permitir solo 1 par consecutivo
+            if Hreq[(c, g)] >= 7:
+                model.Add(sum(adj_vars) <= 1)
 
     # ======== Penalizacion por fragmentar bloques (preferir consecutivos) ========
     # Prioriza bloques agrupados aunque eso implique dejar horas sin asignar.
@@ -229,19 +275,48 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
 
     # ======== OBJETIVO: completar horas primero, luego calidad ========
     # Penalizamos muy fuerte el slack (horas faltantes).
-    if r_mejorar_continuidad:
-        model.Minimize(100000 * sum(s.values()) + 200 * sum(gap_vars) + 50 * sum(break_vars))
+    if r_mejorar_continuidad or r_no_dias_consecutivos:
+        model.Minimize(
+            100000 * sum(s.values())
+            + 200 * sum(gap_vars)
+            + 50 * sum(break_vars)
+            + 80 * sum(consec_day_vars)
+        )
     else:
         model.Minimize(100000 * sum(s.values()))
 
     # ======== RESOLVER ========
     solver = cp_model.CpSolver()
-    solver.parameters.max_time_in_seconds = 120
+    solver.parameters.max_time_in_seconds = 1200
     solver.parameters.num_search_workers = 8
+
+    stop_event = threading.Event()
+
+    def _progress_timer():
+        if not progress_callback:
+            return
+        t_start = time.perf_counter()
+        max_time = solver.parameters.max_time_in_seconds or 1
+        while not stop_event.is_set():
+            elapsed = time.perf_counter() - t_start
+            pct = min(95, int((elapsed / max_time) * 100))
+            progress_callback(pct, "resolviendo")
+            time.sleep(1)
+
+    timer_thread = None
+    if progress_callback:
+        progress_callback(5, "armando_modelo")
+        timer_thread = threading.Thread(target=_progress_timer, daemon=True)
+        timer_thread.start()
 
     t0 = time.perf_counter()
     status = solver.Solve(model)
     t1 = time.perf_counter()
+    stop_event.set()
+    if timer_thread:
+        timer_thread.join(timeout=1)
+    if progress_callback:
+        progress_callback(100, "finalizado")
 
     horario = {d: {h: {} for h in H} for d in D}
 
@@ -343,5 +418,12 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
 
 
 # Wrapper para mantener la firma esperada por app.py
-def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria"):
-    return generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel)  
+def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria", progress_callback=None):
+    return generar_horario_cp(
+        docentes,
+        asignaciones,
+        restricciones,
+        horas_curso_grado,
+        nivel,
+        progress_callback=progress_callback,
+    )

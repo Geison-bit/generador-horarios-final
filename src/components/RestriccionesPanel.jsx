@@ -58,6 +58,18 @@ export default function RestriccionesPanel() {
               "Evita concentrar todas las horas de un curso en un solo día.",
           },
           {
+            key: "no_dias_consecutivos",
+            nombre: "Evitar dias consecutivos por curso",
+            descripcion:
+              "Evita 3 dias seguidos y desincentiva dias consecutivos (solo cursos >4h).",
+          },
+          {
+            key: "no_puentes_docente",
+            nombre: "Evitar puentes del docente",
+            descripcion:
+              "Evita huecos intermedios entre clases del mismo docente en un dÇða.",
+          },
+          {
             key: "omitir_cursos_1h",
             nombre: "Omitir cursos con 1h",
             descripcion:
@@ -75,6 +87,8 @@ export default function RestriccionesPanel() {
           no_solape_docente: true,
           bloques_consecutivos: true,
           distribuir_en_dias_distintos: true,
+          no_puentes_docente: true,
+          no_dias_consecutivos: true,
           omitir_cursos_1h: true,
         };
         setReglas(fallback);

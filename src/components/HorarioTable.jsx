@@ -6,7 +6,7 @@ import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
 import { saveAs } from "file-saver";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
-import { enviarDznAlServidor } from "../services/horarioService";
+import { generarHorarioConProgreso } from "../services/horarioService";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
@@ -51,6 +51,8 @@ const DEFAULT_REGLAS = {
   no_solape_docente: true,
   bloques_consecutivos: true,
   distribuir_en_dias_distintos: true,
+  no_puentes_docente: true,
+  no_dias_consecutivos: true,
   omitir_cursos_1h: true,
 };
 
@@ -60,7 +62,9 @@ const RULES_ORDER = [
   { key: "no_solape_docente",            idx: 2, label: "Evitar solape del mismo docente por bloque" },
   { key: "bloques_consecutivos",         idx: 3, label: "Usar bloques consecutivos por segmento" },
   { key: "distribuir_en_dias_distintos", idx: 4, label: "Distribuir segmentos en dÃ­as distintos" },
-  { key: "omitir_cursos_1h",             idx: 5, label: "Omitir cursos con 1h" },
+  { key: "no_puentes_docente",           idx: 5, label: "Evitar puentes del docente" },
+  { key: "no_dias_consecutivos",         idx: 6, label: "Evitar dias consecutivos por curso" },
+  { key: "omitir_cursos_1h",             idx: 7, label: "Omitir cursos con 1h" },
 ];
 
 // Cargar horario guardado en BD y reconstruir la matriz
@@ -110,6 +114,7 @@ const HorarioTable = () => {
   const [historyPointer, setHistoryPointer] = useState(-1);
 
   const [cargando, setCargando] = useState(false);
+  const [progreso, setProgreso] = useState(0);
   const [asignacionesDesdeDB, setAsignacionesDesdeDB] = useState([]);
   const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
   const [aulasDesdeDB, setAulasDesdeDB] = useState([]);
@@ -148,6 +153,7 @@ const HorarioTable = () => {
     if (historico.length > 0) {
       setHistoryStack([historico[0]]);
       setHistoryPointer(0);
+      setProgreso(100);
       setIndiceSeleccionado(0);
     }
   }, []);
@@ -541,6 +547,7 @@ const HorarioTable = () => {
 
   const generarHorario = async () => {
     setCargando(true);
+    setProgreso(0);
     try {
       const docentesFiltrados = (docentes || []).filter(d => d.nivel === nivel);
 
@@ -567,13 +574,14 @@ const HorarioTable = () => {
         reglas: reglasEfectivas || DEFAULT_REGLAS,
       };
 
-      const resultado = await enviarDznAlServidor(
-        docentesFiltrados,
-        asignacionesFiltradas,
-        payloadRestricciones,
-        horasCursos || {},
-        nivel
-      );
+      const resultado = await generarHorarioConProgreso({
+        docentes: docentesFiltrados,
+        asignaciones: asignacionesFiltradas,
+        restricciones: payloadRestricciones,
+        horasCursos: horasCursos || {},
+        nivel,
+        onProgress: (pct) => setProgreso(pct),
+      });
 
       if (!resultado?.horario || esHorarioVacio(resultado.horario)) {
         throw new Error("El generador no retornÃ³ una asignaciÃ³n vÃ¡lida (horario vacÃ­o).");
@@ -816,7 +824,7 @@ const HorarioTable = () => {
 
       {cargando && (
         <p className="text-center text-purple-600 font-semibold my-4">
-          Generando horario, por favor espera...
+          Generando horario... {progreso}%
         </p>
       )}
 
@@ -942,7 +950,7 @@ const HorarioTable = () => {
                           const colorHex = getColorHexPorDocenteId(docenteId);
 
                           const droppableId = `dia-${diaIndex}-${bloqueIndex}-${gradoIndex}`;
-                          const draggableId = `${diaIndex}-${bloqueIndex}-${gradoIndex}-${cursoId}`;
+                          const draggableId = `celda-${diaIndex}-${bloqueIndex}-${gradoIndex}`;
 
                           return (
                             <td key={gradoIndex} className="border border-gray-300 p-0">
@@ -954,15 +962,18 @@ const HorarioTable = () => {
                                     className={`min-h-[70px] w-full h-full flex items-center justify-center transition-colors ${snapshot.isDraggingOver ? "bg-blue-100" : ""}`}
                                   >
                                     {cursoId > 0 ? (
-                                      <Draggable draggableId={draggableId} index={0}>
+                                      <Draggable draggableId={draggableId} index={0} key={draggableId}>
                                         {(provided2, snapshot2) => (
                                           <div
                                             ref={provided2.innerRef}
                                             {...provided2.draggableProps}
                                             {...provided2.dragHandleProps}
                                             onDoubleClick={() => eliminarCurso(diaIndex, bloqueIndex, gradoIndex)}
-                                            className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow ${colorHex ? "" : getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
-                                            style={colorHex ? { backgroundColor: colorHex, color: "#0f172a" } : undefined}
+                                            className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow select-none ${colorHex ? "" : getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
+                                            style={{
+                                              ...(provided2.draggableProps.style || {}),
+                                              ...(colorHex ? { backgroundColor: colorHex, color: "#0f172a" } : {}),
+                                            }}
                                             title="Doble clic para eliminar"
                                           >
                                             <div className="font-semibold">{cursoNombre}</div>
