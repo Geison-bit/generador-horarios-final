@@ -1,6 +1,6 @@
 // src/components/RestriccionesForm.jsx
 import { useEffect, useMemo, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Calendar as RBCalendar, dateFnsLocalizer } from "react-big-calendar";
 import "react-big-calendar/lib/css/react-big-calendar.css";
 import { format, parse, startOfWeek, getDay } from "date-fns";
@@ -8,18 +8,19 @@ import es from "date-fns/locale/es";
 import { supabase } from "../supabaseClient";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import Breadcrumbs from "./Breadcrumbs";
-import { CalendarDays, History, Loader2, Save, Users } from "lucide-react";
+import { CalendarDays, History, Loader2, Save, Users, Layers, AlertCircle } from "lucide-react";
 
+// Configuración del calendario
 const locales = { es };
 const localizer = dateFnsLocalizer({ format, parse, startOfWeek, getDay, locales });
 
-// ----------------- utils -----------------
+// ----------------- Utiles -----------------
 const normalize = (s) =>
   (s || "").toString().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 const toHHMM = (t) => {
   if (t == null) return "";
-  const s = String(t); // "07:15:00" o "07:15"
+  const s = String(t);
   return s.length >= 5 ? s.slice(0, 5) : s;
 };
 const toMinutes = (hhmm) => {
@@ -52,46 +53,81 @@ const LastEditPill = ({ edit }) => {
 
 const RestriccionesForm = () => {
   const [docentes, setDocentes] = useState([]);
-  const [docenteSeleccionado, setDocenteSeleccionado] = useState("");
+  const [docenteSeleccionado, setDocenteSeleccionado] = useState(""); // Guarda el ID o Nombre
+  const [docenteObj, setDocenteObj] = useState(null); // Guarda el objeto completo del docente
   const [eventos, setEventos] = useState([]);
   const [bloquesHorario, setBloquesHorario] = useState([]);
-  const [bloqueOneBased, setBloqueOneBased] = useState(false); // detecta si la tabla usa 1-based
+  const [bloqueOneBased, setBloqueOneBased] = useState(false);
 
-  // ✅ usar el setter nuevo del contexto
   const { setDisponibilidadDocente } = useDocentes();
-
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
   const [saving, setSaving] = useState(false);
   const [cargando, setCargando] = useState(false);
 
   const location = useLocation();
+  const navigate = useNavigate();
   const params = new URLSearchParams(location.search);
   const nivelURL = params.get("nivel") || "Secundaria";
 
-  // --------- cargar docentes ---------
-  useEffect(() => {
-    const cargarDocentes = async () => {
-      const { data } = await supabase
-        .from("docentes")
-        .select("id, nombre")
-        .eq("nivel", nivelURL)
-        .eq("activo", true);
-      setDocentes(data || []);
-    };
-    cargarDocentes();
-  }, [nivelURL]);
+  // Estado para la versión seleccionada (inicia con URL o 1)
+  const [versionSeleccionada, setVersionSeleccionada] = useState(
+    Number(params.get("version")) || 1
+  );
 
-  // --------- cargar franjas + detectar 1-based ---------
+  // Sincronizar URL cuando cambia la versión
+  const cambiarVersion = (nuevaVersion) => {
+    const v = Number(nuevaVersion);
+    setVersionSeleccionada(v);
+    setDocenteSeleccionado("");
+    setDocenteObj(null);
+    setEventos([]);
+    
+    // Actualizar URL sin recargar la página completa
+    const newParams = new URLSearchParams(location.search);
+    newParams.set("version", v);
+    navigate({ search: newParams.toString() }, { replace: true });
+  };
+
+  // --------- 1. Cargar docentes (CORREGIDO: DESDE TABLA DOCENTES) ---------
+  useEffect(() => {
+    const cargarDocentesDeVersion = async () => {
+      setCargando(true);
+      
+      // CORRECCIÓN: Consultamos directamente la tabla 'docentes'.
+      // Así traemos a todos los que existen en esa versión, tengan o no restricciones guardadas.
+      const { data, error } = await supabase
+        .from("docentes")
+        .select("id, nombre, apellido, activo")
+        .eq("nivel", nivelURL)
+        .eq("version_num", versionSeleccionada)
+        .eq("activo", true) // Solo activos
+        .order("apellido")
+        .order("nombre");
+
+      if (error) {
+        console.error("Error cargando docentes:", error);
+        setDocentes([]);
+      } else {
+        setDocentes(data || []);
+      }
+      setCargando(false);
+    };
+
+    cargarDocentesDeVersion();
+  }, [nivelURL, versionSeleccionada]);
+
+  // --------- 2. Cargar franjas horarias ---------
   useEffect(() => {
     const cargarBloques = async () => {
       const { data, error } = await supabase
         .from("franjas_horarias")
         .select("bloque, hora_inicio, hora_fin")
         .eq("nivel", nivelURL)
+        .eq("version_num", versionSeleccionada)
         .order("bloque");
+
       if (!error && data?.length) {
         setBloquesHorario(data);
-        // Si el menor bloque es 1, asumimos 1-based
         const minBloque = Math.min(...data.map((x) => Number(x.bloque)));
         setBloqueOneBased(minBloque === 1);
       } else {
@@ -100,22 +136,28 @@ const RestriccionesForm = () => {
       }
     };
     cargarBloques();
-  }, [nivelURL]);
+  }, [nivelURL, versionSeleccionada]);
 
-  // --------- cargar restricciones guardadas para el docente ---------
+  // --------- 3. Cargar restricciones (eventos) del docente seleccionado ---------
   useEffect(() => {
     const cargarRestriccionesGuardadas = async () => {
-      const docente = docentes.find((d) => d.nombre === docenteSeleccionado);
+      // Encontramos el objeto docente basado en la selección (ID o combinación nombre)
+      // Usaremos el ID como value del select para ser más precisos
+      const docente = docentes.find((d) => String(d.id) === docenteSeleccionado);
+      setDocenteObj(docente || null);
+
       if (!docente || bloquesHorario.length === 0) {
         setEventos([]);
         return;
       }
 
+      // Cargar restricciones específicas de la versión seleccionada
       const { data } = await supabase
         .from("restricciones_docente")
         .select("dia, bloque")
         .eq("docente_id", docente.id)
-        .eq("nivel", nivelURL);
+        .eq("nivel", nivelURL)
+        .eq("version_num", versionSeleccionada);
 
       const nuevosEventos = (data || [])
         .map((r) => {
@@ -129,6 +171,7 @@ const RestriccionesForm = () => {
           const [hiH, hiM] = toHHMM(bloqueInfo.hora_inicio).split(":").map(Number);
           const [hfH, hfM] = toHHMM(bloqueInfo.hora_fin).split(":").map(Number);
 
+          // Usamos una fecha base (ej: abril 2024) solo para visualización
           const start = new Date(2024, 3, 22 + idxDia, hiH, hiM);
           const end = new Date(2024, 3, 22 + idxDia, hfH, hfM);
           return { title: "Disponible", start, end };
@@ -142,57 +185,83 @@ const RestriccionesForm = () => {
       cargarRestriccionesGuardadas();
     } else {
       setEventos([]);
+      setDocenteObj(null);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [docenteSeleccionado, bloquesHorario, bloqueOneBased, nivelURL, docentes.length]);
+  }, [docenteSeleccionado, bloquesHorario, bloqueOneBased, nivelURL, versionSeleccionada, docentes]);
 
-  // --------- helpers franjas ---------
-  const franjasMin = useMemo(() => {
-    return bloquesHorario.map((b) => toMinutes(b.hora_inicio));
-  }, [bloquesHorario]);
-  const franjasMax = useMemo(() => {
-    return bloquesHorario.map((b) => toMinutes(b.hora_fin));
-  }, [bloquesHorario]);
+  // --------- Helpers de visualización ---------
+  const franjasMin = useMemo(() => bloquesHorario.map((b) => toMinutes(b.hora_inicio)), [bloquesHorario]);
+  const franjasMax = useMemo(() => bloquesHorario.map((b) => toMinutes(b.hora_fin)), [bloquesHorario]);
 
-  // Devuelve TODOS los índices de bloque cubiertos por un evento
   const bloquesCubiertosPorEvento = (start, end) => {
     const iniMin = start.getHours() * 60 + start.getMinutes();
     const finMin = end.getHours() * 60 + end.getMinutes();
     const indices = [];
     franjasMin.forEach((bIni, idx) => {
       const bFin = franjasMax[idx];
+      // Pequeña tolerancia o intersección estricta
       if (bIni < finMin && bFin > iniMin) indices.push(idx);
     });
     return indices;
   };
 
-  // --------- UI handlers ---------
+  // --------- Handlers del Calendario ---------
   const manejarSeleccion = ({ start, end }) => {
     const bloquesNuevos = bloquesCubiertosPorEvento(start, end);
     if (bloquesNuevos.length === 0) return;
 
     const fechaBase = new Date(start);
-    const diaIdx = fechaBase.getDay() - 1; // 1..5 (lun..vie) => 0..4
-    if (diaIdx < 0 || diaIdx > 4) return;
+    const diaIdx = fechaBase.getDay() - 1; // 0=Lunes en BigCalendar si startOfWeek es Lunes?
+    // Ajuste defensivo según configuración de BigCalendar (0=Domingo, 1=Lunes...)
+    // En este setup '2024-04-22' es Lunes.
+    // start.getDay(): Domingo=0, Lunes=1...
+    // Si start es Lunes (1), diaIdx debería ser 0.
+    const diaReal = start.getDay(); 
+    const diaIdxLogico = diaReal === 0 ? 6 : diaReal - 1; // 0=Lunes... 4=Viernes
 
+    if (diaIdxLogico < 0 || diaIdxLogico > 4) return; // Solo L-V
+
+    const keyFromDiaBloque = (dIdx, bIdx) => `${dIdx}-${bIdx}`;
+    
+    // Función auxiliar para identificar eventos existentes
+    const keyFromEvent = (e) => {
+      const dReal = e.start.getDay();
+      const dLog = dReal === 0 ? 6 : dReal - 1;
+      const bIdx = bloquesCubiertosPorEvento(e.start, e.end)[0];
+      return keyFromDiaBloque(dLog, bIdx);
+    };
+
+    const existentesKeys = new Set(eventos.map(keyFromEvent));
+    const seleccionKeys = new Set(bloquesNuevos.map((bIdx) => keyFromDiaBloque(diaIdxLogico, bIdx)));
+
+    // Si todos los seleccionados ya existen -> borrar (toggle off)
+    const eliminar = [...seleccionKeys].every((k) => existentesKeys.has(k));
+    
+    if (eliminar) {
+      setEventos(eventos.filter((e) => !seleccionKeys.has(keyFromEvent(e))));
+      return;
+    }
+
+    // Si no, agregar los que faltan
     const nuevos = bloquesNuevos.map((bi) => {
       const [hiH, hiM] = toHHMM(bloquesHorario[bi].hora_inicio).split(":").map(Number);
       const [hfH, hfM] = toHHMM(bloquesHorario[bi].hora_fin).split(":").map(Number);
+      // Reconstruir fecha basada en el día seleccionado
+      // start tiene la fecha correcta del día (ej. Lunes 22)
+      const y = start.getFullYear();
+      const m = start.getMonth();
+      const d = start.getDate();
+      
       return {
         title: "Disponible",
-        start: new Date(2024, 3, 22 + diaIdx, hiH, hiM),
-        end: new Date(2024, 3, 22 + diaIdx, hfH, hfM),
+        start: new Date(y, m, d, hiH, hiM),
+        end: new Date(y, m, d, hfH, hfM),
       };
     });
 
-    const key = (e) => `${e.start.getTime()}_${e.end.getTime()}`;
-    const existentes = new Set(eventos.map(key));
     const merge = [...eventos];
     for (const ev of nuevos) {
-      const k = key(ev);
-      if (!existentes.has(k)) {
-        merge.push(ev);
-      }
+      if (!existentesKeys.has(keyFromEvent(ev))) merge.push(ev);
     }
     setEventos(merge);
   };
@@ -202,117 +271,117 @@ const RestriccionesForm = () => {
       setEventos(
         eventos.filter(
           (e) =>
-            !(
-              e.start.getTime() === eventoEliminado.start.getTime() &&
-              e.end.getTime() === eventoEliminado.end.getTime()
-            )
+            !(e.start.getTime() === eventoEliminado.start.getTime() &&
+              e.end.getTime() === eventoEliminado.end.getTime())
         )
       );
     }
   };
 
-  // --------- Guardar restricciones ---------
+  // --------- Guardar en Supabase ---------
   const guardarRestricciones = async () => {
-    if (!docenteSeleccionado) return alert("Seleccione un docente.");
-    const docente = docentes.find((d) => d.nombre === docenteSeleccionado);
-    if (!docente) return alert("Docente no encontrado.");
+    if (!docenteObj) return alert("Seleccione un docente.");
     if (!bloquesHorario.length) return alert("No hay franjas horarias configuradas.");
 
     setSaving(true);
 
-    // 1) Construir set de claves día/bloque (0-based) a partir de los eventos
+    // Mapeo inverso de fecha a día string
     const diaSemanaUi = ["domingo", "lunes", "martes", "miércoles", "jueves", "viernes", "sábado"];
-    const clavesDisponibles = new Map(); // key normalizada -> { diaBD, diaKey, bloque0 }
+    const filasInsertar = [];
+    const clavesProcesadas = new Set(); // Para evitar duplicados en el insert
 
+    // 1. Preparar datos a insertar
     for (const { start, end } of eventos) {
-      const diaUi = diaSemanaUi[start.getDay()].toLowerCase();
+      const diaIndex = start.getDay(); // 0=Dom, 1=Lun
+      const diaUi = diaSemanaUi[diaIndex];
+      
+      // Validar que sea día hábil
       if (!DIAS_UI.includes(diaUi)) continue;
 
-      const diaKey = normalize(diaUi); // sin acentos, para llaves y contexto
-      const diaIdx = getDiaIndexFromStr(diaKey);
-      if (diaIdx < 0) continue;
-
-      const indices = bloquesCubiertosPorEvento(start, end);
-      indices.forEach((idx) => {
-        const key = `${diaKey}-${idx}`;
-        if (!clavesDisponibles.has(key)) {
-          clavesDisponibles.set(key, { diaBD: diaUi, diaKey, bloque0: idx });
+      const indicesBloques = bloquesCubiertosPorEvento(start, end);
+      
+      indicesBloques.forEach((idx) => {
+        // Generar clave única para evitar duplicados en memoria
+        const key = `${diaUi}-${idx}`;
+        if (!clavesProcesadas.has(key)) {
+          clavesProcesadas.add(key);
+          
+          const bloqueDB = bloqueOneBased ? idx + 1 : idx;
+          filasInsertar.push({
+            docente_id: docenteObj.id,
+            dia: diaUi, // "lunes", "martes"...
+            bloque: bloqueDB,
+            nivel: nivelURL,
+            version_num: versionSeleccionada // ¡Importante! Guardar versión
+          });
         }
       });
     }
 
-    // 2) Reset docente/nivel y re-insert
-    await supabase
-      .from("restricciones_docente")
-      .delete()
-      .match({ docente_id: docente.id, nivel: nivelURL });
+    try {
+      // 2. Borrar SOLO las restricciones de este docente en esta versión y nivel
+      const { error: errorDelete } = await supabase
+        .from("restricciones_docente")
+        .delete()
+        .match({ 
+          docente_id: docenteObj.id, 
+          nivel: nivelURL,
+          version_num: versionSeleccionada 
+        });
 
-    const filas = [];
-    const restriccionesMap = {};
+      if (errorDelete) throw errorDelete;
 
-    for (const { diaBD, diaKey, bloque0 } of clavesDisponibles.values()) {
-      const bloqueDB = bloqueOneBased ? bloque0 + 1 : bloque0;
-      filas.push({ docente_id: docente.id, dia: diaBD, bloque: bloqueDB, nivel: nivelURL });
-      restriccionesMap[`${diaKey}-${bloque0}`] = true; // SIEMPRE 0-based para el generador
-    }
-
-    // 3) Persistir en BD y sincronizar contexto
-    if (filas.length > 0) {
-      const { error } = await supabase.from("restricciones_docente").insert(filas);
-      setSaving(false);
-      if (error) {
-        console.error(error);
-        alert("❌ Error al guardar restricciones");
-      } else {
-        alert("✅ Restricciones guardadas correctamente");
-        if (setDisponibilidadDocente) {
-          setDisponibilidadDocente((prev) => ({
-            ...(prev || {}),
-            [docente.id.toString()]: restriccionesMap,
-          }));
-        }
+      // 3. Insertar nuevas (si hay)
+      if (filasInsertar.length > 0) {
+        const { error: errorInsert } = await supabase
+          .from("restricciones_docente")
+          .insert(filasInsertar);
+        
+        if (errorInsert) throw errorInsert;
       }
-      return;
-    }
 
-    // Si no hay filas, limpiamos la disponibilidad de ese docente en el contexto
-    setSaving(false);
-    alert("No hay bloques para guardar.");
-    if (setDisponibilidadDocente) {
-      setDisponibilidadDocente((prev) => {
-        const next = { ...(prev || {}) };
-        delete next[docente.id.toString()];
-        return next;
-      });
+      // 4. Actualizar Contexto (opcional, para refresco visual en otras vistas)
+      if (setDisponibilidadDocente) {
+        // Reconstruimos el mapa booleano rápido
+        const mapa = {};
+        for (const dia of DIAS_UI) {
+            const dNorm = normalize(dia);
+            for(let b=0; b<bloquesHorario.length; b++) {
+                mapa[`${dNorm}-${b}`] = false;
+            }
+        }
+        filasInsertar.forEach(f => {
+            const dNorm = normalize(f.dia);
+            const bIdx = bloqueOneBased ? f.bloque - 1 : f.bloque;
+            mapa[`${dNorm}-${bIdx}`] = true;
+        });
+        
+        setDisponibilidadDocente((prev) => ({
+          ...(prev || {}),
+          [docenteObj.id.toString()]: mapa,
+        }));
+      }
+
+      alert(`✅ Disponibilidad guardada correctamente para la Versión ${versionSeleccionada}`);
+
+    } catch (err) {
+      console.error("Error guardando:", err);
+      alert("❌ Error al guardar disponibilidad.");
+    } finally {
+      setSaving(false);
     }
   };
 
-  // --------- Límites de la grilla ---------
-  const minHora = useMemo(() => {
-    return bloquesHorario.length
-      ? new Date(
-          1970,
-          0,
-          1,
-          ...toHHMM(bloquesHorario[0].hora_inicio).split(":").map(Number)
-        )
-      : new Date(1970, 0, 1, 7, 15);
-  }, [bloquesHorario]);
+  // Limites visuales del calendario
+  const minHora = useMemo(() => bloquesHorario.length
+      ? new Date(1970, 0, 1, ...toHHMM(bloquesHorario[0].hora_inicio).split(":").map(Number))
+      : new Date(1970, 0, 1, 7, 0), [bloquesHorario]);
 
-  const maxHora = useMemo(() => {
-    return bloquesHorario.length
-      ? new Date(
-          1970,
-          0,
-          1,
-          ...toHHMM(bloquesHorario[bloquesHorario.length - 1].hora_fin)
-            .split(":")
-            .map(Number)
-        )
-      : new Date(1970, 0, 1, 13, 30);
-  }, [bloquesHorario]);
+  const maxHora = useMemo(() => bloquesHorario.length
+      ? new Date(1970, 0, 1, ...toHHMM(bloquesHorario[bloquesHorario.length - 1].hora_fin).split(":").map(Number))
+      : new Date(1970, 0, 1, 15, 0), [bloquesHorario]);
 
-  // --------- Auditoría ---------
+  // Auditoria
   useEffect(() => {
     const fetchUltima = async () => {
       const { data, error } = await supabase
@@ -324,73 +393,32 @@ const RestriccionesForm = () => {
       if (!error && data?.length) {
         let registro = data[0];
         if (registro.actor_email) {
-          const { data: udata } = await supabase
-            .from("view_user_accounts")
-            .select("full_name")
-            .eq("email", registro.actor_email)
-            .limit(1);
+          const { data: udata } = await supabase.from("view_user_accounts").select("full_name").eq("email", registro.actor_email).limit(1);
           if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
         }
         setUltimaEdicion(registro);
       } else setUltimaEdicion(null);
     };
     fetchUltima();
-  }, [nivelURL, docenteSeleccionado, eventos.length]);
+  }, [nivelURL, docenteSeleccionado, eventos.length]); // Refrescar al guardar
 
-  // Realtime para refrescar el pill cuando cambie audit_logs
-  useEffect(() => {
-    const ch = supabase
-      .channel("audit_restricciones")
-      .on(
-        "postgres_changes",
-        { event: "*", schema: "public", table: "audit_logs", filter: "table_name=eq.restricciones_docente" },
-        async () => {
-          const { data } = await supabase
-            .from("audit_logs")
-            .select("actor_email, created_at, operation")
-            .eq("table_name", "restricciones_docente")
-            .order("created_at", { ascending: false })
-            .limit(1);
-          if (data?.length) {
-            let registro = data[0];
-            if (registro.actor_email) {
-              const { data: udata } = await supabase
-                .from("view_user_accounts")
-                .select("full_name")
-                .eq("email", registro.actor_email)
-                .limit(1);
-              if (udata?.[0]?.full_name) registro = { ...registro, actor_name: udata[0].full_name };
-            }
-            setUltimaEdicion(registro);
-          }
-        }
-      )
-      .subscribe();
-
-    return () => {
-      try { supabase.removeChannel(ch); } catch {}
-    };
-  }, []);
-
-  // ----------------- UI -----------------
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      {/* ======= Encabezado principal sticky con icono ======= */}
-      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mt-4 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
+      <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mt-4 mb-4 bg-white/80 backdrop-blur border-b border-slate-200">
         <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="flex items-center gap-3">
               <CalendarDays className="size-6 text-blue-600" />
               <div>
                 <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
-                  Disponibilidad Horaria de Docentes
+                  Disponibilidad Horaria
                 </h1>
-                <div className="mt-1">
+                <div className="mt-2 flex flex-wrap items-center gap-3">
                   <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
                     <Users className="size-3.5" />
-                    Nivel — <strong className="font-semibold text-slate-700">{nivelURL}</strong>
+                    Nivel - <strong className="font-semibold text-slate-700">{nivelURL}</strong>
                   </span>
                 </div>
               </div>
@@ -401,8 +429,7 @@ const RestriccionesForm = () => {
               <button
                 onClick={guardarRestricciones}
                 disabled={!docenteSeleccionado || saving || cargando}
-                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-60 w-full sm:w-auto"
-                title={!docenteSeleccionado ? "Seleccione un docente" : "Guardar disponibilidad"}
+                className="inline-flex items-center gap-2 rounded-lg bg-blue-700 px-4 py-2 text-white shadow-sm hover:bg-blue-800 disabled:opacity-60 w-full sm:w-auto justify-center"
               >
                 {saving ? <Loader2 className="size-4 animate-spin" /> : <Save className="size-4" />}
                 Guardar
@@ -412,28 +439,79 @@ const RestriccionesForm = () => {
         </div>
       </div>
 
-      {/* Selector de docente */}
-      <div className="mb-4">
-        <select
-          value={docenteSeleccionado}
-          onChange={(e) => setDocenteSeleccionado(e.target.value)}
-          className="border border-slate-300 px-3 py-2 rounded-lg w-full md:w-1/3 bg-white focus:outline-none focus:ring-2 focus:ring-blue-600"
-        >
-          <option value="">-- Seleccione un docente --</option>
-          {docentes.map((d) => (
-            <option key={d.id} value={d.nombre}>
-              {d.nombre}
-            </option>
-          ))}
-        </select>
+      {/* SELECTORES */}
+      <div className="mb-6 grid grid-cols-1 md:grid-cols-12 gap-4 items-end bg-slate-50 p-4 rounded-xl border border-slate-200">
+        
+        {/* Selector de Versión */}
+        <div className="md:col-span-3">
+          <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
+            Versión del Horario
+          </label>
+          <div className="relative">
+            <Layers className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
+            <select
+              value={versionSeleccionada}
+              onChange={(e) => cambiarVersion(e.target.value)}
+              className="pl-9 w-full border border-slate-300 bg-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm font-semibold text-slate-700"
+            >
+              {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10].map((v) => (
+                <option key={v} value={v}>
+                  Versión {v}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+
+        {/* Selector de Docente */}
+        <div className="md:col-span-6">
+          <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
+            Docente (Activo en v{versionSeleccionada})
+          </label>
+          <div className="relative">
+             <select
+                value={docenteSeleccionado}
+                onChange={(e) => setDocenteSeleccionado(e.target.value)} // Usamos ID como valor
+                disabled={cargando}
+                className={`w-full border px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm appearance-none ${
+                    !docenteSeleccionado ? 'text-slate-400' : 'text-slate-800 font-medium'
+                } ${docentes.length === 0 ? 'bg-red-50 border-red-200' : 'bg-white border-slate-300'}`}
+              >
+                <option value="">
+                  {cargando ? "Cargando docentes..." : "-- Seleccione un docente --"}
+                </option>
+                {docentes.map((d) => (
+                  <option key={d.id} value={d.id}>
+                    {d.apellido}, {d.nombre}
+                  </option>
+                ))}
+              </select>
+              {/* Icono de flecha custom si se desea, o default */}
+          </div>
+          
+          {/* Mensaje de error si no hay docentes */}
+          {!cargando && docentes.length === 0 && (
+             <div className="flex items-center gap-2 mt-2 text-red-600 bg-red-50 p-2 rounded text-xs border border-red-100">
+               <AlertCircle className="size-4" />
+               <span>No se encontraron docentes <strong>activos</strong> en la <strong>Versión {versionSeleccionada}</strong>. Vaya a "Registrar Docentes" para agregarlos o copiarlos.</span>
+             </div>
+          )}
+        </div>
       </div>
 
       {/* Calendario */}
       {docenteSeleccionado && (
-        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
-          <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
-            <CalendarDays className="size-4 text-slate-700" />
-            <h3 className="text-sm font-semibold text-slate-800">Calendario semanal</h3>
+        <section className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden animate-in fade-in duration-300">
+          <header className="flex items-center justify-between p-3 border-b border-slate-200 bg-slate-50">
+            <div className="flex items-center gap-2">
+              <CalendarDays className="size-4 text-slate-700" />
+              <h3 className="text-sm font-semibold text-slate-800">
+                Disponibilidad: <span className="text-blue-700">{docenteObj?.nombre} {docenteObj?.apellido}</span>
+              </h3>
+            </div>
+            <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded border border-blue-200 font-medium">
+              Editando Versión {versionSeleccionada}
+            </span>
           </header>
 
           <div className="p-3">
@@ -448,11 +526,11 @@ const RestriccionesForm = () => {
                 defaultView="week"
                 views={["week"]}
                 timeslots={1}
-                step={45}
+                step={45} // Ajusta si tus bloques no son de 45min
                 showAllDay={false}
                 onSelectSlot={manejarSeleccion}
                 onDoubleClickEvent={manejarDobleClickEvento}
-                defaultDate={new Date(2024, 3, 22)}
+                defaultDate={new Date(2024, 3, 22)} // Fecha semilla Lunes
                 min={minHora}
                 max={maxHora}
                 toolbar={false}
@@ -460,10 +538,16 @@ const RestriccionesForm = () => {
                   dayFormat: (date, culture, localizer) => localizer.format(date, "eeee", culture),
                   timeGutterFormat: (date, culture, localizer) => localizer.format(date, "HH:mm", culture),
                 }}
-                dayPropGetter={(date) =>
-                  date.getDay() === 0 || date.getDay() === 6 ? { style: { display: "none" } } : {}
-                }
+                dayPropGetter={(date) => {
+                  const day = date.getDay();
+                  if (day === 0 || day === 6) return { style: { display: "none" } };
+                  return {};
+                }}
               />
+            </div>
+            <div className="mt-2 text-xs text-slate-500 flex justify-between px-1">
+                <p>💡 Click y arrastra para seleccionar bloques. Doble click en un bloque verde para eliminarlo.</p>
+                <p>Nivel: {nivelURL}</p>
             </div>
           </div>
         </section>

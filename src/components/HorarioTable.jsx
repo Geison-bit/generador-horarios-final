@@ -54,6 +54,7 @@ const DEFAULT_REGLAS = {
   no_puentes_docente: true,
   no_dias_consecutivos: true,
   omitir_cursos_1h: true,
+  limitar_carga_docente_grado: true,
 };
 
 // Orden fijo y etiquetas para el badge "12345"
@@ -65,14 +66,16 @@ const RULES_ORDER = [
   { key: "no_puentes_docente",           idx: 5, label: "Evitar puentes del docente" },
   { key: "no_dias_consecutivos",         idx: 6, label: "Evitar dias consecutivos por curso" },
   { key: "omitir_cursos_1h",             idx: 7, label: "Omitir cursos con 1h" },
+  { key: "limitar_carga_docente_grado",  idx: 8, label: "Maximo 3h por docente en un grado al dia" },
 ];
 
 // Cargar horario guardado en BD y reconstruir la matriz
-async function cargarHorarioDesdeBD(nivel) {
+async function cargarHorarioDesdeBD(nivel, version) {
   const { data, error } = await supabase
     .from("horarios")
     .select("dia, bloque, curso_id, grado_id")
-    .eq("nivel", nivel);
+    .eq("nivel", nivel)
+    .eq("version_num", version);
 
   if (error || !data || data.length === 0) return null;
 
@@ -101,10 +104,7 @@ const HorarioTable = () => {
   const [bloquesHorario, setBloquesHorario] = useState([]);
   const [bloqueOneBased, setBloqueOneBased] = useState(false);
 
-  const [historialGeneraciones, setHistorialGeneraciones] = useState(() => {
-    const almacenado = localStorage.getItem("historialHorarios");
-    return almacenado ? JSON.parse(almacenado) : [];
-  });
+  const [historialGeneraciones, setHistorialGeneraciones] = useState([]);
   const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
   
   const [vistaModo, setVistaModo] = useState("grados"); // "grados" | "dias"
@@ -115,8 +115,10 @@ const HorarioTable = () => {
 
   const [cargando, setCargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
+  const [progresoStage, setProgresoStage] = useState("");
   const [asignacionesDesdeDB, setAsignacionesDesdeDB] = useState([]);
   const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
+  const [horasCursosDesdeDB, setHorasCursosDesdeDB] = useState([]);
   const [aulasDesdeDB, setAulasDesdeDB] = useState([]);
 
   // ediciÃ³n manual
@@ -138,46 +140,68 @@ const HorarioTable = () => {
   // --- CONTEXTO Y RUTA ---
   const { docentes, restricciones, asignaciones, horasCursos, setHorarioGeneral } = useDocentes();
   const location = useLocation();
-  const nivel = new URLSearchParams(location.search).get("nivel") || "Secundaria";
+  const params = new URLSearchParams(location.search);
+  const version = Number(params.get("version")) || 1;
+  const nivel = params.get("nivel") || "Secundaria";
+  const storageKey = `historialHorarios:${nivel}:${version}`;
   const grados = (nivel === "Primaria")
     ? ["1°", "2°", "3°", "4°", "5°", "6°"]
     : ["1°", "2°", "3°", "4°", "5°"];
+  const docentesPorVersion = useMemo(
+    () => (docentes || []).filter((d) => d.nivel === nivel && d.version_num === version),
+    [docentes, nivel, version]
+  );
+  const horasCursosPorVersion = useMemo(() => {
+    const mapa = {};
+    horasCursosDesdeDB.forEach((h) => {
+      if (!mapa[h.curso_id]) mapa[h.curso_id] = {};
+      mapa[h.curso_id][h.grado_id] = h.horas;
+    });
+    return mapa;
+  }, [horasCursosDesdeDB]);
 
   // Horario visible: puntero actual del historial de ediciÃ³n
   const horarioVisible = historyStack[historyPointer];
 
   // --- EFECTOS ---
   useEffect(() => {
-    const almacenado = localStorage.getItem("historialHorarios");
+    const almacenado = localStorage.getItem(storageKey);
     const historico = almacenado ? JSON.parse(almacenado) : [];
     if (historico.length > 0) {
+      setHistorialGeneraciones(historico);
       setHistoryStack([historico[0]]);
       setHistoryPointer(0);
       setProgreso(100);
       setIndiceSeleccionado(0);
+    } else {
+      setHistorialGeneraciones([]);
+      setHistoryStack([]);
+      setHistoryPointer(-1);
+      setIndiceSeleccionado(0);
+      setProgreso(0);
     }
-  }, []);
+  }, [storageKey]);
 
   // Cargar horario desde BD al cambiar de nivel
   useEffect(() => {
     (async () => {
-      const almacenado = localStorage.getItem("historialHorarios");
+      const almacenado = localStorage.getItem(storageKey);
       const historico = almacenado ? JSON.parse(almacenado) : [];
       // Si ya hay historial en localStorage, no sobrescribimos (se respeta la versiÃ³n local)
       if (historico.length > 0) return;
 
-      const horarioBD = await cargarHorarioDesdeBD(nivel);
+      const horarioBD = await cargarHorarioDesdeBD(nivel, version);
       if (horarioBD) {
         setHistorialGeneraciones([horarioBD]);
         setIndiceSeleccionado(0);
         setHistoryStack([horarioBD]);
         setHistoryPointer(0);
         setHorarioGeneral(horarioBD);
-        localStorage.setItem("historialHorarios", JSON.stringify([horarioBD]));
+        localStorage.setItem(storageKey, JSON.stringify([horarioBD]));
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivel]);
+  }, [nivel, version, storageKey]);
 
   // Cargar franjas horarias + detectar 1-based
   useEffect(() => {
@@ -186,6 +210,7 @@ const HorarioTable = () => {
         .from("franjas_horarias")
         .select("bloque, hora_inicio, hora_fin")
         .eq("nivel", nivel)
+        .eq("version_num", version)
         .order("bloque");
       if (!error && data?.length) {
         setBloquesHorario(data.map(b => {
@@ -205,7 +230,7 @@ const HorarioTable = () => {
       }
     };
     fetchBloques();
-  }, [nivel]);
+  }, [nivel, version]);
 
   // Cargar datos base (asignaciones/cursos/aulas)
   useEffect(() => {
@@ -213,7 +238,8 @@ const HorarioTable = () => {
       const { data: asignacionesData } = await supabase
         .from("asignaciones")
         .select("curso_id, grado_id, docente_id")
-        .eq("nivel", nivel);
+        .eq("nivel", nivel)
+        .eq("version_num", version);
       if (asignacionesData) setAsignacionesDesdeDB(asignacionesData);
 
       const { data: cursosData } = await supabase
@@ -225,9 +251,16 @@ const HorarioTable = () => {
         .from("aulas")
         .select("id, nombre");
       if (aulasData) setAulasDesdeDB(aulasData);
+
+      const { data: horasData } = await supabase
+        .from("horas_curso_grado")
+        .select("curso_id, grado_id, horas")
+        .eq("nivel", nivel)
+        .eq("version_num", version);
+      if (horasData) setHorasCursosDesdeDB(horasData);
     };
     cargarDatos();
-  }, [nivel]);
+  }, [nivel, version]);
 
   // Cargar Ãºltima ediciÃ³n (opcional)
   useEffect(() => {
@@ -272,7 +305,8 @@ const HorarioTable = () => {
         const { data, error } = await supabase
           .from("restricciones_docente")
           .select("docente_id, dia, bloque, nivel")
-          .eq("nivel", nivel);
+          .eq("nivel", nivel)
+          .eq("version_num", version);
         if (error) throw error;
 
         const base = {};
@@ -305,7 +339,7 @@ const HorarioTable = () => {
     };
 
     cargarRestricciones();
-  }, [nivel, restricciones, bloqueOneBased]);
+  }, [nivel, version, restricciones, bloqueOneBased]);
 
   // --- HELPERS ---
   const indicesGradosVisibles = grados.map((_, idx) => idx);
@@ -316,22 +350,23 @@ const HorarioTable = () => {
       a => a.curso_id === cursoId && a.grado_id === gradoId
     );
     if (!asignacion) return { nombre: "", aula: "" };
-    const docente = docentes.find(d => d.id === asignacion.docente_id);
+    const docente = docentesPorVersion.find(d => d.id === asignacion.docente_id);
     if (!docente) return { nombre: "", aula: "" };
     const aulaNombre = aulasDesdeDB.find(a => a.id === docente.aula_id)?.nombre || docente.aula_id || "";
     return { nombre: docente.nombre, aula: aulaNombre };
   };
 
   const getColorHexPorDocenteId = (docenteId) =>
-    docentes.find((d) => d.id === docenteId)?.color || "";
+    docentesPorVersion.find((d) => d.id === docenteId)?.color || "";
 
   // Â¿El docente estÃ¡ disponible segÃºn disponibilidadEfectiva?
   const isDocenteDisponibleEnKey = (docenteId, diaIndex, bloqueIndex) => {
     if (!docenteId) return true;
-    const byDoc = disponibilidadEfectiva?.[String(docenteId)] || {};
+    const byDoc = disponibilidadEfectiva?.[String(docenteId)];
+    // Si hay whitelist para el docente, un key ausente significa "no disponible".
+    if (!byDoc || Object.keys(byDoc).length === 0) return true;
     const key = `${diasSql[diaIndex]}-${bloqueIndex}`;
-    if (typeof byDoc[key] === "boolean") return byDoc[key];
-    return true;
+    return byDoc[key] === true;
   };
 
   // Valida en un HORARIO dado (no usa horarioVisible) disponibilidad + no-solape
@@ -409,7 +444,7 @@ const HorarioTable = () => {
     if (!horarioVisible) return;
     const gradoId = (nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1);
 
-    const cursosConHorasFaltantes = Object.entries(horasCursos || {})
+    const cursosConHorasFaltantes = Object.entries(horasCursosPorVersion || {})
       .filter(([_, horasPorGrado]) => {
         const horasEsperadas = horasPorGrado?.[gradoId] || 0;
         const horasAsignadas = contarHorasAsignadas(parseInt(_, 10), gradoIndex);
@@ -548,8 +583,9 @@ const HorarioTable = () => {
   const generarHorario = async () => {
     setCargando(true);
     setProgreso(0);
+    setProgresoStage("");
     try {
-      const docentesFiltrados = (docentes || []).filter(d => d.nivel === nivel);
+      const docentesFiltrados = docentesPorVersion;
 
       // filtrar asignaciones por nivel
       const asignacionesFiltradas = Object.fromEntries(
@@ -573,14 +609,26 @@ const HorarioTable = () => {
         disponibilidad: disponibilidadParaEnviar,
         reglas: reglasEfectivas || DEFAULT_REGLAS,
       };
+      console.log(
+        "[DEBUG] payloadRestricciones.disponibilidad keys:",
+        Object.keys(payloadRestricciones.disponibilidad || {}).slice(0, 5)
+      );
+      if (payloadRestricciones.disponibilidad && Object.keys(payloadRestricciones.disponibilidad).length) {
+        const firstDoc = Object.keys(payloadRestricciones.disponibilidad)[0];
+        const docKeys = Object.keys(payloadRestricciones.disponibilidad[firstDoc] || {}).slice(0, 8);
+        console.log("[DEBUG] disponibilidad keys doc sample:", firstDoc, docKeys);
+      }
 
       const resultado = await generarHorarioConProgreso({
         docentes: docentesFiltrados,
         asignaciones: asignacionesFiltradas,
         restricciones: payloadRestricciones,
-        horasCursos: horasCursos || {},
+        horasCursos: horasCursosPorVersion || {},
         nivel,
-        onProgress: (pct) => setProgreso(pct),
+        onProgress: (pct, stage) => {
+          setProgreso(pct);
+          setProgresoStage(stage || "");
+        },
       });
 
       if (!resultado?.horario || esHorarioVacio(resultado.horario)) {
@@ -592,7 +640,7 @@ const HorarioTable = () => {
 
       const nuevoHistorial = [...historialGeneraciones, horarioOptimizado];
       if (nuevoHistorial.length > 3) nuevoHistorial.shift(); // mÃ¡x 3 versiones
-      localStorage.setItem("historialHorarios", JSON.stringify(nuevoHistorial));
+      localStorage.setItem(storageKey, JSON.stringify(nuevoHistorial));
       setHistorialGeneraciones(nuevoHistorial);
       setIndiceSeleccionado(nuevoHistorial.length - 1);
       setHorarioGeneral(horarioOptimizado);
@@ -618,7 +666,7 @@ const HorarioTable = () => {
     // 1) Requeridas por par (curso, grado) + total
     const requeridasPorPar = new Map();
     let totales = 0;
-    for (const [cursoIdStr, byGrado] of Object.entries(horasCursos || {})) {
+    for (const [cursoIdStr, byGrado] of Object.entries(horasCursosPorVersion || {})) {
       const cursoId = Number(cursoIdStr);
       for (let i = 0; i < grados.length; i++) {
         const gradoId = gradoIdBase + i;
@@ -658,7 +706,7 @@ const HorarioTable = () => {
 
     const porcentaje = totales > 0 ? ((asignados / totales) * 100).toFixed(1) : "0.0";
     return { asignados, totales, porcentaje };
-  }, [horarioVisible, horasCursos, grados, nivel]);
+  }, [horarioVisible, horasCursosPorVersion, grados, nivel]);
 
   const actualizarHistorialDeEdicion = (nuevoHorario) => {
     const nuevoStack = historyStack.slice(0, historyPointer + 1);
@@ -670,7 +718,7 @@ const HorarioTable = () => {
     const nuevasGeneraciones = [...historialGeneraciones];
     nuevasGeneraciones[indiceSeleccionado] = nuevoHorario;
     setHistorialGeneraciones(nuevasGeneraciones);
-    localStorage.setItem("historialHorarios", JSON.stringify(nuevasGeneraciones));
+    localStorage.setItem(storageKey, JSON.stringify(nuevasGeneraciones));
   };
 
   const handleUndo = () => {
@@ -773,6 +821,21 @@ const HorarioTable = () => {
           <CalendarRange className="size-6 text-blue-600" />
           Generar horario escolar - {nivel}
         </h2>
+        <div className="flex items-center gap-2">
+          <span className="text-sm font-semibold">Datos base:</span>
+          <select
+            value={version}
+            onChange={(e) => {
+              const v = e.target.value;
+              window.location.href = `/horario?nivel=${nivel}&version=${v}`;
+            }}
+            className="border px-2 py-1 rounded"
+          >
+            <option value="1">Versión 1</option>
+            <option value="2">Versión 2</option>
+            <option value="3">Versión 3</option>
+          </select>
+        </div>
 
         <div className="flex flex-col gap-2 w-full sm:flex-row sm:items-center sm:gap-3 md:w-auto">
           {/* Origen claro para humanos */}
@@ -824,7 +887,7 @@ const HorarioTable = () => {
 
       {cargando && (
         <p className="text-center text-purple-600 font-semibold my-4">
-          Generando horario... {progreso}%
+          Generando horario... {progreso}%{progresoStage ? ` - ${progresoStage}` : ""}
         </p>
       )}
 
@@ -1091,7 +1154,7 @@ const HorarioTable = () => {
                   const gradoIdBase = (nivel === "Primaria") ? 6 : 1;
                   const horasFaltantesRow = grados.map((_, gradoIndex) => {
                     const gradoId = gradoIdBase + gradoIndex;
-                    const esperadas = horasCursos?.[curso.id]?.[gradoId] || 0;
+                    const esperadas = horasCursosPorVersion?.[curso.id]?.[gradoId] || 0;
                     const asignadas = contarHorasAsignadas(curso.id, gradoIndex);
                     const faltantes = esperadas - asignadas;
                     return { faltantes, esperadas };

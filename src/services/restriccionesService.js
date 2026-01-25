@@ -51,6 +51,7 @@ const DEFAULTS_FALLBACK = [
   { key: "no_puentes_docente",    default_aplica: true, orden: 5 },
   { key: "no_dias_consecutivos",  default_aplica: true, orden: 6 },
   { key: "omitir_cursos_1h",      default_aplica: true, orden: 7 },
+  { key: "limitar_carga_docente_grado", default_aplica: true, orden: 8 },
 ];
 
 /**
@@ -174,6 +175,7 @@ export function buildRestriccionesPayload(disponibilidadMap = {}, reglas = {}) {
       no_puentes_docente: true,
       no_dias_consecutivos: true,
       omitir_cursos_1h: true,
+      limitar_carga_docente_grado: true,
       // overrides efectivos
       ...reglas,
     },

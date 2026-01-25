@@ -145,36 +145,6 @@ export default function HorarioPorDocente() {
     return map;
   }, [asignaciones]);
 
-  const construirDesdeHistorialLocal = () => {
-    if (!docenteId || !historialLocal?.length || asignacionMap.size === 0) return null;
-    const map = {};
-    historialLocal.forEach((horario, idxVersion) => {
-      const rows = [];
-      for (let d = 0; d < (horario?.length || 0); d++) {
-        for (let b = 0; b < (horario[d]?.length || 0); b++) {
-          const grados = horario[d]?.[b] || [];
-          for (let g = 0; g < grados.length; g++) {
-            const cursoId = grados[g];
-            if (!cursoId || cursoId <= 0) continue;
-            const gradoId = nivel === "Primaria" ? g + 6 : g + 1;
-            const docente = asignacionMap.get(`${cursoId}-${gradoId}`);
-            if (String(docente) === String(docenteId)) {
-              rows.push({
-                dia: DIAS_KEYS[d],
-                bloque: b,
-                curso_id: cursoId,
-                grado_id: gradoId,
-              });
-            }
-          }
-        }
-      }
-      map[idxVersion + 1] = rows;
-    });
-    const versionesLocal = Array.from({ length: historialLocal.length }, (_, i) => i + 1);
-    return { map, versionesLocal };
-  };
-
   // Cargar horarios por docente
   useEffect(() => {
     (async () => {
@@ -186,17 +156,9 @@ export default function HorarioPorDocente() {
       }
 
       setLoading(true);
-      const desdeLocal = construirDesdeHistorialLocal();
-      if (desdeLocal) {
-        setHorariosPorVersion(desdeLocal.map);
-        setVersiones(desdeLocal.versionesLocal);
-        setVersionActual(desdeLocal.versionesLocal.length > 0 ? 1 : 0);
-        setLoading(false);
-        return;
-      }
       const { data, error } = await supabase
         .from("horarios")
-        .select("horario, dia, bloque, curso_id, grado_id")
+        .select("version_num, dia, bloque, curso_id, grado_id")
         .eq("docente_id", Number(docenteId))
         .eq("nivel", nivel);
 
@@ -206,31 +168,37 @@ export default function HorarioPorDocente() {
         return;
       }
 
-      // Agrupar por campo "horario" y renumerar correlativamente 1..N
       const grupos = {};
       for (const row of data || []) {
-        const h = Number(row.horario) || 1;
-        if (!grupos[h]) grupos[h] = [];
-        grupos[h].push(row);
+        const v = Number(row.version_num);
+        if (!grupos[v]) grupos[v] = [];
+        grupos[v].push(row);
       }
-      const ordenados = Object.keys(grupos).map(Number).sort((a, b) => a - b);
-      const mapeo = new Map(ordenados.map((v, i) => [v, i + 1]));
 
-      const renumerado = {};
-      for (const [k, arr] of Object.entries(grupos)) {
-        const nueva = mapeo.get(Number(k));
-        renumerado[nueva] = arr;
-      }
-      setHorariosPorVersion(renumerado);
+      setHorariosPorVersion(grupos);
 
-      const nuevasVersiones = Array.from({ length: Object.keys(renumerado).length }, (_, i) => i + 1);
+      const nuevasVersiones = Object.keys(grupos)
+        .map(Number)
+        .sort((a, b) => a - b);
+
       setVersiones(nuevasVersiones);
-      setVersionActual(nuevasVersiones.length > 0 ? 1 : 0);
+      setVersionActual(nuevasVersiones[0] || 0);
       setLoading(false);
     })();
   }, [docenteId, nivel, historialLocal, asignacionMap]);
 
   const horarioActual = horariosPorVersion[versionActual] || [];
+  const bloqueOneBased = useMemo(() => {
+    const bloquesHorario = (horarioActual || [])
+      .map((r) => Number(r.bloque))
+      .filter((n) => Number.isFinite(n));
+    if (bloquesHorario.includes(0)) return false;
+    if (bloquesHorario.length > 0) return Math.min(...bloquesHorario) === 1;
+    const bloquesFranjas = (franjas || [])
+      .map((f) => Number(f.bloque))
+      .filter((n) => Number.isFinite(n));
+    return bloquesFranjas.length > 0 && Math.min(...bloquesFranjas) === 1;
+  }, [horarioActual, franjas]);
 
   // ------- Exportar -------
   async function exportarPDF() {
@@ -273,11 +241,10 @@ export default function HorarioPorDocente() {
     return fallback[idx] || "";
   };
 
-  // Coincidencia flexible por bloque (acepta 0-based u 1-based)
+  // Coincidencia por bloque segun base (0-based u 1-based)
   function matchBloque(rowBloque, idx) {
-    const byIdx = rowBloque === idx; // 0,1,2...
-    const byNumero = franjas[idx]?.bloque != null && rowBloque === franjas[idx].bloque; // 1..N
-    return byIdx || byNumero;
+    if (!Number.isFinite(rowBloque)) return false;
+    return bloqueOneBased ? rowBloque === idx + 1 : rowBloque === idx;
   }
 
   // Color estable por curso (hash hue)

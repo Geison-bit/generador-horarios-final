@@ -36,6 +36,7 @@ export const enviarDznAlServidor = async (
         restricciones,
         horas_curso_grado: horasCursos,
         nivel,
+        overwrite: false,
       }),
     });
 
@@ -72,6 +73,7 @@ export async function generarHorarioConProgreso({
       restricciones,
       horas_curso_grado: horasCursos,
       nivel,
+      overwrite: false,
     }),
   });
 

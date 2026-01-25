@@ -239,13 +239,15 @@ const DocentesForm = () => {
 
   const [formData, setFormData] = useState(initialState);
   const [errors, setErrors] = useState({});
-  const [aulas, setAulas] = useState([]);
-  const [docentes, setDocentes] = useState([]);
-  const [cursos, setCursos] = useState([]);
-  const [modoEdicion, setModoEdicion] = useState(false);
-  const [docenteEditandoId, setDocenteEditandoId] = useState(null);
-  const [mostrarDropdown, setMostrarDropdown] = useState(false);
-  const dropdownRef = useRef(null);
+  const [aulas, setAulas] = useState([]);
+  const [docentes, setDocentes] = useState([]);
+  const [cursos, setCursos] = useState([]);
+  const [modoEdicion, setModoEdicion] = useState(false);
+  const [docenteEditandoId, setDocenteEditandoId] = useState(null);
+  const [mostrarDropdown, setMostrarDropdown] = useState(false);
+  const dropdownRef = useRef(null);
+  const [version, setVersion] = useState(1);
+  const [maxVersion, setMaxVersion] = useState(1);
 
   // Auditoría mini-badge
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
@@ -274,14 +276,35 @@ const DocentesForm = () => {
 
   const location = useLocation();
   const params = new URLSearchParams(location.search);
-  const nivelURL = params.get("nivel") || "Secundaria";
+  const nivelURL = params.get("nivel") || "Secundaria";
+  const versionParam = Number(params.get("version")) || 1;
 
-  // Carga inicial por nivel
-  useEffect(() => {
-    cargarDocentes();
-    cargarAulas();
-    cargarCursos();
-  }, [nivelURL]);
+  // Carga inicial por nivel
+  useEffect(() => {
+    setVersion(versionParam);
+    cargarDocentes();
+    cargarAulas();
+    cargarCursos();
+  }, [nivelURL, versionParam]);
+
+  useEffect(() => {
+    cargarMaxVersion();
+  }, [nivelURL]);
+
+  useEffect(() => {
+    cargarDocentes();
+    cargarAulas();
+    cargarCursos();
+  }, [version]);
+
+  // Sincronizar URL cuando cambia la version (evita saltos inesperados)
+  useEffect(() => {
+    const newParams = new URLSearchParams(location.search);
+    newParams.set("version", String(version));
+    if (newParams.toString() !== location.search.replace(/^\?/, "")) {
+      window.history.replaceState(null, "", `${location.pathname}?${newParams.toString()}`);
+    }
+  }, [version, location.pathname, location.search]);
 
   // Cerrar dropdown al hacer click fuera
   useEffect(() => {
@@ -300,6 +323,7 @@ const DocentesForm = () => {
       .from("docentes")
       .select("*, aulas(nombre), docente_curso:docente_curso(curso_id, cursos(nombre))")
       .eq("nivel", nivelURL)
+      .eq("version_num", version)
       .eq("activo", true)
       .order("apellido")
       .order("nombre");
@@ -308,19 +332,29 @@ const DocentesForm = () => {
     else setDocentes([]);
   };
 
-  const cargarAulas = async () => {
-    const { data } = await supabase.from("aulas").select().eq("nivel", nivelURL).eq("activo", true);
-    setAulas(data || []);
-  };
+  const cargarAulas = async () => {
+    const { data } = await supabase
+      .from("aulas")
+      .select()
+      .eq("nivel", nivelURL)
+      .eq("version_num", version)
+      .eq("activo", true);
+    setAulas(data || []);
+  };
 
-  const cargarCursos = async () => {
-    const { data } = await supabase.from("cursos").select("id, nombre").eq("nivel", nivelURL).eq("activo", true);
-    setCursos(data || []);
-  };
+  const cargarCursos = async () => {
+    const { data } = await supabase
+      .from("cursos")
+      .select("id, nombre")
+      .eq("nivel", nivelURL)
+      .eq("version_num", version)
+      .eq("activo", true);
+    setCursos(data || []);
+  };
 
-  const aulasOcupadas = docentes.map((d) => d.aula_id);
+  const aulasOcupadas = docentes.map((d) => d.aula_id);
 
-  // --- Handlers ---
+  // --- Handlers ---
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     setFormData((prev) => ({ ...prev, [name]: value }));
@@ -371,11 +405,12 @@ const DocentesForm = () => {
       aula_id: parseInt(formData.aulaId, 10),
       nivel: nivelURL,
       color: formData.color,
+      version_num: version,
     };
 
     let docenteId = null;
 
-    if (modoEdicion && docenteEditandoId) {
+    if (docenteEditandoId) {
       const { data, error } = await supabase
         .from("docentes")
         .update(payload)
@@ -478,7 +513,7 @@ const DocentesForm = () => {
   	}
   };
 
-  const desvincularCuenta = async (docente) => {
+  const desvincularCuenta = async (docente) => {
   	if (!window.confirm("¿Desvincular la cuenta de este docente?")) return;
   	const { error } = await supabase.from("docentes").update({ user_id: null }).eq("id", docente.id);
   	if (error) alert("❌ Error al desvincular.");
@@ -486,7 +521,57 @@ const DocentesForm = () => {
   	  alert("✅ Cuenta desvincular.");
   	  cargarDocentes();
   	}
-  };
+  };
+
+  const cargarMaxVersion = async () => {
+    const { data, error } = await supabase
+      .from("docentes")
+      .select("version_num")
+      .eq("nivel", nivelURL)
+      .order("version_num", { ascending: false })
+      .limit(1);
+
+    if (!error && data?.length) {
+      const maxV = data[0].version_num || 1;
+      setMaxVersion(maxV);
+      if (version > maxV) setVersion(maxV);
+    } else {
+      setMaxVersion(1);
+      if (version != 1) setVersion(1);
+    }
+  };
+
+  const copiarVersion = async () => {
+    const nuevaVersion = maxVersion + 1;
+
+    const { data: docentesBase, error } = await supabase
+      .from("docentes")
+      .select("*")
+      .eq("nivel", nivelURL)
+      .eq("version_num", version)
+      .eq("activo", true);
+
+    if (error || !docentesBase?.length) {
+      alert("No hay docentes para copiar");
+      return;
+    }
+
+    const copia = docentesBase.map(({ id, created_at, updated_at, ...rest }) => ({
+      ...rest,
+      version_num: nuevaVersion,
+    }));
+
+    const { error: errInsert } = await supabase.from("docentes").insert(copia);
+
+    if (errInsert) {
+      alert("Error al copiar versión");
+      return;
+    }
+
+    alert(`Versión ${nuevaVersion} creada`);
+    setMaxVersion(nuevaVersion);
+    setVersion(nuevaVersion);
+  };
 
   // --- Auditoría: última edición ---
 useEffect(() => {
@@ -566,15 +651,37 @@ useEffect(() => {
   	  <Breadcrumbs />
 
   	  {/* ➜ más espacio debajo del menú/breadcrumbs */}
-	  <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-		<h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
-		  <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-200 size-10">
-			<UserPlus className="size-6" aria-hidden="true" />
-		  </span>
-		  <span>Registrar Docente — {nivelURL}</span>
-		</h2>
-  		<LastEditPill edit={ultimaEdicion} />
-  	  </div>
+      <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+          <span className="inline-flex items-center justify-center rounded-lg sm:rounded-xl bg-blue-50 text-blue-600 ring-1 ring-blue-200 size-10">
+            <UserPlus className="size-6" aria-hidden="true" />
+          </span>
+          <span>Registrar Docente — {nivelURL}</span>
+        </h2>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <span className="text-sm text-gray-600">Versión</span>
+            <select
+              value={version}
+              onChange={(e) => setVersion(Number(e.target.value))}
+              className="border rounded-md px-2 py-1 text-sm"
+            >
+              {Array.from({ length: maxVersion }, (_, i) => i + 1).map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+          <button
+            onClick={copiarVersion}
+            className="px-3 py-1.5 rounded-md bg-slate-600 text-white text-sm hover:bg-slate-700 w-full sm:w-auto"
+          >
+            Crear copia
+          </button>
+          <LastEditPill edit={ultimaEdicion} />
+        </div>
+      </div>
 
   	  {/* Formulario */}
   	  <form

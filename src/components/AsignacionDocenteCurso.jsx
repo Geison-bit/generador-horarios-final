@@ -39,11 +39,30 @@ export default function AsignacionDocenteCurso() {
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [versions, setVersions] = useState([]);
+  const [versionNum, setVersionNum] = useState(1);
 
   const nivel = new URLSearchParams(useLocation().search).get("nivel") || "Secundaria";
   const nivelSeguro = nivel || "Secundaria";
 
-  // ------- Carga inicial -------
+  // ------- Carga inicial (versiones) -------
+  useEffect(() => {
+    (async () => {
+      setLoading(true);
+      setError("");
+      try {
+        await cargarVersiones();
+      } catch (e) {
+        console.error(e);
+        setError("No se pudo cargar la información inicial.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivelSeguro]);
+
+  // ------- Refrescar por versión -------
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -65,7 +84,7 @@ export default function AsignacionDocenteCurso() {
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nivel]);
+  }, [nivelSeguro, versionNum]);
 
   // ------- Recalcular bloques usados -------
   useEffect(() => {
@@ -97,16 +116,35 @@ export default function AsignacionDocenteCurso() {
         contador[docente_id] += horas;
       }
     }
-    const filtrados = (docentes || []).filter((d) => d.nivel === nivelSeguro);
+    const filtrados = (docentes || []).filter(
+      (d) => d.nivel === nivelSeguro && d.version_num === versionNum
+    );
     return { resumenHoras: contador, docentesFiltrados: filtrados };
-  }, [asignaciones, horasCursos, docentes, nivelSeguro]);
+  }, [asignaciones, horasCursos, docentes, nivelSeguro, versionNum]);
 
   // ------- Supabase fetchers -------
+  async function cargarVersiones() {
+    const { data, error } = await supabase
+      .from("franjas_horarias")
+      .select("version_num")
+      .eq("nivel", nivelSeguro);
+
+    if (!error && data?.length) {
+      const unique = [...new Set(data.map((d) => d.version_num))].sort((a, b) => a - b);
+      setVersions(unique);
+      if (!unique.includes(versionNum)) setVersionNum(unique[0]);
+    } else {
+      setVersions([1]);
+      setVersionNum(1);
+    }
+  }
+
   async function cargarLimiteBloques() {
     const { data, error } = await supabase
       .from("franjas_horarias")
       .select("bloque")
-      .eq("nivel", nivelSeguro);
+      .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum);
     if (error) console.error(error);
     const bloquesPorDia = data?.length || 8; // fallback 8
     setLimiteBloques(bloquesPorDia * 5 * grados.length);
@@ -115,8 +153,9 @@ export default function AsignacionDocenteCurso() {
   async function cargarDocentes() {
     const { data, error } = await supabase
       .from("docentes")
-      .select("id, nombre, jornada_total, nivel")
+      .select("id, nombre, jornada_total, nivel, version_num")
       .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum)
       .eq("activo", true);
     if (error) console.error(error);
     setDocentes(data || []);
@@ -127,6 +166,7 @@ export default function AsignacionDocenteCurso() {
       .from("docentes")
       .select("id, nombre, docente_curso(curso_id), nivel")
       .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum)
       .eq("activo", true);
     if (error) console.error(error);
     const mapa = {};
@@ -144,6 +184,7 @@ export default function AsignacionDocenteCurso() {
       .from("cursos")
       .select("id, nombre, nivel")
       .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum)
       .order("nombre", { ascending: true });
     if (error) console.error(error);
     setCursos(data || []);
@@ -152,7 +193,8 @@ export default function AsignacionDocenteCurso() {
   async function cargarHorasCursoGrado() {
     const { data, error } = await supabase
       .from("horas_curso_grado")
-      .select("horas, curso_id, grado_id");
+      .select("horas, curso_id, grado_id")
+      .eq("version_num", versionNum);
     if (error) console.error(error);
     const map = {};
     (data || []).forEach(({ curso_id, grado_id, horas }) => {
@@ -166,7 +208,8 @@ export default function AsignacionDocenteCurso() {
     const { data, error } = await supabase
       .from("asignaciones")
       .select("curso_id, grado_id, docente_id, nivel")
-      .eq("nivel", nivelSeguro);
+      .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum);
     if (error) console.error(error);
     const map = {};
     (data || []).forEach(({ curso_id, grado_id, docente_id }) => {
@@ -182,7 +225,7 @@ export default function AsignacionDocenteCurso() {
     try {
       const { data, error } = await supabase
         .from("cursos")
-        .insert({ nombre: nuevoCurso.trim(), nivel: nivelSeguro })
+        .insert({ nombre: nuevoCurso.trim(), nivel: nivelSeguro, version_num: versionNum })
         .select();
       if (error) throw error;
       if (data) {
@@ -191,6 +234,7 @@ export default function AsignacionDocenteCurso() {
           curso_id: cursoId,
           grado_id: idx + 1,
           horas: 0,
+          version_num: versionNum,
         }));
         await supabase.from("horas_curso_grado").insert(nuevasHoras);
         setNuevoCurso("");
@@ -214,7 +258,12 @@ export default function AsignacionDocenteCurso() {
 
     await supabase
       .from("horas_curso_grado")
-      .upsert({ curso_id: cursoId, grado_id: gradoId, horas: nuevaHoraInt });
+      .upsert({
+        curso_id: cursoId,
+        grado_id: gradoId,
+        horas: nuevaHoraInt,
+        version_num: versionNum,
+      });
     await cargarHorasCursoGrado();
   }
 
@@ -224,7 +273,11 @@ export default function AsignacionDocenteCurso() {
     );
     if (!confirmar) return;
 
-    const { error } = await supabase.from("cursos").delete().eq("id", cursoId);
+    const { error } = await supabase
+      .from("cursos")
+      .delete()
+      .eq("id", cursoId)
+      .eq("version_num", versionNum);
     if (error) {
       console.error("Error al eliminar el curso:", error);
       alert("❌ No se pudo eliminar el curso.");
@@ -295,7 +348,8 @@ export default function AsignacionDocenteCurso() {
       .delete()
       .eq("curso_id", cursoId)
       .eq("grado_id", gradoId)
-      .eq("nivel", nivelSeguro);
+      .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum);
   }
 
   function asignarATodosLosGrados(cursoId, docenteId) {
@@ -329,6 +383,7 @@ export default function AsignacionDocenteCurso() {
             grado_id: parseInt(gradoId, 10),
             docente_id: parseInt(item.docente_id, 10),
             nivel: nivelSeguro,
+            version_num: versionNum,
           });
           if (!horasPorDocente[item.docente_id]) horasPorDocente[item.docente_id] = 0;
           horasPorDocente[item.docente_id] += horas;
@@ -339,6 +394,7 @@ export default function AsignacionDocenteCurso() {
         .from("docentes")
         .select("id, jornada_total")
         .eq("nivel", nivelSeguro)
+        .eq("version_num", versionNum)
         .eq("activo", true);
       if (errorDocentes) throw errorDocentes;
 
@@ -367,7 +423,10 @@ export default function AsignacionDocenteCurso() {
 
       const { error: errorHoras } = await supabase
         .from("horas_curso_grado")
-        .upsert(registrosHoras, { onConflict: ["curso_id", "grado_id"] });
+        .upsert(
+          registrosHoras.map((r) => ({ ...r, version_num: versionNum })),
+          { onConflict: ["curso_id", "grado_id", "version_num"] }
+        );
       if (errorHoras) throw errorHoras;
 
       const registrosUnicos = Array.from(
@@ -376,7 +435,7 @@ export default function AsignacionDocenteCurso() {
 
       const { error } = await supabase
         .from("asignaciones")
-        .upsert(registrosUnicos, { onConflict: "curso_id,grado_id,nivel" });
+        .upsert(registrosUnicos, { onConflict: "curso_id,grado_id,nivel,version_num" });
       if (error) throw error;
 
       alert("✅ Todo guardado correctamente.");
@@ -405,10 +464,26 @@ export default function AsignacionDocenteCurso() {
                   Asignación de Docentes y Horas
                 </h1>
                 <div className="mt-1">
-                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-                    <Users className="size-3.5" />
-                    Nivel — <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
-                  </span>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                      <Users className="size-3.5" />
+                      Nivel — <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
+                    </span>
+                    <div className="flex items-center gap-2">
+                      <label className="text-xs text-slate-600">Versión</label>
+                      <select
+                        value={versionNum}
+                        onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
+                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                      >
+                        {versions.map((v) => (
+                          <option key={v} value={v}>
+                            {v}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>

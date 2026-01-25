@@ -3,7 +3,7 @@ import { useState, useEffect } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { Clock8, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
+import { Clock8, Copy, History, Loader2, Plus, Save, Trash2, Users } from "lucide-react";
 
 // Mini pill Última edición (coherente con otras pantallas)
 const LastEditPill = ({ edit }) => {
@@ -33,6 +33,8 @@ const FranjasHorariasForm = () => {
   const [saveStatus, setSaveStatus] = useState({ message: "", type: "" });
   const [saving, setSaving] = useState(false);
   const [cargando, setCargando] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [versionNum, setVersionNum] = useState(1);
 
   // Auditoría
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
@@ -44,11 +46,20 @@ const FranjasHorariasForm = () => {
   useEffect(() => {
     (async () => {
       setCargando(true);
-      await cargarBloquesDesdeDB();
+      await cargarVersionesDesdeDB();
       setCargando(false);
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivel]);
+
+  useEffect(() => {
+    (async () => {
+      setCargando(true);
+      await cargarBloquesDesdeDB();
+      setCargando(false);
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nivel, versionNum]);
 
   // --- Auditoría: leer última edición de audit_logs para franjas_horarias ---
   useEffect(() => {
@@ -112,11 +123,29 @@ const FranjasHorariasForm = () => {
     };
   }, []);
 
+  const cargarVersionesDesdeDB = async () => {
+    const { data, error } = await supabase
+      .from("franjas_horarias")
+      .select("version_num")
+      .eq("nivel", nivel)
+      .order("version_num", { ascending: true });
+
+    if (!error && data?.length) {
+      const unique = Array.from(new Set(data.map((v) => v.version_num))).sort((a, b) => a - b);
+      setVersions(unique);
+      if (!unique.includes(versionNum)) setVersionNum(unique[0]);
+    } else {
+      setVersions([1]);
+      setVersionNum(1);
+    }
+  };
+
   const cargarBloquesDesdeDB = async () => {
     const { data, error } = await supabase
       .from("franjas_horarias")
       .select("bloque, hora_inicio, hora_fin")
       .eq("nivel", nivel)
+      .eq("version_num", versionNum)
       .order("bloque");
 
     if (!error && data && data.length > 0) {
@@ -153,6 +182,43 @@ const FranjasHorariasForm = () => {
     setBloques(bloques.filter((_, i) => i !== index));
   };
 
+  const crearCopia = async () => {
+    const siguiente = (versions[versions.length - 1] || 1) + 1;
+    setSaving(true);
+    setSaveStatus({ message: "", type: "" });
+
+    try {
+      const nuevaConfiguracion = bloques.map((b, index) => ({
+        nivel,
+        version_num: siguiente,
+        bloque: index + 1,
+        hora_inicio: b.inicio,
+        hora_fin: b.fin,
+      }));
+
+      const { error } = await supabase
+        .from("franjas_horarias")
+        .upsert(nuevaConfiguracion, { onConflict: "nivel,version_num,bloque" });
+
+      if (error) {
+        console.error("Copy error:", error);
+        setSaveStatus({ message: "Error al crear la copia.", type: "error" });
+        return;
+      }
+
+      const nuevasVersiones = [...versions, siguiente];
+      setVersions(nuevasVersiones);
+      setVersionNum(siguiente);
+      setSaveStatus({ message: `Copia creada (versiÃ³n ${siguiente}).`, type: "success" });
+    } catch (e) {
+      console.error(e);
+      setSaveStatus({ message: "Error al crear la copia.", type: "error" });
+    } finally {
+      setSaving(false);
+      setTimeout(() => setSaveStatus({ message: "", type: "" }), 3000);
+    }
+  };
+
   // =======================
   //  GUARDAR (UPSERT + trim)
   // =======================
@@ -164,6 +230,7 @@ const FranjasHorariasForm = () => {
       // 1) UPSERT: inserta nuevos y actualiza existentes por (nivel, bloque)
       const nuevaConfiguracion = bloques.map((b, index) => ({
         nivel,
+        version_num: versionNum,
         bloque: index + 1,
         hora_inicio: b.inicio,
         hora_fin: b.fin,
@@ -171,7 +238,7 @@ const FranjasHorariasForm = () => {
 
       const { error: upsertErr } = await supabase
         .from("franjas_horarias")
-        .upsert(nuevaConfiguracion, { onConflict: "nivel,bloque" });
+        .upsert(nuevaConfiguracion, { onConflict: "nivel,version_num,bloque" });
 
       if (upsertErr) {
         console.error("Upsert error:", upsertErr);
@@ -181,10 +248,22 @@ const FranjasHorariasForm = () => {
       }
 
       // 2) Recorte opcional: elimina SOLO los bloques que sobren
+      // Primero limpia registros dependientes en "horarios" para evitar conflictos FK.
+      // Si cambian los bloques, el horario ya no es vÃ¡lido: se elimina completo por nivel.
+      const { error: deleteHorariosErr } = await supabase
+        .from("horarios")
+        .delete()
+        .eq("nivel", nivel);
+
+      if (deleteHorariosErr) {
+        console.warn("No se pudieron eliminar horarios del nivel:", deleteHorariosErr);
+      }
+
       const { error: deleteErr } = await supabase
         .from("franjas_horarias")
         .delete()
         .eq("nivel", nivel)
+        .eq("version_num", versionNum)
         .gt("bloque", bloques.length);
 
       if (deleteErr) {
@@ -226,7 +305,29 @@ const FranjasHorariasForm = () => {
             </div>
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+              <div className="flex items-center gap-2 w-full sm:w-auto">
+                <label className="text-xs text-slate-600">VersiÃ³n</label>
+                <select
+                  value={versionNum}
+                  onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
+                  className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                >
+                  {versions.map((v) => (
+                    <option key={v} value={v}>
+                      {v}
+                    </option>
+                  ))}
+                </select>
+              </div>
               <LastEditPill edit={ultimaEdicion} />
+              <button
+                onClick={crearCopia}
+                className="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-white shadow-sm hover:bg-slate-800 disabled:opacity-70 w-full sm:w-auto"
+                disabled={saving || cargando || bloques.length === 0}
+              >
+                <Copy className="size-4" />
+                Crear copia
+              </button>
               <button
                 onClick={guardarConfiguracion}
                 className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow-sm hover:bg-emerald-700 disabled:opacity-70 w-full sm:w-auto"
@@ -242,8 +343,8 @@ const FranjasHorariasForm = () => {
 
       {/* Descripción */}
       <p className="text-slate-600 mb-6">
-        Define los bloques horarios de Lunes a Viernes para el nivel {nivel}. La hora de fin se calcula automáticamente a los{" "}
-        <b>45 min</b> del inicio.
+        Define los bloques horarios de Lunes a Viernes para el nivel {nivel} (versi?n {versionNum}). La hora de fin se calcula
+        autom?ticamente a los <b>45 min</b> del inicio.
       </p>
 
       {/* Tabla de bloques */}

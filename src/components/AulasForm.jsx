@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-import { Building2, Save, X, Pencil, Trash2, Search, Loader2, Clock3 } from "lucide-react";
+import { Building2, Save, X, Pencil, Trash2, Search, Loader2, Clock3, Copy } from "lucide-react";
 
 export default function AulasForm() {
   const [formData, setFormData] = useState({ nombre: "", piso: "", tipo: "" });
@@ -14,6 +14,8 @@ export default function AulasForm() {
   const [filter, setFilter] = useState("");
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [versions, setVersions] = useState([]);
+  const [versionNum, setVersionNum] = useState(1);
 
   // Auditoría: último cambio en la tabla aulas
   const [ultimaEdicion, setUltimaEdicion] = useState(null);
@@ -25,8 +27,12 @@ export default function AulasForm() {
   const inputNombreRef = useRef(null);
 
   useEffect(() => {
-    cargarAulas();
+    cargarVersionesDesdeDB();
   }, [nivel]);
+
+  useEffect(() => {
+    cargarAulas();
+  }, [nivel, versionNum]);
 
   // --- Helpers ---
   const norm = (s) => s.trim().replace(/\s+/g, " ");
@@ -46,13 +52,31 @@ export default function AulasForm() {
     );
   }, [filter, aulas]);
 
+  const cargarVersionesDesdeDB = async () => {
+    const { data, error } = await supabase
+      .from("aulas")
+      .select("version_num")
+      .eq("nivel", nivel)
+      .order("version_num", { ascending: true });
+
+    if (!error && data?.length) {
+      const unique = Array.from(new Set(data.map((v) => v.version_num))).sort((a, b) => a - b);
+      setVersions(unique);
+      if (!unique.includes(versionNum)) setVersionNum(unique[0]);
+    } else {
+      setVersions([1]);
+      setVersionNum(1);
+    }
+  };
+
   // --- Carga ---
   async function cargarAulas() {
     setLoading(true);
     const { data, error } = await supabase
       .from("aulas")
       .select()
-      .eq("nivel", nivel);
+      .eq("nivel", nivel)
+      .eq("version_num", versionNum);
     if (error) console.error(error);
     setAulas(sortAulas(data || []));
     setLoading(false);
@@ -71,6 +95,7 @@ export default function AulasForm() {
         .from("aulas")
         .select("id")
         .eq("nivel", nivel)
+        .eq("version_num", versionNum)
         .ilike("nombre", nombreLimpio); // sin comodines => comparación case-insensitive exacta
       if (!error && data && data.length > 0 && (!modoEdicion || data[0].id !== aulaEditandoId)) {
         newErrors.nombre = "Ya existe un aula con este nombre.";
@@ -103,6 +128,7 @@ export default function AulasForm() {
       tipo: formData.tipo,
       piso: `Piso ${formData.piso}`,
       nivel,
+      version_num: versionNum,
     };
 
     if (modoEdicion && aulaEditandoId) {
@@ -139,6 +165,32 @@ export default function AulasForm() {
     if (error) alert("No se pudo eliminar el aula. Revise si está relacionada a horarios o asignaciones.");
     else cargarAulas();
   }
+
+  const crearCopia = async () => {
+    const siguiente = (versions[versions.length - 1] || 1) + 1;
+    setSaving(true);
+
+    try {
+      const nuevaConfig = aulas.map((a) => ({
+        nombre: a.nombre,
+        piso: a.piso,
+        tipo: a.tipo,
+        nivel,
+        version_num: siguiente,
+      }));
+
+      const { error } = await supabase.from("aulas").insert(nuevaConfig);
+      if (error) throw error;
+
+      setVersions([...versions, siguiente]);
+      setVersionNum(siguiente);
+    } catch (e) {
+      console.error(e);
+      alert("Error al crear copia de aulas");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   // --- Auditoría: “?ltima edici?n” de la tabla aulas ---
   useEffect(() => {
@@ -213,26 +265,50 @@ export default function AulasForm() {
           <Building2 className="size-6 text-blue-600" /> Registrar Aula — {nivel}
         </h2>
 
-        <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm w-full sm:w-auto">
-          <Clock3 className="size-4" />
-          <span>
-            {(() => {
-              const actorNombre =
-                ultimaEdicion?.actor_name ||
-                ultimaEdicion?.actor_full_name ||
-                ultimaEdicion?.actor_email ||
-                "Desconocido";
-              const fecha = ultimaEdicion?.created_at
-                ? new Date(ultimaEdicion.created_at).toLocaleString()
-                : "—";
-              return (
-                <>
-                  <span className="text-gray-600">Última edición:</span>{" "}
-                  <b>{actorNombre}</b> · {fecha}
-                </>
-              );
-            })()}
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
+          <div className="flex items-center gap-2">
+            <label className="text-xs text-slate-600">Versión</label>
+            <select
+              value={versionNum}
+              onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
+              className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+            >
+              {versions.map((v) => (
+                <option key={v} value={v}>
+                  {v}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="flex items-center gap-2 text-xs px-3 py-1 rounded-md bg-gray-100 border text-gray-700 shadow-sm w-full sm:w-auto">
+            <Clock3 className="size-4" />
+            <span>
+              {(() => {
+                const actorNombre =
+                  ultimaEdicion?.actor_name ||
+                  ultimaEdicion?.actor_full_name ||
+                  ultimaEdicion?.actor_email ||
+                  "Desconocido";
+                const fecha = ultimaEdicion?.created_at
+                  ? new Date(ultimaEdicion.created_at).toLocaleString()
+                  : "—";
+                return (
+                  <>
+                    <span className="text-gray-600">Última edición:</span>{" "}
+                    <b>{actorNombre}</b> · {fecha}
+                  </>
+                );
+              })()}
+            </span>
+          </div>
+          <button
+            onClick={crearCopia}
+            disabled={saving || aulas.length === 0}
+            className="inline-flex items-center gap-2 rounded-lg bg-slate-700 px-4 py-2 text-white hover:bg-slate-800 disabled:opacity-70 w-full sm:w-auto"
+          >
+            <Copy className="size-4" />
+            Crear copia
+          </button>
         </div>
       </div>
 

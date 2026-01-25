@@ -1,3 +1,4 @@
+# -*- coding: latin-1 -*-
 from flask import Flask, request, jsonify, Response, stream_with_context
 from flask_cors import CORS
 import os
@@ -11,6 +12,7 @@ import threading
 import time
 import uuid
 from queue import Queue, Empty
+import unicodedata
 
 app = Flask(__name__)
 
@@ -55,8 +57,8 @@ if not supabase_url or not supabase_key:
 supabase = create_client(supabase_url, supabase_key)
 
 # Constantes
-DIAS = ["lunes", "martes", "miércoles", "jueves", "viernes"]
-NUM_BLOQUES = 8  # asegúrate que 'franjas_horarias' tenga bloques 0..7 por nivel
+DIAS = ["lunes", "martes", "mi\u00e9rcoles", "jueves", "viernes"]
+NUM_BLOQUES = 7  # asegúrate que 'franjas_horarias' tenga bloques 0..7 por nivel
 
 # Jobs en memoria para progreso SSE
 _jobs = {}
@@ -90,6 +92,35 @@ def obtener_nuevo_numero_horario(nivel: str) -> int:
     versiones = sorted({item["horario"] for item in (resp.data or []) if item.get("horario") is not None})
     return (max(versiones) + 1) if versiones else 1
 
+def _normalize_text(texto):
+    if texto is None:
+        return ""
+    return unicodedata.normalize("NFD", str(texto)).encode("ascii", "ignore").decode("ascii").lower()
+
+def construir_restricciones_disponibilidad(sb, nivel):
+    rows = (
+        sb.table("restricciones_docente")
+        .select("docente_id,dia,bloque")
+        .eq("nivel", nivel)
+        .execute()
+        .data
+        or []
+    )
+
+    bloque_one_based = any(int(r.get("bloque", 0)) == 1 for r in rows)
+    disponibilidad = {}
+    for r in rows:
+        try:
+            doc = str(r.get("docente_id"))
+            dia = _normalize_text(r.get("dia"))
+            b = int(r.get("bloque"))
+        except Exception:
+            continue
+        b0 = b - 1 if bloque_one_based else b
+        disponibilidad.setdefault(doc, {})[f"{dia}-{b0}"] = True
+
+    return {"disponibilidad": disponibilidad}
+
 @app.route("/generar-horario-general", methods=["POST"])
 def generar_horario_general():
     try:
@@ -101,12 +132,26 @@ def generar_horario_general():
         restricciones = data.get("restricciones", {})
         horas_curso_grado = data.get("horas_curso_grado", {})
         nivel = data.get("nivel", "Secundaria")
-        overwrite = bool(data.get("overwrite", True))  # por defecto sobrescribe todo el nivel
+        overwrite = bool(data.get("overwrite", False))  # por defecto NO sobrescribe
 
         if not docentes or not asignaciones or not horas_curso_grado:
             raise ValueError("Faltan datos requeridos para generar el horario.")
 
-        print(f"🔧 Generando horario para nivel: {nivel}")
+        print("[INFO] Generando horario para nivel: " + str(nivel))
+        print("[API][DEBUG] restricciones keys:", (restricciones or {}).keys())
+        print("[API][DEBUG] tiene disponibilidad?:", "disponibilidad" in (restricciones or {}))
+        if isinstance((restricciones or {}).get("disponibilidad"), dict):
+            disp = (restricciones or {}).get("disponibilidad") or {}
+            print("[API][DEBUG] disponibilidad docentes:", list(disp.keys())[:5])
+            if disp:
+                first = next(iter(disp))
+                print("[API][DEBUG] sample docente", first, "keys:", list((disp.get(first) or {}).keys())[:10])
+        else:
+            print("[API][DEBUG] disponibilidad tipo:", type((restricciones or {}).get("disponibilidad")))
+
+        if not (restricciones or {}).get("disponibilidad"):
+            restricciones = construir_restricciones_disponibilidad(supabase, nivel)
+            print("[API][DEBUG] disponibilidad cargada desde BD. docentes:", list(restricciones.get("disponibilidad", {}).keys())[:5])
         resultado = generar_horario(
             docentes,
             asignaciones,
@@ -162,35 +207,34 @@ def generar_horario_general():
                             "dia": dia_nombre,           # 'lunes'..'viernes'
                             "bloque": int(bloque_idx),   # 0..7
                             "nivel": nivel,
-                            "horario": int(nueva_version)
+                            "version_num": int(nueva_version)
                         })
 
         # Persistencia robusta evitando duplicados
         if registros:
             # Si quieres intentar UPSERT primero (cuando tu UNIQUE sea (grado_id, dia, bloque)):
-            CONFLICT_COLS = ["grado_id", "dia", "bloque"]  # ⚠️ Si tu UNIQUE incluye nivel, agrega "nivel" aquí.
+            CONFLICT_COLS = ["grado_id", "dia", "bloque"]  # Si tu UNIQUE incluye nivel, agrega "nivel" aqui.
 
             if overwrite:
                 # Estrategia clara y consistente: borra e inserta todo el nivel
-                supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                supabase.table("horarios").delete().eq("nivel", nivel).eq("version_num", nueva_version).execute()
                 supabase.table("horarios").insert(registros).execute()
-                print(f"✅ Horario sobrescrito para {nivel}. Filas: {len(registros)}")
+                print("[OK] Horario sobrescrito para " + str(nivel) + ". Filas: " + str(len(registros)))
             else:
-                # Intenta UPSERT; si tu índice no coincide (42P10) o hay 23505 por otro UNIQUE, cae a delete+insert
+                # Intenta UPSERT; si tu indice no coincide (42P10) o hay 23505 por otro UNIQUE, cae a delete+insert
                 try:
                     supabase.table("horarios").upsert(registros, on_conflict=CONFLICT_COLS).execute()
-                    print(f"✅ Horario cargado por UPSERT. Filas: {len(registros)}")
+                    print("[OK] Horario cargado por UPSERT. Filas: " + str(len(registros)))
                 except Exception as e:
                     msg = str(e)
                     if "42P10" in msg or "23505" in msg:
-                        print("ℹ️ Fallback a delete+insert por conflicto de índice único.")
-                        supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                        print("[WARN] Fallback a delete+insert por conflicto de indice unico.")
+                        supabase.table("horarios").delete().eq("nivel", nivel).eq("version_num", nueva_version).execute()
                         supabase.table("horarios").insert(registros).execute()
                     else:
                         raise
         else:
-            print("⚠ No se generaron registros (todo vacío).")
-
+            print("[WARN] No se generaron registros (todo vacio).")
         # Devuelve matriz para el front (5 días × NUM_BLOQUES × (5 ó 6 grados))
         grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
         horario_lista = [
@@ -230,10 +274,25 @@ def generar_horario_job():
         restricciones = data.get("restricciones", {})
         horas_curso_grado = data.get("horas_curso_grado", {})
         nivel = data.get("nivel", "Secundaria")
-        overwrite = bool(data.get("overwrite", True))
+        overwrite = bool(data.get("overwrite", False))
 
         if not docentes or not asignaciones or not horas_curso_grado:
             return jsonify({"error": "Faltan datos requeridos para generar el horario."}), 400
+
+        print("[API][DEBUG] restricciones keys:", (restricciones or {}).keys())
+        print("[API][DEBUG] tiene disponibilidad?:", "disponibilidad" in (restricciones or {}))
+        if isinstance((restricciones or {}).get("disponibilidad"), dict):
+            disp = (restricciones or {}).get("disponibilidad") or {}
+            print("[API][DEBUG] disponibilidad docentes:", list(disp.keys())[:5])
+            if disp:
+                first = next(iter(disp))
+                print("[API][DEBUG] sample docente", first, "keys:", list((disp.get(first) or {}).keys())[:10])
+        else:
+            print("[API][DEBUG] disponibilidad tipo:", type((restricciones or {}).get("disponibilidad")))
+
+        if not (restricciones or {}).get("disponibilidad"):
+            restricciones = construir_restricciones_disponibilidad(supabase, nivel)
+            print("[API][DEBUG] disponibilidad cargada desde BD. docentes:", list(restricciones.get("disponibilidad", {}).keys())[:5])
 
         job_id = str(uuid.uuid4())
         q = Queue()
@@ -242,6 +301,10 @@ def generar_horario_job():
 
         def _progress_cb(pct, stage=""):
             _push_event(job_id, "progress", {"progress": int(pct), "stage": stage})
+            try:
+                print(f"[PROGRESS] {int(pct)}% {stage}", flush=True)
+            except Exception:
+                pass
 
         def _run():
             try:
@@ -298,13 +361,13 @@ def generar_horario_job():
                                     "dia": dia_nombre,
                                     "bloque": int(bloque_idx),
                                     "nivel": nivel,
-                                    "horario": int(nueva_version)
+                                    "version_num": int(nueva_version)
                                 })
 
                 if registros:
                     CONFLICT_COLS = ["grado_id", "dia", "bloque"]
                     if overwrite:
-                        supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                        supabase.table("horarios").delete().eq("nivel", nivel).eq("version_num", nueva_version).execute()
                         supabase.table("horarios").insert(registros).execute()
                     else:
                         try:
@@ -312,7 +375,7 @@ def generar_horario_job():
                         except Exception as e:
                             msg = str(e)
                             if "42P10" in msg or "23505" in msg:
-                                supabase.table("horarios").delete().eq("nivel", nivel).execute()
+                                supabase.table("horarios").delete().eq("nivel", nivel).eq("version_num", nueva_version).execute()
                                 supabase.table("horarios").insert(registros).execute()
                             else:
                                 raise

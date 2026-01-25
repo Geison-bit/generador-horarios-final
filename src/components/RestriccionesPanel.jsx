@@ -75,6 +75,12 @@ export default function RestriccionesPanel() {
             descripcion:
               "No intenta ubicar materias que solo tienen 1 hora semanal.",
           },
+          {
+            key: "limitar_carga_docente_grado",
+            nombre: "Maximo 3h por docente en un grado al dia",
+            descripcion:
+              "Evita que un docente dicte mas de 3 horas al mismo grado en un dia.",
+          },
         ];
         setCatalogo(baseCatalogo);
       } catch (e) {
@@ -90,6 +96,7 @@ export default function RestriccionesPanel() {
           no_puentes_docente: true,
           no_dias_consecutivos: true,
           omitir_cursos_1h: true,
+          limitar_carga_docente_grado: true,
         };
         setReglas(fallback);
         setCatalogo(
