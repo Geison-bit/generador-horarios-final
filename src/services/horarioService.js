@@ -22,7 +22,8 @@ export const enviarDznAlServidor = async (
   asignaciones,
   restricciones,
   horasCursos,
-  nivel
+  nivel,
+  version = 1
 ) => {
   try {
     console.log("🌐 Usando API:", `${baseURL}/generar-horario-general`);
@@ -36,6 +37,7 @@ export const enviarDznAlServidor = async (
         restricciones,
         horas_curso_grado: horasCursos,
         nivel,
+        version,
         overwrite: false,
       }),
     });
@@ -62,6 +64,7 @@ export async function generarHorarioConProgreso({
   restricciones,
   horasCursos,
   nivel,
+  version = 1,
   onProgress,
 }) {
   const response = await fetch(`${baseURL}/generar-horario-general-job`, {
@@ -73,6 +76,7 @@ export async function generarHorarioConProgreso({
       restricciones,
       horas_curso_grado: horasCursos,
       nivel,
+      version,
       overwrite: false,
     }),
   });
@@ -159,6 +163,7 @@ export async function generarHorarioConReglas({
   asignaciones,
   horasCursos,
   nivel,
+  version = 1,
   disponibilidadMap = {},
 }) {
   // 1) Reglas efectivas (overrides + defaults)
@@ -186,7 +191,8 @@ export async function generarHorarioConReglas({
     asignaciones,
     restricciones,
     horasCursos,
-    nivel
+    nivel,
+    version
   );
 }
 
@@ -245,12 +251,14 @@ export async function generarHorarioConRestriccionesYaArmadas({
   restricciones,
   horasCursos,
   nivel,
+  version = 1,
 }) {
   return await enviarDznAlServidor(
     docentes,
     asignaciones,
     restricciones,
     horasCursos,
-    nivel
+    nivel,
+    version
   );
 }

@@ -625,6 +625,7 @@ const HorarioTable = () => {
         restricciones: payloadRestricciones,
         horasCursos: horasCursosPorVersion || {},
         nivel,
+        version,
         onProgress: (pct, stage) => {
           setProgreso(pct);
           setProgresoStage(stage || "");

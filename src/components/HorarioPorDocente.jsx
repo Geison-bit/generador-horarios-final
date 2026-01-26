@@ -30,7 +30,9 @@ const formatHora = (value) => {
 
 export default function HorarioPorDocente() {
   const { search } = useLocation();
-  const nivel = new URLSearchParams(search).get("nivel") || "Secundaria";
+  const params = new URLSearchParams(search);
+  const nivel = params.get("nivel") || "Secundaria";
+  const version = Number(params.get("version")) || 1;
 
   // 1) Intentamos usar docentes del Context
   const { docentes } = useDocentes();
@@ -42,8 +44,9 @@ export default function HorarioPorDocente() {
       (async () => {
         const { data, error } = await supabase
           .from("docentes")
-          .select("id, nombre, apellido, nivel, activo, color")
+          .select("id, nombre, apellido, nivel, activo, color, version_num")
           .eq("nivel", nivel)
+          .eq("version_num", version)
           .eq("activo", true)
           .order("apellido", { ascending: true });
         if (!error) setDocentesLocal(data || []);
@@ -51,15 +54,21 @@ export default function HorarioPorDocente() {
     } else {
       setDocentesLocal([]); // limpiamos fallback si el context trae datos
     }
-  }, [nivel, docentes]);
+  }, [nivel, version, docentes]);
 
   const fuenteDocentes = (docentes && docentes.length > 0) ? docentes : docentesLocal;
 
   // Aseguramos: nivel y solo activos (si el context no filtra ya)
-  const docentesFiltrados = useMemo(
-    () => (fuenteDocentes || []).filter((d) => d.nivel === nivel && (d.activo ?? true)),
-    [fuenteDocentes, nivel]
-  );
+  const docentesFiltrados = useMemo(() => {
+    const filtrados = (fuenteDocentes || []).filter(
+      (d) => d.nivel === nivel && d.version_num === version && (d.activo ?? true)
+    );
+    const unique = new Map();
+    filtrados.forEach((d) => {
+      if (!unique.has(d.id)) unique.set(d.id, d);
+    });
+    return Array.from(unique.values());
+  }, [fuenteDocentes, nivel, version]);
 
   const [docenteId, setDocenteId] = useState("");
   const docenteColor = useMemo(
@@ -91,7 +100,7 @@ export default function HorarioPorDocente() {
       const historico = almacenado ? JSON.parse(almacenado) : [];
       setHistorialLocal(Array.isArray(historico) ? historico : []);
     })();
-  }, [nivel]);
+  }, [nivel, version]);
 
   // Color del docente (fallback directo a BD por si el context no lo trae)
   useEffect(() => {
@@ -115,6 +124,7 @@ export default function HorarioPorDocente() {
       .from("franjas_horarias")
       .select("bloque, hora_inicio, hora_fin")
       .eq("nivel", nivel)
+      .eq("version_num", version)
       .order("bloque");
     if (!error && data) setFranjas(data);
   }
@@ -125,6 +135,7 @@ export default function HorarioPorDocente() {
       .from("cursos")
       .select("id, nombre")
       .eq("nivel", nivel)
+      .eq("version_num", version)
       .eq("activo", true); // ✅ solo cursos activos
     if (!error) setCursosMap(Object.fromEntries((data || []).map((c) => [c.id, c.nombre])));
   }
@@ -133,7 +144,8 @@ export default function HorarioPorDocente() {
     const { data, error } = await supabase
       .from("asignaciones")
       .select("curso_id, grado_id, docente_id")
-      .eq("nivel", nivel);
+      .eq("nivel", nivel)
+      .eq("version_num", version);
     if (!error) setAsignaciones(data || []);
   }
 
@@ -160,7 +172,8 @@ export default function HorarioPorDocente() {
         .from("horarios")
         .select("version_num, dia, bloque, curso_id, grado_id")
         .eq("docente_id", Number(docenteId))
-        .eq("nivel", nivel);
+        .eq("nivel", nivel)
+        .eq("version_num", version);
 
       if (error) {
         console.error(error);
@@ -185,7 +198,7 @@ export default function HorarioPorDocente() {
       setVersionActual(nuevasVersiones[0] || 0);
       setLoading(false);
     })();
-  }, [docenteId, nivel, historialLocal, asignacionMap]);
+  }, [docenteId, nivel, version, historialLocal, asignacionMap]);
 
   const horarioActual = horariosPorVersion[versionActual] || [];
   const bloqueOneBased = useMemo(() => {
@@ -262,6 +275,21 @@ export default function HorarioPorDocente() {
       <h2 className="mt-4 mb-4 text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
         <User className="size-6 text-blue-600" /> Horario de Docente
       </h2>
+      <div className="flex items-center gap-2 mb-4">
+        <span className="text-sm font-semibold">Datos base:</span>
+        <select
+          value={version}
+          onChange={(e) => {
+            const v = e.target.value;
+            window.location.href = `/horario-docente?nivel=${nivel}&version=${v}`;
+          }}
+          className="border px-2 py-1 rounded"
+        >
+          <option value="1">Versión 1</option>
+          <option value="2">Versión 2</option>
+          <option value="3">Versión 3</option>
+        </select>
+      </div>
 
       {/* Selector de docente (solo activos del nivel) */}
       <select

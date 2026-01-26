@@ -244,6 +244,7 @@ const DocentesForm = () => {
   const [cursos, setCursos] = useState([]);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [docenteEditandoId, setDocenteEditandoId] = useState(null);
+  const [docenteEditandoVersion, setDocenteEditandoVersion] = useState(null);
   const [mostrarDropdown, setMostrarDropdown] = useState(false);
   const dropdownRef = useRef(null);
   const [version, setVersion] = useState(1);
@@ -393,6 +394,12 @@ const DocentesForm = () => {
     const reportError = (error, action) => {
       if (!error) return false;
       console.error(`Error al ${action}:`, error);
+      if (error.code === "23505") {
+        alert(
+          "No se pudo actualizar: ya existe un registro con los mismos datos en esta versión."
+        );
+        return true;
+      }
       alert(`No se pudo ${action}. ${error.message || ""}`.trim());
       return true;
     };
@@ -405,7 +412,7 @@ const DocentesForm = () => {
       aula_id: parseInt(formData.aulaId, 10),
       nivel: nivelURL,
       color: formData.color,
-      version_num: version,
+      version_num: docenteEditandoId ? (docenteEditandoVersion ?? version) : version,
     };
 
     let docenteId = null;
@@ -450,9 +457,10 @@ const DocentesForm = () => {
   	cargarDocentes();
   };
 
-  const editarDocente = (docente) => {
-  	setModoEdicion(true);
-  	setDocenteEditandoId(docente.id);
+  const editarDocente = (docente) => {
+    setModoEdicion(true);
+    setDocenteEditandoId(docente.id);
+    setDocenteEditandoVersion(docente.version_num ?? null);
     setFormData({
       nombre: docente.nombre,
       apellido: docente.apellido || "",
@@ -465,12 +473,13 @@ const DocentesForm = () => {
   	setErrors({});
   };
 
-  const cancelarEdicion = () => {
-  	setModoEdicion(false);
-  	setDocenteEditandoId(null);
-  	setFormData(initialState);
-  	setErrors({});
-  };
+  const cancelarEdicion = () => {
+    setModoEdicion(false);
+    setDocenteEditandoId(null);
+    setDocenteEditandoVersion(null);
+    setFormData(initialState);
+    setErrors({});
+  };
 
   const eliminarDocente = async (id) => {
   	if (!window.confirm("¿Seguro que deseas desactivar este docente? No se eliminará permanentemente.")) return;

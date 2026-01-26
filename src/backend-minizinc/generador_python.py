@@ -6,7 +6,7 @@ from ortools.sat.python import cp_model
 
 DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes"]
 NUM_DIAS = 5
-NUM_BLOQUES = 7
+NUM_BLOQUES = 8
 
 # --- Funciones de Utilidad (Mantenidas del original) ---
 
@@ -23,7 +23,15 @@ def normalizar_texto(texto):
 
 # --- NUEVO MODELO CP-SAT ---
 
-def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria", progress_callback=None):
+def generar_horario_cp(
+    docentes,
+    asignaciones,
+    restricciones,
+    horas_curso_grado,
+    nivel="Secundaria",
+    version=1,
+    progress_callback=None,
+):
     """
     Genera un horario escolar utilizando Programación por Restricciones (CP-SAT).
     Garantiza que no haya choques y respeta la disponibilidad.
@@ -33,6 +41,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     # 1. Preparación y Limpieza de Datos
     # ---------------------------------------------------------
     model = cp_model.CpModel()
+    num_bloques = 7 if int(version) == 1 else 8
     
     # Mapeo de IDs para facilitar el uso en el modelo
     # Diccionarios para acceso rápido
@@ -135,7 +144,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
                 continue
             for dia_idx, dia_nom in enumerate(DIAS):
                 dia_norm = normalizar_texto(dia_nom)
-                for bloque in range(NUM_BLOQUES):
+                for bloque in range(num_bloques):
                     # Claves posibles en tu JSON de restricciones (whitelist)
                     key1 = f"{dia_nom}-{bloque}"
                     key2 = f"{dia_norm}-{bloque}"
@@ -159,7 +168,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     print("========== DEBUG BLOQUES DISPONIBLES ==========")
     for doc in docente_ids:
         bloqueados = bloqueos_por_docente.get(doc, 0)
-        total = NUM_DIAS * NUM_BLOQUES
+        total = NUM_DIAS * num_bloques
         libres = total - bloqueados
         print(f"Docente {doc}: libres {libres}/{total}")
     print("==============================================")
@@ -168,7 +177,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
         doc = req["docente"]
         horas = req["horas"]
         bloqueados = bloqueos_por_docente.get(doc, 0)
-        libres = NUM_DIAS * NUM_BLOQUES - bloqueados
+        libres = NUM_DIAS * num_bloques - bloqueados
         if horas > libres:
             print("⚠ IMPOSIBLE:", req, " libres:", libres)
     print("========================================")
@@ -188,7 +197,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     
     for idx, req in enumerate(map_asignaciones):
         for d in range(NUM_DIAS):
-            for b in range(NUM_BLOQUES):
+            for b in range(num_bloques):
                 # Verificar disponibilidad del docente inmediatamente
                 if (req['docente'], d, b) in bloqueos:
                     # Si el docente no puede, no creamos variable (es 0 implícito) 
@@ -205,7 +214,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     # A) Cumplir horas requeridas por asignatura
     for idx, req in enumerate(map_asignaciones):
         model.Add(
-            sum(x[(idx, d, b)] for d in range(NUM_DIAS) for b in range(NUM_BLOQUES)) == req['horas']
+            sum(x[(idx, d, b)] for d in range(NUM_DIAS) for b in range(num_bloques)) == req['horas']
         )
 
     # B) Choques de Grado: Un grado no puede tener 2 materias al mismo tiempo
@@ -216,10 +225,10 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     
     for grado, indices in reqs_por_grado.items():
         for d in range(NUM_DIAS):
-            for b in range(NUM_BLOQUES):
+            for b in range(num_bloques):
                 model.Add(sum(x[(idx, d, b)] for idx in indices) <= 1)
             # Sin huecos intermedios: si hay clase despues, debe haber antes
-            for b in range(NUM_BLOQUES - 1):
+            for b in range(num_bloques - 1):
                 model.Add(
                     sum(x[(idx, d, b)] for idx in indices) >=
                     sum(x[(idx, d, b + 1)] for idx in indices)
@@ -232,7 +241,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
         
     for doc, indices in reqs_por_docente.items():
         for d in range(NUM_DIAS):
-            for b in range(NUM_BLOQUES):
+            for b in range(num_bloques):
                 model.Add(sum(x[(idx, d, b)] for idx in indices) <= 1)
 
     # D) Maximo 3 horas por docente en un mismo grado al dia
@@ -245,7 +254,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
         for (doc, grado), indices in reqs_por_docente_grado.items():
             for d in range(NUM_DIAS):
                 model.Add(
-                    sum(x[(idx, d, b)] for idx in indices for b in range(NUM_BLOQUES)) <= 3
+                    sum(x[(idx, d, b)] for idx in indices for b in range(num_bloques)) <= 3
                 )
 
     # 4. Restricciones de Calidad (Estructura de Bloques)
@@ -260,8 +269,8 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
             # Variables auxiliares para detectar inicios
             # start[b] es 1 si la clase empieza en el bloque b
             starts = []
-            horas_dia[(idx, d)] = model.NewIntVar(0, NUM_BLOQUES, f"horas_{idx}_{d}")
-            model.Add(horas_dia[(idx, d)] == sum(x[(idx, d, b)] for b in range(NUM_BLOQUES)))
+            horas_dia[(idx, d)] = model.NewIntVar(0, num_bloques, f"horas_{idx}_{d}")
+            model.Add(horas_dia[(idx, d)] == sum(x[(idx, d, b)] for b in range(num_bloques)))
             dicta_dia[(idx, d)] = model.NewBoolVar(f"dicta_{idx}_{d}")
             model.Add(horas_dia[(idx, d)] >= 1).OnlyEnforceIf(dicta_dia[(idx, d)])
             model.Add(horas_dia[(idx, d)] == 0).OnlyEnforceIf(dicta_dia[(idx, d)].Not())
@@ -271,10 +280,10 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
             es_2h_dia[(idx, d)] = model.NewBoolVar(f"es2h_{idx}_{d}")
             model.Add(horas_dia[(idx, d)] == 2).OnlyEnforceIf(es_2h_dia[(idx, d)])
             model.Add(horas_dia[(idx, d)] != 2).OnlyEnforceIf(es_2h_dia[(idx, d)].Not())
-            if not (req['horas'] == 3 and req['curso'] in (9, 12)):
+            if not (int(version) == 1 and req['horas'] == 3 and req['curso'] in (9, 12)):
                 model.Add(horas_dia[(idx, d)] != 1)
             
-            for b in range(NUM_BLOQUES):
+            for b in range(num_bloques):
                 es_inicio = model.NewBoolVar(f"start_{idx}_{d}_{b}")
                 
                 if b == 0:
@@ -311,7 +320,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
             model.Add(sum_3h == 0)
             model.Add(sum_2h == 2)
         elif h_total == 3:
-            if c_id in (9, 12):
+            if int(version) == 1 and c_id in (9, 12):
                 model.Add(sum_3h == 0)
                 model.Add(sum_2h == 1)
             else:
@@ -322,12 +331,13 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
             model.Add(sum_3h == 0)
 
     # --- 6. REGLAS DE DISTRIBUCIÓN DIARIA ---
-    for grado, indices in reqs_por_grado.items():
-        for d in range(NUM_DIAS):
-            model.Add(sum(es_3h_dia[(idx, d)] for idx in indices) == 1)
-            total_2h_hoy = sum(es_2h_dia[(idx, d)] for idx in indices)
-            model.Add(total_2h_hoy >= 1)
-            model.Add(total_2h_hoy <= 2)
+    if int(version) == 1:
+        for grado, indices in reqs_por_grado.items():
+            for d in range(NUM_DIAS):
+                model.Add(sum(es_3h_dia[(idx, d)] for idx in indices) == 1)
+                total_2h_hoy = sum(es_2h_dia[(idx, d)] for idx in indices)
+                model.Add(total_2h_hoy >= 1)
+                model.Add(total_2h_hoy <= 2)
 
     # 5. Configuración del Solver
     # ---------------------------------------------------------
@@ -345,7 +355,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     # ---------------------------------------------------------
     
     # Inicializar estructura de salida vacía
-    horario_salida = {d: {b: {} for b in range(NUM_BLOQUES)} for d in range(NUM_DIAS)}
+    horario_salida = {d: {b: {} for b in range(num_bloques)} for d in range(NUM_DIAS)}
     
     fallidos = 0
     asignaciones_exitosas = 0
@@ -360,7 +370,7 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
             
             horas_asignadas_curso = 0
             for d in range(NUM_DIAS):
-                for b in range(NUM_BLOQUES):
+                for b in range(num_bloques):
                     if solver.Value(x[(idx, d, b)]) == 1:
                         # Asignar en la estructura
                         horario_salida[d][b][g_id] = c_id
@@ -390,5 +400,21 @@ def generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado,
     }
 
 
-def generar_horario(docentes, asignaciones, restricciones, horas_curso_grado, nivel="Secundaria", progress_callback=None):
-    return generar_horario_cp(docentes, asignaciones, restricciones, horas_curso_grado, nivel, progress_callback)
+def generar_horario(
+    docentes,
+    asignaciones,
+    restricciones,
+    horas_curso_grado,
+    nivel="Secundaria",
+    version=1,
+    progress_callback=None,
+):
+    return generar_horario_cp(
+        docentes,
+        asignaciones,
+        restricciones,
+        horas_curso_grado,
+        nivel,
+        version,
+        progress_callback,
+    )

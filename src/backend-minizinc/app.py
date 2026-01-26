@@ -58,7 +58,7 @@ supabase = create_client(supabase_url, supabase_key)
 
 # Constantes
 DIAS = ["lunes", "martes", "mi\u00e9rcoles", "jueves", "viernes"]
-NUM_BLOQUES = 7  # asegúrate que 'franjas_horarias' tenga bloques 0..7 por nivel
+NUM_BLOQUES = 8  # default; en runtime se ajusta por version
 
 # Jobs en memoria para progreso SSE
 _jobs = {}
@@ -88,9 +88,15 @@ def obtener_nuevo_numero_horario(nivel: str) -> int:
     Devuelve un número incremental de versión.
     OJO: por el UNIQUE (grado_id, dia, bloque) no se guardan múltiples versiones en paralelo.
     """
-    resp = supabase.table("horarios").select("horario").eq("nivel", nivel).execute()
-    versiones = sorted({item["horario"] for item in (resp.data or []) if item.get("horario") is not None})
+    resp = supabase.table("horarios").select("version_num").eq("nivel", nivel).execute()
+    versiones = sorted({item["version_num"] for item in (resp.data or []) if item.get("version_num") is not None})
     return (max(versiones) + 1) if versiones else 1
+
+def _num_bloques_from_version(version):
+    try:
+        return 7 if int(version) == 1 else 8
+    except Exception:
+        return NUM_BLOQUES
 
 def _normalize_text(texto):
     if texto is None:
@@ -133,6 +139,8 @@ def generar_horario_general():
         horas_curso_grado = data.get("horas_curso_grado", {})
         nivel = data.get("nivel", "Secundaria")
         overwrite = bool(data.get("overwrite", False))  # por defecto NO sobrescribe
+        version = data.get("version") or data.get("version_num") or 1
+        num_bloques = _num_bloques_from_version(version)
 
         if not docentes or not asignaciones or not horas_curso_grado:
             raise ValueError("Faltan datos requeridos para generar el horario.")
@@ -157,7 +165,8 @@ def generar_horario_general():
             asignaciones,
             restricciones,
             horas_curso_grado,
-            nivel=nivel
+            nivel=nivel,
+            version=version
         )
 
         horario_dict = resultado.get("horario", {})  # {dia_idx: {bloque_idx: {grado_id: curso_id}}}
@@ -180,7 +189,7 @@ def generar_horario_general():
                     bloque_idx = int(blq_key)
                 except Exception:
                     continue
-                if not (0 <= bloque_idx < NUM_BLOQUES):
+                if not (0 <= bloque_idx < num_bloques):
                     continue
 
                 for grado_key, curso_id in (grados or {}).items():
@@ -243,7 +252,7 @@ def generar_horario_general():
                     (horario_dict.get(d, {}).get(b, {}).get(g, 0))
                     for g in grados_ids
                 ]
-                for b in range(NUM_BLOQUES)
+                for b in range(num_bloques)
             ]
             for d in range(5)
         ]
@@ -275,6 +284,8 @@ def generar_horario_job():
         horas_curso_grado = data.get("horas_curso_grado", {})
         nivel = data.get("nivel", "Secundaria")
         overwrite = bool(data.get("overwrite", False))
+        version = data.get("version") or data.get("version_num") or 1
+        num_bloques = _num_bloques_from_version(version)
 
         if not docentes or not asignaciones or not horas_curso_grado:
             return jsonify({"error": "Faltan datos requeridos para generar el horario."}), 400
@@ -315,6 +326,7 @@ def generar_horario_job():
                     restricciones,
                     horas_curso_grado,
                     nivel=nivel,
+                    version=version,
                     progress_callback=_progress_cb
                 )
                 horario_dict = resultado.get("horario", {})
@@ -336,7 +348,7 @@ def generar_horario_job():
                             bloque_idx = int(blq_key)
                         except Exception:
                             continue
-                        if not (0 <= bloque_idx < NUM_BLOQUES):
+                        if not (0 <= bloque_idx < num_bloques):
                             continue
 
                         for grado_key, curso_id in (grados or {}).items():
@@ -387,7 +399,7 @@ def generar_horario_job():
                             (horario_dict.get(d, {}).get(b, {}).get(g, 0))
                             for g in grados_ids
                         ]
-                        for b in range(NUM_BLOQUES)
+                        for b in range(num_bloques)
                     ]
                     for d in range(5)
                 ]
