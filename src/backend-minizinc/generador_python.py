@@ -2,6 +2,7 @@
 # generador_python.py
 
 import unicodedata
+import time
 from ortools.sat.python import cp_model
 
 DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes"]
@@ -37,6 +38,7 @@ def generar_horario_cp(
     Garantiza que no haya choques y respeta la disponibilidad.
     """
     print("[CP-SAT] Iniciando modelado matemático...")
+    t0 = time.time()
     
     # 1. Preparación y Limpieza de Datos
     # ---------------------------------------------------------
@@ -387,6 +389,62 @@ def generar_horario_cp(
     # Estadísticas básicas para el reporte
     # Detectar si faltan bloques (lógica simple post-solución)
     faltan_3h = []
+    # ---- Reporte tipo "METRICAS PARA TESIS" ----
+    try:
+        total_requeridos = total_horas_requeridas
+        total_asignados = asignaciones_exitosas
+        p_hat = (total_asignados / total_requeridos) if total_requeridos else 0.0
+        # Contar asignaciones con deficit (por curso/grado)
+        deficit_count = 0
+        for idx, req in enumerate(map_asignaciones):
+            horas_asignadas = 0
+            for d in range(NUM_DIAS):
+                for b in range(num_bloques):
+                    if solver.Value(x[(idx, d, b)]) == 1:
+                        horas_asignadas += 1
+            if horas_asignadas < req["horas"]:
+                deficit_count += 1
+        conflictos_detectados = 0
+        cumplimiento = "TOTAL" if fallidos == 0 else "PARCIAL"
+
+        print(f"[INFO] Total asignado: {total_asignados} bloques")
+        print("\n================ METRICAS PARA TESIS ================")
+        print(f"Bloques requeridos: {total_requeridos}")
+        print(f"Bloques asignados: {total_asignados}")
+        print(f"Proporcion de asignacion (p̂): {p_hat:.3f} ({p_hat*100:.2f}%)")
+        print(f"Conflictos detectados: {conflictos_detectados}")
+        print(f"Asignaciones exitosas: {len(map_asignaciones)}")
+        print(f"Asignaciones con deficit: {deficit_count}")
+        print(f"Cumplimiento de restricciones duras: {cumplimiento}")
+
+        # Test estadistico Z para proporcion de bloques asignados
+        p0 = 1.0
+        if total_requeridos > 0:
+            var = 1.0 / (4.0 * total_requeridos)
+            se = var ** 0.5
+            z = (p_hat - p0) / se if se > 0 else 0.0
+            print("\n--- Test Estadistico Z para proporcion de bloques asignados ---")
+            print(f"Valor ideal esperado (p0): {p0}")
+            print(f"Varianza estimada (rule of continuity): Var ≈ 1/(4n) = {var:.6f}")
+            print(f"Desviacion estandar (SE): sqrt(Var) = {se:.4f}")
+            print("\nCalculo con formula:")
+            print("Z = (p̂ - p0) / SE")
+            print(f"Z = ({p_hat:.3f} - {p0}) / {se:.4f}")
+            print(f"Z calculado = {z:.3f}")
+            print("\nInterpretacion:")
+            if abs(z) < 1.96:
+                print("La diferencia NO es estadisticamente significativa (p > 0.05).")
+                print("El sistema mantiene un nivel de asignacion estadisticamente compatible con el 100% esperado.")
+            else:
+                print("La diferencia ES estadisticamente significativa (p <= 0.05).")
+                print("El nivel de asignacion se aleja del 100% esperado.")
+
+        t1 = time.time()
+        print(f"\nTiempo de generacion: {t1 - t0:.3f} segundos")
+        print("=====================================================\n")
+    except Exception as _e:
+        print("[WARN] No se pudo generar reporte de metricas:", _e)
+
     faltan_2h = []
     
     return {

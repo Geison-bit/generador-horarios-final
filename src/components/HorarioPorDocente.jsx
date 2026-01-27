@@ -260,12 +260,38 @@ export default function HorarioPorDocente() {
     return bloqueOneBased ? rowBloque === idx + 1 : rowBloque === idx;
   }
 
-  // Color estable por curso (hash hue)
+  // Colores por curso o por grado (según cantidad de cursos del docente)
+  const cursosUnicos = useMemo(() => {
+    const set = new Set();
+    (horarioActual || []).forEach((h) => {
+      if (h?.curso_id) set.add(h.curso_id);
+    });
+    return Array.from(set);
+  }, [horarioActual]);
+
+  const usarColorPorGrado = cursosUnicos.length <= 1;
+
+  const PALETA_FUERTE = [
+    "#38bdf8", // azul claro
+    "#f97316", // naranja
+    "#facc15", // amarillo
+    "#4ade80", // verde
+    "#fb7185", // rosado fuerte
+    "#a3e635", // lima
+    "#22d3ee", // cian
+    "#c084fc", // morado
+    "#f472b6", // fucsia
+    "#fb923c", // naranja claro
+  ];
+
   function colorCurso(id) {
-    const colorElegido = docenteColor || docenteColorDb;
-    if (colorElegido) return colorElegido;
-    const h = (Number(id) * 47) % 360;
-    return `hsl(${h} 90% 75%)`;
+    const idx = Math.abs(Number(id || 0)) % PALETA_FUERTE.length;
+    return PALETA_FUERTE[idx];
+  }
+
+  function colorGrado(gradoId) {
+    const idx = Math.abs(Number(gradoId || 0)) % PALETA_FUERTE.length;
+    return PALETA_FUERTE[idx];
   }
 
   return (
@@ -379,15 +405,16 @@ export default function HorarioPorDocente() {
                           ) : (
                             <div
                               className="rounded-lg px-2 py-1 text-left text-black"
-                              style={{ background: colorCurso(celda.curso_id) }}
+                              style={{
+                                background: usarColorPorGrado
+                                  ? colorGrado(celda.grado_id)
+                                  : colorCurso(celda.curso_id),
+                              }}
                             >
                               <div className="font-semibold">
                                 {cursosMap[celda.curso_id] || `Curso ${celda.curso_id}`}
                               </div>
-                              <div className="text-[11px] text-black">
-                                Docente: <span className="italic">{docenteNombre}</span>
-                              </div>
-                              <div className="text-[11px] text-black">
+                              <div className="text-[13px] font-semibold text-black">
                                 Grado: {nivel === "Primaria" ? celda.grado_id - 5 : celda.grado_id}
                               </div>
                             </div>
