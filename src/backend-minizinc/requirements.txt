@@ -4,4 +4,4 @@ gunicorn
 python-dotenv
 supabase
 pytest
-ortools
+ortools==9.10.4067
