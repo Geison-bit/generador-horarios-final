@@ -3,6 +3,7 @@
 
 import unicodedata
 import time
+from collections import Counter
 from ortools.sat.python import cp_model
 
 DIAS = ["lunes", "martes", "miercoles", "jueves", "viernes"]
@@ -31,6 +32,7 @@ def generar_horario_cp(
     horas_curso_grado,
     nivel="Secundaria",
     version=1,
+    patrones_division=None,
     progress_callback=None,
 ):
     """
@@ -44,6 +46,7 @@ def generar_horario_cp(
     # ---------------------------------------------------------
     model = cp_model.CpModel()
     num_bloques = 7 if int(version) == 1 else 8
+    patrones_division = patrones_division or {}
     
     # Mapeo de IDs para facilitar el uso en el modelo
     # Diccionarios para acceso rápido
@@ -196,6 +199,24 @@ def generar_horario_cp(
     es_2h_dia = {}
     # dicta_dia[(idx, d)] -> 1 si el docente dicta ese curso ese dia
     dicta_dia = {}
+    # es_k_dia[(idx, d, k)] -> 1 si esa asignacion tiene k horas en el dia (patrones)
+    es_k_dia = {}
+
+    def _obtener_patron(req):
+        key = f"{req['curso']}-{req['grado']}"
+        raw = patrones_division.get(key)
+        if not raw:
+            return None
+        if isinstance(raw, str):
+            partes = [int(x) for x in raw.split("+") if x.strip().isdigit()]
+            return partes or None
+        if isinstance(raw, (list, tuple)):
+            try:
+                partes = [int(x) for x in raw]
+                return partes or None
+            except Exception:
+                return None
+        return None
     
     for idx, req in enumerate(map_asignaciones):
         for d in range(NUM_DIAS):
@@ -267,6 +288,9 @@ def generar_horario_cp(
     # Lógica: Contamos cuántas veces "empieza" una clase en un día. Debe ser máximo 1 vez.
     
     for idx, req in enumerate(map_asignaciones):
+        patron_vals = _obtener_patron(req)
+        if patron_vals and sum(patron_vals) != req["horas"]:
+            patron_vals = None
         for d in range(NUM_DIAS):
             # Variables auxiliares para detectar inicios
             # start[b] es 1 si la clase empieza en el bloque b
@@ -282,8 +306,17 @@ def generar_horario_cp(
             es_2h_dia[(idx, d)] = model.NewBoolVar(f"es2h_{idx}_{d}")
             model.Add(horas_dia[(idx, d)] == 2).OnlyEnforceIf(es_2h_dia[(idx, d)])
             model.Add(horas_dia[(idx, d)] != 2).OnlyEnforceIf(es_2h_dia[(idx, d)].Not())
-            if not (int(version) == 1 and req['horas'] == 3 and req['curso'] in (9, 12)):
-                model.Add(horas_dia[(idx, d)] != 1)
+            if patron_vals:
+                allowed = [[0]] + [[v] for v in sorted(set(patron_vals))]
+                model.AddAllowedAssignments([horas_dia[(idx, d)]], allowed)
+                for k in sorted(set(patron_vals)):
+                    var = model.NewBoolVar(f"esk_{idx}_{d}_{k}")
+                    model.Add(horas_dia[(idx, d)] == k).OnlyEnforceIf(var)
+                    model.Add(horas_dia[(idx, d)] != k).OnlyEnforceIf(var.Not())
+                    es_k_dia[(idx, d, k)] = var
+            else:
+                if not (int(version) == 1 and req['horas'] == 3 and req['curso'] in (9, 12)):
+                    model.Add(horas_dia[(idx, d)] != 1)
             
             for b in range(num_bloques):
                 es_inicio = model.NewBoolVar(f"start_{idx}_{d}_{b}")
@@ -310,6 +343,16 @@ def generar_horario_cp(
 
     # --- 5. ESTRATEGIA DE DEGLOSE DE HORAS (CORREGIDA) ---
     for idx, req in enumerate(map_asignaciones):
+        patron_vals = _obtener_patron(req)
+        if patron_vals and sum(patron_vals) != req["horas"]:
+            patron_vals = None
+        if patron_vals:
+            conteo = Counter(patron_vals)
+            for k, cnt in conteo.items():
+                model.Add(
+                    sum(es_k_dia[(idx, d, k)] for d in range(NUM_DIAS)) == cnt
+                )
+            continue
         h_total = req['horas']
         c_id = req['curso']
         sum_3h = sum(es_3h_dia[(idx, d)] for d in range(NUM_DIAS))
@@ -335,9 +378,15 @@ def generar_horario_cp(
     # --- 6. REGLAS DE DISTRIBUCIÓN DIARIA ---
     if int(version) == 1:
         for grado, indices in reqs_por_grado.items():
+            indices_sin_patron = [
+                idx for idx in indices
+                if not _obtener_patron(map_asignaciones[idx])
+            ]
+            if not indices_sin_patron:
+                continue
             for d in range(NUM_DIAS):
-                model.Add(sum(es_3h_dia[(idx, d)] for idx in indices) == 1)
-                total_2h_hoy = sum(es_2h_dia[(idx, d)] for idx in indices)
+                model.Add(sum(es_3h_dia[(idx, d)] for idx in indices_sin_patron) == 1)
+                total_2h_hoy = sum(es_2h_dia[(idx, d)] for idx in indices_sin_patron)
                 model.Add(total_2h_hoy >= 1)
                 model.Add(total_2h_hoy <= 2)
 
@@ -465,6 +514,7 @@ def generar_horario(
     horas_curso_grado,
     nivel="Secundaria",
     version=1,
+    patrones_division=None,
     progress_callback=None,
 ):
     return generar_horario_cp(
@@ -474,5 +524,6 @@ def generar_horario(
         horas_curso_grado,
         nivel,
         version,
+        patrones_division,
         progress_callback,
     )

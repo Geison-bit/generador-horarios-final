@@ -21,7 +21,7 @@ CORS(app, supports_credentials=True, resources={
     r"/*": {
         "origins": ["https://gestion-de-horarios.vercel.app", "http://localhost:5173"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization"]
+        "allow_headers": "*"
     }
 })
 
@@ -30,20 +30,30 @@ def after_request(response):
     origin = request.headers.get("Origin")
     if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
         response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
+        response.headers["Access-Control-Allow-Credentials"] = "true"
+    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "Access-Control-Request-Headers",
+        "Content-Type,Authorization"
+    )
     response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
     return response
 
-# Preflight explícito
-@app.route("/generar-horario-general", methods=["OPTIONS"])
-def preflight_horario():
-    response = jsonify({"message": "CORS preflight OK"})
+# Preflight global
+@app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
+@app.route("/<path:path>", methods=["OPTIONS"])
+def options_preflight(path):
+    resp = Response(status=204)
     origin = request.headers.get("Origin")
     if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
-        response.headers["Access-Control-Allow-Origin"] = origin
-    response.headers["Access-Control-Allow-Headers"] = "Content-Type,Authorization"
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    return response, 200
+        resp.headers["Access-Control-Allow-Origin"] = origin
+        resp.headers["Access-Control-Allow-Credentials"] = "true"
+    resp.headers["Access-Control-Allow-Headers"] = request.headers.get(
+        "Access-Control-Request-Headers",
+        "Content-Type,Authorization"
+    )
+    resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
+    resp.headers["Access-Control-Max-Age"] = "86400"
+    return resp
 
 # .env
 env_path = Path(__file__).resolve().parent / ".env"
@@ -127,6 +137,35 @@ def construir_restricciones_disponibilidad(sb, nivel):
 
     return {"disponibilidad": disponibilidad}
 
+def cargar_patrones_division(sb, nivel, version):
+    try:
+        rows = (
+            sb.table("horas_curso_grado_division")
+            .select("curso_id,grado_id,patron")
+            .eq("nivel", nivel)
+            .eq("version_num", version)
+            .execute()
+            .data
+            or []
+        )
+    except Exception:
+        rows = []
+    patrones = {}
+    for r in rows:
+        try:
+            curso_id = int(r.get("curso_id"))
+            grado_id = int(r.get("grado_id"))
+            patron_raw = str(r.get("patron") or "").strip()
+            if not patron_raw:
+                continue
+            partes = [int(x) for x in patron_raw.split("+") if x.strip().isdigit()]
+            if not partes:
+                continue
+            patrones[f"{curso_id}-{grado_id}"] = partes
+        except Exception:
+            continue
+    return patrones
+
 @app.route("/generar-horario-general", methods=["POST"])
 def generar_horario_general():
     try:
@@ -160,13 +199,15 @@ def generar_horario_general():
         if not (restricciones or {}).get("disponibilidad"):
             restricciones = construir_restricciones_disponibilidad(supabase, nivel)
             print("[API][DEBUG] disponibilidad cargada desde BD. docentes:", list(restricciones.get("disponibilidad", {}).keys())[:5])
+        patrones_division = cargar_patrones_division(supabase, nivel, version)
         resultado = generar_horario(
             docentes,
             asignaciones,
             restricciones,
             horas_curso_grado,
             nivel=nivel,
-            version=version
+            version=version,
+            patrones_division=patrones_division,
         )
 
         horario_dict = resultado.get("horario", {})  # {dia_idx: {bloque_idx: {grado_id: curso_id}}}
@@ -320,6 +361,7 @@ def generar_horario_job():
         def _run():
             try:
                 _progress_cb(2, "preparando")
+                patrones_division = cargar_patrones_division(supabase, nivel, version)
                 resultado = generar_horario(
                     docentes,
                     asignaciones,
@@ -327,6 +369,7 @@ def generar_horario_job():
                     horas_curso_grado,
                     nivel=nivel,
                     version=version,
+                    patrones_division=patrones_division,
                     progress_callback=_progress_cb
                 )
                 horario_dict = resultado.get("horario", {})

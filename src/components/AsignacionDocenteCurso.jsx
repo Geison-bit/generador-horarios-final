@@ -41,6 +41,10 @@ export default function AsignacionDocenteCurso() {
   const [error, setError] = useState("");
   const [versions, setVersions] = useState([]);
   const [versionNum, setVersionNum] = useState(1);
+  const [divisionesHoras, setDivisionesHoras] = useState({});
+  const [modalDivisionOpen, setModalDivisionOpen] = useState(false);
+  const [divisionTarget, setDivisionTarget] = useState(null);
+  const [divisionSelected, setDivisionSelected] = useState("");
 
   const nivel = new URLSearchParams(useLocation().search).get("nivel") || "Secundaria";
   const nivelSeguro = nivel || "Secundaria";
@@ -73,6 +77,7 @@ export default function AsignacionDocenteCurso() {
           cargarDocentesConEspecialidad(),
           cargarCursos(),
           cargarHorasCursoGrado(),
+          cargarDivisionesHoras(),
           cargarAsignacionesExistentes(),
           cargarLimiteBloques(),
         ]);
@@ -204,6 +209,25 @@ export default function AsignacionDocenteCurso() {
     setHorasCursos(map);
   }
 
+  async function cargarDivisionesHoras() {
+    const { data, error } = await supabase
+      .from("horas_curso_grado_division")
+      .select("curso_id, grado_id, total_horas, patron")
+      .eq("nivel", nivelSeguro)
+      .eq("version_num", versionNum);
+    if (error) {
+      console.error(error);
+      setDivisionesHoras({});
+      return;
+    }
+    const map = {};
+    (data || []).forEach(({ curso_id, grado_id, total_horas, patron }) => {
+      if (!map[curso_id]) map[curso_id] = {};
+      map[curso_id][grado_id] = { total_horas, patron };
+    });
+    setDivisionesHoras(map);
+  }
+
   async function cargarAsignacionesExistentes() {
     const { data, error } = await supabase
       .from("asignaciones")
@@ -266,6 +290,66 @@ export default function AsignacionDocenteCurso() {
       });
     await cargarHorasCursoGrado();
   }
+
+  const patronesPorTotal = (total) => {
+    if (!total || total <= 0) return [];
+    const t = parseInt(total, 10);
+    if (t === 2) return ["2", "1+1"];
+    if (t === 3) return ["3", "2+1"];
+    if (t === 4) return ["2+2", "3+1"];
+    if (t === 5) return ["3+2", "2+2+1"];
+    if (t === 6) return ["3+3", "2+2+2", "4+2"];
+    if (t === 7) return ["3+2+2", "4+3", "2+2+2+1"];
+    return [String(t)];
+  };
+
+  const abrirModalDivision = (cursoId, gradoId) => {
+    const totalHoras = horasCursos[cursoId]?.[gradoId] || 0;
+    if (!totalHoras || totalHoras <= 0) {
+      alert("Primero define las horas de este curso/grade.");
+      return;
+    }
+    const divisionActual = divisionesHoras?.[cursoId]?.[gradoId];
+    const patronActual =
+      divisionActual?.total_horas === totalHoras ? divisionActual?.patron : "";
+    setDivisionTarget({ cursoId, gradoId, totalHoras });
+    setDivisionSelected(patronActual || patronesPorTotal(totalHoras)[0] || "");
+    setModalDivisionOpen(true);
+  };
+
+  const guardarDivision = async () => {
+    if (!divisionTarget) return;
+    const { cursoId, gradoId, totalHoras } = divisionTarget;
+    if (!divisionSelected) return;
+    try {
+      await supabase
+        .from("horas_curso_grado_division")
+        .upsert(
+          {
+            curso_id: cursoId,
+            grado_id: gradoId,
+            nivel: nivelSeguro,
+            version_num: versionNum,
+            total_horas: totalHoras,
+            patron: divisionSelected,
+          },
+          { onConflict: "curso_id,grado_id,nivel,version_num" }
+        );
+      setDivisionesHoras((prev) => ({
+        ...prev,
+        [cursoId]: {
+          ...(prev[cursoId] || {}),
+          [gradoId]: { total_horas: totalHoras, patron: divisionSelected },
+        },
+      }));
+      setModalDivisionOpen(false);
+      setDivisionTarget(null);
+    } catch (e) {
+      console.error(e);
+      alert("❌ No se pudo guardar la división. Verifica la tabla en BD.");
+    }
+  };
+
 
   async function eliminarCurso(cursoId) {
     const confirmar = window.confirm(
@@ -417,7 +501,12 @@ export default function AsignacionDocenteCurso() {
           const valor = horasCursos[cursoId][gradoId];
           const horas = parseInt(valor, 10);
           if (isNaN(horas) || horas <= 0) continue;
-          registrosHoras.push({ curso_id: parseInt(cursoId, 10), grado_id: parseInt(gradoId, 10), horas });
+          registrosHoras.push({
+            curso_id: parseInt(cursoId, 10),
+            grado_id: parseInt(gradoId, 10),
+            horas,
+            nivel: nivelSeguro,
+          });
         }
       }
 
@@ -425,13 +514,41 @@ export default function AsignacionDocenteCurso() {
         .from("horas_curso_grado")
         .upsert(
           registrosHoras.map((r) => ({ ...r, version_num: versionNum })),
-          { onConflict: ["curso_id", "grado_id", "version_num"] }
+          { onConflict: "curso_id,grado_id,nivel" }
         );
       if (errorHoras) throw errorHoras;
 
       const registrosUnicos = Array.from(
         new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}-${r.nivel}`, r])).values()
       );
+
+      const registrosDivision = [];
+      for (const cursoId in horasCursos) {
+        for (const gradoId in horasCursos[cursoId]) {
+          const totalHoras = parseInt(horasCursos[cursoId][gradoId], 10);
+          if (isNaN(totalHoras) || totalHoras <= 0) continue;
+          const existente = divisionesHoras?.[cursoId]?.[gradoId];
+          const patron =
+            existente?.total_horas === totalHoras && existente?.patron
+              ? existente.patron
+              : (patronesPorTotal(totalHoras)[0] || String(totalHoras));
+          registrosDivision.push({
+            curso_id: parseInt(cursoId, 10),
+            grado_id: parseInt(gradoId, 10),
+            nivel: nivelSeguro,
+            version_num: versionNum,
+            total_horas: totalHoras,
+            patron,
+          });
+        }
+      }
+
+      if (registrosDivision.length > 0) {
+        const { error: errorDivision } = await supabase
+          .from("horas_curso_grado_division")
+          .upsert(registrosDivision, { onConflict: "curso_id,grado_id,nivel,version_num" });
+        if (errorDivision) throw errorDivision;
+      }
 
       const { error } = await supabase
         .from("asignaciones")
@@ -608,6 +725,27 @@ export default function AsignacionDocenteCurso() {
                       }}
                       className="w-16 rounded border border-slate-300 px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
+                    {(() => {
+                      const gradoId = idx + 1;
+                      const horasActuales = horasCursos[curso.id]?.[gradoId] || 0;
+                      const division = divisionesHoras?.[curso.id]?.[gradoId];
+                      const patron =
+                        division?.total_horas === horasActuales ? division?.patron : "";
+                      return (
+                        <div className="mt-1 flex flex-col items-center gap-1">
+                          <button
+                            type="button"
+                            onClick={() => abrirModalDivision(curso.id, gradoId)}
+                            className="text-[11px] text-blue-700 hover:underline"
+                          >
+                            Dividir
+                          </button>
+                          {patron && (
+                            <span className="text-[10px] text-slate-500">Patrón: {patron}</span>
+                          )}
+                        </div>
+                      );
+                    })()}
                   </td>
                 ))}
                 <td className="border-t border-slate-200 px-3 py-2 text-center">
@@ -730,6 +868,56 @@ export default function AsignacionDocenteCurso() {
           </table>
         </div>
       </section>
+
+      {/* Modal: dividir horas */}
+      {modalDivisionOpen && divisionTarget && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4">
+          <div className="w-full max-w-md rounded-xl bg-white shadow-lg border border-slate-200">
+            <div className="px-4 py-3 border-b border-slate-200">
+              <h3 className="text-sm font-semibold text-slate-800">Dividir horas</h3>
+              <p className="text-xs text-slate-600">
+                Total: <b>{divisionTarget.totalHoras}</b> horas
+              </p>
+            </div>
+            <div className="p-4 space-y-2">
+              {(patronesPorTotal(divisionTarget.totalHoras) || []).map((p) => (
+                <label key={p} className="flex items-center gap-2 text-sm">
+                  <input
+                    type="radio"
+                    name="patronDivision"
+                    checked={divisionSelected === p}
+                    onChange={() => setDivisionSelected(p)}
+                  />
+                  {p}
+                </label>
+              ))}
+              {(patronesPorTotal(divisionTarget.totalHoras) || []).length === 0 && (
+                <p className="text-xs text-slate-500">No hay patrones disponibles.</p>
+              )}
+            </div>
+            <div className="p-4 flex justify-end gap-2 border-t border-slate-200">
+              <button
+                onClick={() => {
+                  setModalDivisionOpen(false);
+                  setDivisionTarget(null);
+                }}
+                className="px-3 py-1.5 rounded-md border"
+              >
+                Cancelar
+              </button>
+              <button
+                onClick={guardarDivision}
+                disabled={!divisionSelected}
+                className={`px-3 py-1.5 rounded-md text-white ${
+                  divisionSelected ? "bg-blue-700 hover:bg-blue-800" : "bg-blue-300 cursor-not-allowed"
+                }`}
+              >
+                Guardar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {loading && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-white/60">

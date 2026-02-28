@@ -172,8 +172,7 @@ export default function HorarioPorDocente() {
         .from("horarios")
         .select("version_num, dia, bloque, curso_id, grado_id")
         .eq("docente_id", Number(docenteId))
-        .eq("nivel", nivel)
-        .eq("version_num", version);
+        .eq("nivel", nivel);
 
       if (error) {
         console.error(error);
@@ -192,8 +191,15 @@ export default function HorarioPorDocente() {
 
       const nuevasVersiones = Object.keys(grupos)
         .map(Number)
-        .sort((a, b) => a - b);
+        .sort((a, b) => a - b)
+        .slice(-3);
 
+      const gruposLimitados = {};
+      nuevasVersiones.forEach((v) => {
+        gruposLimitados[v] = grupos[v];
+      });
+
+      setHorariosPorVersion(gruposLimitados);
       setVersiones(nuevasVersiones);
       setVersionActual(nuevasVersiones[0] || 0);
       setLoading(false);
