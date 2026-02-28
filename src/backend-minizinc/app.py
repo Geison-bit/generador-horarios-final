@@ -17,13 +17,11 @@ import unicodedata
 app = Flask(__name__)
 
 # CORS dinámico para dev y prod
-CORS(app, supports_credentials=True, resources={
-    r"/*": {
-        "origins": ["https://gestion-de-horarios.vercel.app", "http://localhost:5173"],
-        "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": "*"
-    }
-})
+CORS(
+    app,
+    origins=["https://gestion-de-horarios.vercel.app", "http://localhost:5173"],
+    supports_credentials=True,
+)
 
 @app.after_request
 def after_request(response):
@@ -41,12 +39,16 @@ def after_request(response):
 # Preflight global
 @app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
 @app.route("/<path:path>", methods=["OPTIONS"])
-def options_preflight(path):
+def options_any(path):
     resp = Response(status=204)
     origin = request.headers.get("Origin")
-    if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
+
+    allowed = ["https://gestion-de-horarios.vercel.app", "http://localhost:5173"]
+    if origin in allowed:
         resp.headers["Access-Control-Allow-Origin"] = origin
         resp.headers["Access-Control-Allow-Credentials"] = "true"
+
+    # Devuelve EXACTAMENTE los headers que el browser pidió
     resp.headers["Access-Control-Allow-Headers"] = request.headers.get(
         "Access-Control-Request-Headers",
         "Content-Type,Authorization"
@@ -166,7 +168,8 @@ def cargar_patrones_division(sb, nivel, version):
             continue
     return patrones
 
-@app.route("/generar-horario-general", methods=["POST"])
+@app.route("/generar-horario-general", methods=["POST", "OPTIONS"])
+@app.route("/generar-horario-general/", methods=["POST", "OPTIONS"])
 def generar_horario_general():
     try:
         # Lee body (si no viene JSON válido, esto levanta)
