@@ -1,24 +1,23 @@
 # Usa una imagen oficial de Python como base
 FROM python:3.10-slim
 
-# Instala MiniZinc
-RUN apt-get update && apt-get install -y wget unzip && \
-    wget https://github.com/MiniZinc/MiniZincIDE/releases/download/2.9.3/MiniZincIDE-2.9.3-bundle-linux-x86_64.tgz && \
-    tar -xvzf MiniZincIDE-2.9.3-bundle-linux-x86_64.tgz && \
-    mv MiniZincIDE-2.9.3-bundle-linux-x86_64 /opt/minizinc && \
-    ln -s /opt/minizinc/bin/minizinc /usr/bin/minizinc
-
-# Define el directorio de trabajo
 WORKDIR /app
 
-# Copia los archivos al contenedor
-COPY . .
+# (Opcional pero recomendado) actualiza pip
+RUN pip install --upgrade pip
 
-# Instala las dependencias de Python
-RUN pip install --no-cache-dir -r requirements.txt
+# Copia requirements primero para aprovechar cache
+COPY requirements.txt /app/requirements.txt
 
-# Expone el puerto donde correrá la app
+# Instala deps y VERIFICA ortools en build (esto nos dirá la verdad)
+RUN pip install --no-cache-dir -r requirements.txt -v \
+    && python -c "from ortools.sat.python import cp_model; print('ORTOOLS OK')"
+
+# Copia el resto del proyecto
+COPY . /app
+
+# No es obligatorio EXPOSE, pero déjalo si quieres
 EXPOSE 8080
 
-# Comando de inicio
-CMD ["gunicorn", "--bind", "0.0.0.0:8080", "app:app"]
+# Usa el puerto dinámico de Railway (PORT)
+CMD ["sh", "-c", "gunicorn --bind 0.0.0.0:${PORT:-8080} app:app"]
