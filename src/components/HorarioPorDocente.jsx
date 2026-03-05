@@ -85,9 +85,10 @@ export default function HorarioPorDocente() {
   const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
   const [asignaciones, setAsignaciones] = useState([]);     // [{curso_id, grado_id, docente_id}]
   const [historialLocal, setHistorialLocal] = useState([]); // matriz por version desde localStorage
-  const [versiones, setVersiones] = useState([]);           // [1,2,3,...]
-  const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version: rows[]}
-  const [versionActual, setVersionActual] = useState(1);
+  const [versiones, setVersiones] = useState([]);           // [version_num,...] (por nivel)
+  const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version_num: rows[]}
+  const [versionActualIdx, setVersionActualIdx] = useState(0); // index en "versiones"
+  const versionStorageKey = `horarioDocente:version:${nivel}`;
   const [loading, setLoading] = useState(false);
 
   const tablaRef = useRef(null);
@@ -157,12 +158,41 @@ export default function HorarioPorDocente() {
     return map;
   }, [asignaciones]);
 
+  // Versiones disponibles por nivel (independiente del docente)
+  useEffect(() => {
+    (async () => {
+      const { data, error } = await supabase
+        .from("horarios")
+        .select("version_num")
+        .eq("nivel", nivel);
+      if (error) {
+        console.error(error);
+        setVersiones([]);
+        return;
+      }
+      const todas = Array.from(
+        new Set((data || []).map((r) => Number(r.version_num)).filter((n) => Number.isFinite(n)))
+      )
+        .sort((a, b) => a - b)
+        .slice(-3);
+      setVersiones(todas);
+      setVersionActualIdx((prev) => {
+        if (!todas.length) return prev;
+        const saved = Number(localStorage.getItem(versionStorageKey));
+        if (Number.isFinite(saved)) {
+          const idx = todas.findIndex((v) => v === saved);
+          if (idx >= 0) return idx;
+        }
+        return Math.min(prev, todas.length - 1);
+      });
+    })();
+  }, [nivel, historialLocal]);
+
   // Cargar horarios por docente
   useEffect(() => {
     (async () => {
       if (!docenteId) {
         setHorariosPorVersion({});
-        setVersiones([]);
         setLoading(false);
         return;
       }
@@ -187,25 +217,17 @@ export default function HorarioPorDocente() {
         grupos[v].push(row);
       }
 
-      setHorariosPorVersion(grupos);
-
-      const nuevasVersiones = Object.keys(grupos)
-        .map(Number)
-        .sort((a, b) => a - b)
-        .slice(-3);
-
       const gruposLimitados = {};
-      nuevasVersiones.forEach((v) => {
-        gruposLimitados[v] = grupos[v];
+      versiones.forEach((v) => {
+        gruposLimitados[v] = grupos[v] || [];
       });
 
       setHorariosPorVersion(gruposLimitados);
-      setVersiones(nuevasVersiones);
-      setVersionActual(nuevasVersiones[0] || 0);
       setLoading(false);
     })();
-  }, [docenteId, nivel, version, historialLocal, asignacionMap]);
+  }, [docenteId, nivel, version, historialLocal, asignacionMap, versiones]);
 
+  const versionActual = versiones[versionActualIdx];
   const horarioActual = horariosPorVersion[versionActual] || [];
   const bloqueOneBased = useMemo(() => {
     const bloquesHorario = (horarioActual || [])
@@ -229,14 +251,16 @@ export default function HorarioPorDocente() {
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = (props.height * pageW) / props.width;
     pdf.addImage(img, "PNG", 20, 20, pageW - 40, pageH);
-    pdf.save(`Horario_${docenteNombre || docenteId}_v${versionActual}.pdf`);
+    const etiquetaVersion = Number.isFinite(versionActualIdx) ? versionActualIdx + 1 : 0;
+    pdf.save(`Horario_${docenteNombre || docenteId}_v${etiquetaVersion}.pdf`);
   }
 
   function exportarExcel() {
     if (!tablaRef.current) return;
     const wb = XLSX.utils.table_to_book(tablaRef.current, { sheet: `Horario ${docenteNombre}` });
     const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${docenteNombre || docenteId}_v${versionActual}.xlsx`);
+    const etiquetaVersion = Number.isFinite(versionActualIdx) ? versionActualIdx + 1 : 0;
+    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${docenteNombre || docenteId}_v${etiquetaVersion}.xlsx`);
   }
 
   // ------- Helpers UI -------
@@ -343,15 +367,22 @@ export default function HorarioPorDocente() {
           <div className="flex flex-wrap items-center gap-3 mb-4">
             <label className="text-sm text-slate-700">Versión de horario:</label>
             <select
-              value={versionActual}
-              onChange={(e) => setVersionActual(Number(e.target.value))}
+              value={versionActualIdx}
+              onChange={(e) => {
+                const idx = Number(e.target.value);
+                setVersionActualIdx(idx);
+                const v = versiones[idx];
+                if (Number.isFinite(v)) {
+                  localStorage.setItem(versionStorageKey, String(v));
+                }
+              }}
               className="border rounded px-2 py-1 text-sm"
               disabled={versiones.length === 0}
             >
               {versiones.length > 0 ? (
-                versiones.map((v) => (
-                  <option key={v} value={v}>
-                    Horario #{v}
+                versiones.map((v, i) => (
+                  <option key={v} value={i}>
+                    Horario #{i + 1}
                   </option>
                 ))
               ) : (
