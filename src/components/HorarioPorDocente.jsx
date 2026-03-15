@@ -3,14 +3,29 @@ import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
 import * as XLSX from "xlsx";
+import XLSXStyle from "xlsx-js-style";
 import { saveAs } from "file-saver";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import { supabase } from "../supabaseClient";
 import { Download, FileSpreadsheet, Printer, User } from "lucide-react";
+import { listSharedScheduleGenerations } from "../services/sharedScheduleHistoryService";
 
 const DIAS_KEYS = ["lunes", "martes", "miercoles", "jueves", "viernes"]; // L-V
 const DIAS_UI = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+const VERSION_OPTIONS = [1, 2, 3, 4, 5];
+const PALETA_FUERTE = [
+  "#38bdf8",
+  "#f97316",
+  "#facc15",
+  "#4ade80",
+  "#fb7185",
+  "#a3e635",
+  "#22d3ee",
+  "#c084fc",
+  "#f472b6",
+  "#fb923c",
+];
 
 const normalizeDia = (value) => {
   if (!value) return "";
@@ -84,12 +99,11 @@ export default function HorarioPorDocente() {
   const [franjas, setFranjas] = useState([]);               // [{bloque, hora_inicio, hora_fin}]
   const [cursosMap, setCursosMap] = useState({});           // {id: nombre}
   const [asignaciones, setAsignaciones] = useState([]);     // [{curso_id, grado_id, docente_id}]
-  const [historialLocal, setHistorialLocal] = useState([]); // matriz por version desde localStorage
-  const [versiones, setVersiones] = useState([]);           // [version_num,...] (por nivel)
-  const [horariosPorVersion, setHorariosPorVersion] = useState({}); // {version_num: rows[]}
-  const [versionActualIdx, setVersionActualIdx] = useState(0); // index en "versiones"
-  const versionStorageKey = `horarioDocente:version:${nivel}`;
+  const [historialGeneraciones, setHistorialGeneraciones] = useState([]);
+  const [indiceSeleccionado, setIndiceSeleccionado] = useState(0);
+  const [horarioActual, setHorarioActual] = useState([]);
   const [loading, setLoading] = useState(false);
+  const storageKey = `historialHorarios:${nivel}:${version}`;
 
   const tablaRef = useRef(null);
 
@@ -97,11 +111,36 @@ export default function HorarioPorDocente() {
   useEffect(() => {
     (async () => {
       await Promise.all([cargarFranjas(), cargarCursos(), cargarAsignaciones()]);
-      const almacenado = localStorage.getItem("historialHorarios");
-      const historico = almacenado ? JSON.parse(almacenado) : [];
-      setHistorialLocal(Array.isArray(historico) ? historico : []);
     })();
   }, [nivel, version]);
+
+  useEffect(() => {
+    const cargarHistorial = async () => {
+      try {
+        const remoto = await listSharedScheduleGenerations(nivel, version);
+        if (remoto.length > 0) {
+          localStorage.setItem(storageKey, JSON.stringify(remoto));
+          setHistorialGeneraciones(remoto);
+          setIndiceSeleccionado(remoto.length - 1);
+          return;
+        }
+      } catch (error) {
+        console.warn("No se pudo leer el historial compartido:", error);
+      }
+
+      const almacenado = localStorage.getItem(storageKey);
+      const historico = almacenado ? JSON.parse(almacenado) : [];
+      if (Array.isArray(historico) && historico.length > 0) {
+        setHistorialGeneraciones(historico);
+        setIndiceSeleccionado(historico.length - 1);
+        return;
+      }
+      setHistorialGeneraciones([]);
+      setIndiceSeleccionado(0);
+    };
+
+    cargarHistorial();
+  }, [storageKey]);
 
   // Color del docente (fallback directo a BD por si el context no lo trae)
   useEffect(() => {
@@ -158,41 +197,39 @@ export default function HorarioPorDocente() {
     return map;
   }, [asignaciones]);
 
-  // Versiones disponibles por nivel (independiente del docente)
-  useEffect(() => {
-    (async () => {
-      const { data, error } = await supabase
-        .from("horarios")
-        .select("version_num")
-        .eq("nivel", nivel);
-      if (error) {
-        console.error(error);
-        setVersiones([]);
-        return;
-      }
-      const todas = Array.from(
-        new Set((data || []).map((r) => Number(r.version_num)).filter((n) => Number.isFinite(n)))
-      )
-        .sort((a, b) => a - b)
-        .slice(-3);
-      setVersiones(todas);
-      setVersionActualIdx((prev) => {
-        if (!todas.length) return prev;
-        const saved = Number(localStorage.getItem(versionStorageKey));
-        if (Number.isFinite(saved)) {
-          const idx = todas.findIndex((v) => v === saved);
-          if (idx >= 0) return idx;
-        }
-        return Math.min(prev, todas.length - 1);
-      });
-    })();
-  }, [nivel, historialLocal]);
+  const horarioLocalDocente = useMemo(() => {
+    const horarioSeleccionado = historialGeneraciones[indiceSeleccionado];
+    if (!Array.isArray(horarioSeleccionado) || !docenteId) return [];
 
-  // Cargar horarios por docente
+    const filas = [];
+    horarioSeleccionado.forEach((bloquesDia, diaIndex) => {
+      (bloquesDia || []).forEach((bloqueCursos, bloqueIndex) => {
+        (bloqueCursos || []).forEach((cursoId, gradoIndex) => {
+          if (!cursoId) return;
+          const gradoId = nivel === "Primaria" ? gradoIndex + 6 : gradoIndex + 1;
+          const docenteAsignado = asignacionMap.get(`${cursoId}-${gradoId}`);
+          if (Number(docenteAsignado) !== Number(docenteId)) return;
+
+          filas.push({
+            dia: DIAS_KEYS[diaIndex],
+            bloque: bloqueIndex,
+            curso_id: cursoId,
+            grado_id: gradoId,
+          });
+        });
+      });
+    });
+
+    return filas;
+  }, [historialGeneraciones, indiceSeleccionado, docenteId, asignacionMap, nivel]);
+
+  const horarioMostrado = horarioLocalDocente.length > 0 ? horarioLocalDocente : horarioActual;
+
+  // Cargar horarios por docente para la misma version usada en horario general
   useEffect(() => {
     (async () => {
       if (!docenteId) {
-        setHorariosPorVersion({});
+        setHorarioActual([]);
         setLoading(false);
         return;
       }
@@ -202,7 +239,8 @@ export default function HorarioPorDocente() {
         .from("horarios")
         .select("version_num, dia, bloque, curso_id, grado_id")
         .eq("docente_id", Number(docenteId))
-        .eq("nivel", nivel);
+        .eq("nivel", nivel)
+        .eq("version_num", version);
 
       if (error) {
         console.error(error);
@@ -210,27 +248,12 @@ export default function HorarioPorDocente() {
         return;
       }
 
-      const grupos = {};
-      for (const row of data || []) {
-        const v = Number(row.version_num);
-        if (!grupos[v]) grupos[v] = [];
-        grupos[v].push(row);
-      }
-
-      const gruposLimitados = {};
-      versiones.forEach((v) => {
-        gruposLimitados[v] = grupos[v] || [];
-      });
-
-      setHorariosPorVersion(gruposLimitados);
+      setHorarioActual(data || []);
       setLoading(false);
     })();
-  }, [docenteId, nivel, version, historialLocal, asignacionMap, versiones]);
-
-  const versionActual = versiones[versionActualIdx];
-  const horarioActual = horariosPorVersion[versionActual] || [];
+  }, [docenteId, nivel, version, asignacionMap]);
   const bloqueOneBased = useMemo(() => {
-    const bloquesHorario = (horarioActual || [])
+    const bloquesHorario = (horarioMostrado || [])
       .map((r) => Number(r.bloque))
       .filter((n) => Number.isFinite(n));
     if (bloquesHorario.includes(0)) return false;
@@ -239,7 +262,7 @@ export default function HorarioPorDocente() {
       .map((f) => Number(f.bloque))
       .filter((n) => Number.isFinite(n));
     return bloquesFranjas.length > 0 && Math.min(...bloquesFranjas) === 1;
-  }, [horarioActual, franjas]);
+  }, [horarioMostrado, franjas]);
 
   // ------- Exportar -------
   async function exportarPDF() {
@@ -251,16 +274,112 @@ export default function HorarioPorDocente() {
     const pageW = pdf.internal.pageSize.getWidth();
     const pageH = (props.height * pageW) / props.width;
     pdf.addImage(img, "PNG", 20, 20, pageW - 40, pageH);
-    const etiquetaVersion = Number.isFinite(versionActualIdx) ? versionActualIdx + 1 : 0;
-    pdf.save(`Horario_${docenteNombre || docenteId}_v${etiquetaVersion}.pdf`);
+    pdf.save(`Horario_${docenteNombre || docenteId}_v${version}.pdf`);
   }
 
   function exportarExcel() {
-    if (!tablaRef.current) return;
-    const wb = XLSX.utils.table_to_book(tablaRef.current, { sheet: `Horario ${docenteNombre}` });
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    const etiquetaVersion = Number.isFinite(versionActualIdx) ? versionActualIdx + 1 : 0;
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${docenteNombre || docenteId}_v${etiquetaVersion}.xlsx`);
+    if (!docenteId) return;
+
+    const headerStyle = {
+      font: { bold: true, color: { rgb: "111827" } },
+      fill: { patternType: "solid", fgColor: { rgb: "E5E7EB" } },
+      alignment: { horizontal: "center", vertical: "center" },
+      border: {
+        top: { style: "thin", color: { rgb: "CBD5E1" } },
+        bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+        left: { style: "thin", color: { rgb: "CBD5E1" } },
+        right: { style: "thin", color: { rgb: "CBD5E1" } },
+      },
+    };
+
+    const baseBorder = {
+      top: { style: "thin", color: { rgb: "CBD5E1" } },
+      bottom: { style: "thin", color: { rgb: "CBD5E1" } },
+      left: { style: "thin", color: { rgb: "CBD5E1" } },
+      right: { style: "thin", color: { rgb: "CBD5E1" } },
+    };
+
+    const colorCurso = (id) => {
+      const idx = Math.abs(Number(id || 0)) % PALETA_FUERTE.length;
+      return PALETA_FUERTE[idx];
+    };
+
+    const colorGrado = (gradoId) => {
+      const idx = Math.abs(Number(gradoId || 0)) % PALETA_FUERTE.length;
+      return PALETA_FUERTE[idx];
+    };
+
+    const sheetData = [
+      [
+        { v: "Hora", s: headerStyle },
+        ...DIAS_UI.map((dia) => ({ v: dia, s: headerStyle })),
+      ],
+    ];
+
+    Array.from({ length: Math.max(franjas.length || 8, 8) }, (_, i) => i).forEach((idx) => {
+      const row = [
+        {
+          v: bloqueLabel(idx),
+          s: {
+            ...headerStyle,
+            fill: { patternType: "solid", fgColor: { rgb: "F8FAFC" } },
+          },
+        },
+      ];
+
+      DIAS_UI.forEach((_, diaIndex) => {
+        const diaKey = DIAS_KEYS[diaIndex];
+        const celdas = horarioMostrado.filter(
+          (h) => normalizeDia(h.dia) === diaKey && matchBloque(h.bloque, idx)
+        );
+        const celdasOrdenadas = celdas.slice().sort((a, b) => a.grado_id - b.grado_id);
+        const celda = celdasOrdenadas[0];
+
+        const bgColor = celda
+          ? (usarColorPorGrado ? colorGrado(celda.grado_id) : colorCurso(celda.curso_id)).replace("#", "").toUpperCase()
+          : "FFFFFF";
+
+        row.push({
+          v: celda
+            ? `${cursosMap[celda.curso_id] || `Curso ${celda.curso_id}`}\nGrado: ${
+                nivel === "Primaria" ? celda.grado_id - 5 : celda.grado_id
+              }`
+            : "-",
+          s: {
+            fill: { patternType: "solid", fgColor: { rgb: bgColor } },
+            alignment: { horizontal: "left", vertical: "center", wrapText: true },
+            font: { color: { rgb: "111827" }, sz: 10, bold: !!celda },
+            border: baseBorder,
+          },
+        });
+      });
+
+      sheetData.push(row);
+    });
+
+    const ws = XLSXStyle.utils.aoa_to_sheet(
+      sheetData.map((row) => row.map((cell) => cell.v))
+    );
+
+    sheetData.forEach((row, rIdx) => {
+      row.forEach((cell, cIdx) => {
+        const addr = XLSXStyle.utils.encode_cell({ r: rIdx, c: cIdx });
+        if (!ws[addr]) ws[addr] = { v: cell.v, t: "s" };
+        ws[addr].s = cell.s;
+      });
+    });
+
+    ws["!cols"] = [{ wch: 14 }, ...DIAS_UI.map(() => ({ wch: 20 }))];
+    ws["!rows"] = sheetData.map((_, idx) => ({ hpt: idx === 0 ? 22 : 36 }));
+
+    const wb = XLSXStyle.utils.book_new();
+    XLSXStyle.utils.book_append_sheet(wb, ws, `Horario ${docenteNombre || "Docente"}`);
+    const wbout = XLSXStyle.write(wb, { bookType: "xlsx", type: "array" });
+
+    saveAs(
+      new Blob([wbout], { type: "application/octet-stream" }),
+      `Horario_${docenteNombre || docenteId}_v${version}.xlsx`
+    );
   }
 
   // ------- Helpers UI -------
@@ -293,26 +412,13 @@ export default function HorarioPorDocente() {
   // Colores por curso o por grado (según cantidad de cursos del docente)
   const cursosUnicos = useMemo(() => {
     const set = new Set();
-    (horarioActual || []).forEach((h) => {
+    (horarioMostrado || []).forEach((h) => {
       if (h?.curso_id) set.add(h.curso_id);
     });
     return Array.from(set);
-  }, [horarioActual]);
+  }, [horarioMostrado]);
 
   const usarColorPorGrado = cursosUnicos.length <= 1;
-
-  const PALETA_FUERTE = [
-    "#38bdf8", // azul claro
-    "#f97316", // naranja
-    "#facc15", // amarillo
-    "#4ade80", // verde
-    "#fb7185", // rosado fuerte
-    "#a3e635", // lima
-    "#22d3ee", // cian
-    "#c084fc", // morado
-    "#f472b6", // fucsia
-    "#fb923c", // naranja claro
-  ];
 
   function colorCurso(id) {
     const idx = Math.abs(Number(id || 0)) % PALETA_FUERTE.length;
@@ -341,9 +447,9 @@ export default function HorarioPorDocente() {
           }}
           className="border px-2 py-1 rounded"
         >
-          <option value="1">Versión 1</option>
-          <option value="2">Versión 2</option>
-          <option value="3">Versión 3</option>
+          {VERSION_OPTIONS.map((v) => (
+            <option key={v} value={v}>Versión {v}</option>
+          ))}
         </select>
       </div>
 
@@ -365,28 +471,24 @@ export default function HorarioPorDocente() {
         <>
           {/* Barra acciones */}
           <div className="flex flex-wrap items-center gap-3 mb-4">
-            <label className="text-sm text-slate-700">Versión de horario:</label>
+            <label htmlFor="horario-docente-version-visual" className="text-sm text-slate-700">Versión de horario:</label>
             <select
-              value={versionActualIdx}
+              id="horario-docente-version-visual"
+              value={indiceSeleccionado}
               onChange={(e) => {
-                const idx = Number(e.target.value);
-                setVersionActualIdx(idx);
-                const v = versiones[idx];
-                if (Number.isFinite(v)) {
-                  localStorage.setItem(versionStorageKey, String(v));
-                }
+                setIndiceSeleccionado(Number(e.target.value));
               }}
               className="border rounded px-2 py-1 text-sm"
-              disabled={versiones.length === 0}
+              disabled={historialGeneraciones.length === 0}
             >
-              {versiones.length > 0 ? (
-                versiones.map((v, i) => (
-                  <option key={v} value={i}>
-                    Horario #{i + 1}
+              {historialGeneraciones.length > 0 ? (
+                historialGeneraciones.map((_, idx) => (
+                  <option key={`horario-${idx}`} value={idx}>
+                    Horario #{idx + 1}
                   </option>
                 ))
               ) : (
-                <option>Sin versiones</option>
+                <option value={0}>Horario guardado</option>
               )}
             </select>
             <button
@@ -424,13 +526,13 @@ export default function HorarioPorDocente() {
               </thead>
               <tbody>
                 {Array.from({ length: Math.max(franjas.length || 8, 8) }, (_, i) => i).map((idx) => (
-                  <tr key={idx}>
+                  <tr key={`bloque-${idx}-${bloqueLabel(idx)}`}>
                     <td className="border border-slate-300 px-2 py-2 font-medium text-left whitespace-nowrap">
                       {bloqueLabel(idx)}
                     </td>
                     {DIAS_UI.map((diaLabel, diaIndex) => {
                       const diaKey = DIAS_KEYS[diaIndex];
-                      const celdas = horarioActual.filter(
+                      const celdas = horarioMostrado.filter(
                         (h) => normalizeDia(h.dia) === diaKey && matchBloque(h.bloque, idx)
                       );
                       const celdasOrdenadas = celdas.slice().sort((a, b) => a.grado_id - b.grado_id);
@@ -467,7 +569,7 @@ export default function HorarioPorDocente() {
           </div>
 
           {loading && <p className="mt-3 text-sm text-slate-600">Cargando horarios...</p>}
-          {!loading && horarioActual.length === 0 && (
+          {!loading && horarioMostrado.length === 0 && (
             <p className="mt-3 text-sm text-slate-600">No se encontraron horarios para este docente.</p>
           )}
         </>

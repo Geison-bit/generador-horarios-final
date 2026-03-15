@@ -194,7 +194,7 @@ export default function GestionCuentasPage() {
 }
 
 // Modal opcional para crear usuario (no utilizado en la tabla principal)
-export function CrearUsuarioModal({ onClose, onSuccess, session }) {
+function CrearUsuarioModal({ onClose, onSuccess, session }) {
   const [formData, setFormData] = useState({
     email: "",
     password: "",

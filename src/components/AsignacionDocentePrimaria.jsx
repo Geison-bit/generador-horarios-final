@@ -219,7 +219,7 @@ const AsignacionDocentePrimaria = () => {
         <thead className="bg-gray-100">
           <tr>
             <th className="border px-2 py-1">Curso</th>
-            {gradosPrimaria.map((g, idx) => <th key={idx} className="border px-2 py-1 text-center">{g}</th>)}
+            {gradosPrimaria.map((g) => <th key={g} className="border px-2 py-1 text-center">{g}</th>)}
             <th className="border px-2 py-1 text-center">Acciones</th>
           </tr>
         </thead>
@@ -227,8 +227,8 @@ const AsignacionDocentePrimaria = () => {
           {cursos.map((curso) => (
             <tr key={curso.id}>
               <td className="border px-2 py-1">{curso.nombre}</td>
-              {gradosPrimaria.map((_, idx) => (
-                <td key={idx} className="border px-2 py-1 text-center">
+              {gradosPrimaria.map((grado, idx) => (
+                <td key={`${curso.id}-${grado}`} className="border px-2 py-1 text-center">
                   <input
                     type="number"
                     min="2"

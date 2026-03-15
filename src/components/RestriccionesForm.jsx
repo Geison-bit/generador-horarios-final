@@ -444,12 +444,13 @@ const RestriccionesForm = () => {
         
         {/* Selector de Versión */}
         <div className="md:col-span-3">
-          <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
+          <label htmlFor="restricciones-version" className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
             Versión del Horario
           </label>
           <div className="relative">
             <Layers className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
             <select
+              id="restricciones-version"
               value={versionSeleccionada}
               onChange={(e) => cambiarVersion(e.target.value)}
               className="pl-9 w-full border border-slate-300 bg-white px-3 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-600 text-sm font-semibold text-slate-700"
@@ -465,11 +466,12 @@ const RestriccionesForm = () => {
 
         {/* Selector de Docente */}
         <div className="md:col-span-6">
-          <label className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
+          <label htmlFor="restricciones-docente" className="block text-xs font-bold text-slate-500 mb-1 ml-1 uppercase tracking-wider">
             Docente (Activo en v{versionSeleccionada})
           </label>
           <div className="relative">
              <select
+                id="restricciones-docente"
                 value={docenteSeleccionado}
                 onChange={(e) => setDocenteSeleccionado(e.target.value)} // Usamos ID como valor
                 disabled={cargando}

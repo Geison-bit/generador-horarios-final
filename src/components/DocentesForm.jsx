@@ -79,9 +79,10 @@ function VincularCuentaModal({ open, onClose, onConfirm, docente }) {
         </div>
 
         <div className="p-4 space-y-2">
-          <label className="block text-sm font-medium text-gray-700">Buscar correo (solo cuentas libres)</label>
+          <label htmlFor="vincular-cuenta-email" className="block text-sm font-medium text-gray-700">Buscar correo (solo cuentas libres)</label>
           <input
-            type="email"
+            id="vincular-cuenta-email"
+            type="email"
             value={query}
             onChange={(e) => { setQuery(e.target.value); setPicked(null); }}
             placeholder="nombre@colegio.edu"
@@ -768,9 +769,10 @@ useEffect(() => {
   		</div>
 
         <div className="relative flex flex-col" ref={dropdownRef}>
-          <label className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
+          <label htmlFor="docentes-cursos-dropdown" className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
   		  <button
-  			type="button"
+ 			id="docentes-cursos-dropdown"
+ 			type="button"
   			onClick={() => setMostrarDropdown(!mostrarDropdown)}
   			className={`border px-3 py-2 rounded-md w-48 text-left ${errors.cursosSeleccionados ? "border-red-500" : "border-gray-300"}`}
   		  >
@@ -833,24 +835,27 @@ useEffect(() => {
                   </div>
                 </div>
                 <div className="mt-3 grid gap-2">
-                  <label className="text-xs text-gray-500">Tono</label>
+                  <label htmlFor="docente-color-hue" className="text-xs text-gray-500">Tono</label>
                   <input
+                    id="docente-color-hue"
                     type="range"
                     min="0"
                     max="360"
                     value={hsl.h}
                     onChange={(e) => updateHsl({ h: Number(e.target.value) })}
                   />
-                  <label className="text-xs text-gray-500">Saturacion</label>
+                  <label htmlFor="docente-color-saturation" className="text-xs text-gray-500">Saturacion</label>
                   <input
+                    id="docente-color-saturation"
                     type="range"
                     min="30"
                     max="100"
                     value={hsl.s}
                     onChange={(e) => updateHsl({ s: Number(e.target.value) })}
                   />
-                  <label className="text-xs text-gray-500">Claridad</label>
+                  <label htmlFor="docente-color-lightness" className="text-xs text-gray-500">Claridad</label>
                   <input
+                    id="docente-color-lightness"
                     type="range"
                     min="30"
                     max="85"

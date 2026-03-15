@@ -239,8 +239,9 @@ export default function DocentesAdmin() {
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <div>
-                <label className="text-sm">Apellido</label>
+                <label htmlFor="docente-admin-apellido" className="text-sm">Apellido</label>
                 <input
+                  id="docente-admin-apellido"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.apellido}
                   onChange={(e) => setForm((f) => ({ ...f, apellido: e.target.value }))}
@@ -248,8 +249,9 @@ export default function DocentesAdmin() {
                 />
               </div>
               <div>
-                <label className="text-sm">Nombre</label>
+                <label htmlFor="docente-admin-nombre" className="text-sm">Nombre</label>
                 <input
+                  id="docente-admin-nombre"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.nombre}
                   onChange={(e) => setForm((f) => ({ ...f, nombre: e.target.value }))}
@@ -257,8 +259,9 @@ export default function DocentesAdmin() {
                 />
               </div>
               <div>
-                <label className="text-sm">Tipo</label>
+                <label htmlFor="docente-admin-tipo" className="text-sm">Tipo</label>
                 <select
+                  id="docente-admin-tipo"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.tipo_profesor}
                   onChange={(e) => setForm((f) => ({ ...f, tipo_profesor: e.target.value }))}
@@ -268,8 +271,9 @@ export default function DocentesAdmin() {
                 </select>
               </div>
               <div>
-                <label className="text-sm">Horas (jornada semanal)</label>
+                <label htmlFor="docente-admin-jornada" className="text-sm">Horas (jornada semanal)</label>
                 <input
+                  id="docente-admin-jornada"
                   type="number"
                   min="0"
                   className="w-full px-3 py-2 border rounded-xl"
@@ -278,8 +282,9 @@ export default function DocentesAdmin() {
                 />
               </div>
               <div>
-                <label className="text-sm">Aula</label>
+                <label htmlFor="docente-admin-aula" className="text-sm">Aula</label>
                 <select
+                  id="docente-admin-aula"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.aula_id || ""}
                   onChange={(e) => setForm((f) => ({ ...f, aula_id: e.target.value ? Number(e.target.value) : null }))}
@@ -293,8 +298,9 @@ export default function DocentesAdmin() {
                 </select>
               </div>
               <div>
-                <label className="text-sm">Nivel</label>
+                <label htmlFor="docente-admin-nivel" className="text-sm">Nivel</label>
                 <select
+                  id="docente-admin-nivel"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.nivel}
                   onChange={(e) => setForm((f) => ({ ...f, nivel: e.target.value }))}
@@ -304,8 +310,9 @@ export default function DocentesAdmin() {
                 </select>
               </div>
               <div className="md:col-span-2">
-                <label className="text-sm">Especialidades (opcional, separadas por coma)</label>
+                <label htmlFor="docente-admin-especialidades" className="text-sm">Especialidades (opcional, separadas por coma)</label>
                 <input
+                  id="docente-admin-especialidades"
                   className="w-full px-3 py-2 border rounded-xl"
                   value={form.especialidades}
                   onChange={(e) => setForm((f) => ({ ...f, especialidades: e.target.value }))}

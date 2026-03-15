@@ -587,8 +587,9 @@ export default function AsignacionDocenteCurso() {
                       Nivel — <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
                     </span>
                     <div className="flex items-center gap-2">
-                      <label className="text-xs text-slate-600">Versión</label>
+                      <label htmlFor="asignacion-version" className="text-xs text-slate-600">Versión</label>
                       <select
+                        id="asignacion-version"
                         value={versionNum}
                         onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
                         className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
@@ -695,8 +696,8 @@ export default function AsignacionDocenteCurso() {
           <thead className="bg-slate-50 text-slate-700">
             <tr>
               <th className="border-t border-b border-slate-200 px-3 py-2 text-left">Curso</th>
-              {grados.map((g, idx) => (
-                <th key={idx} className="border-t border-b border-slate-200 px-3 py-2 text-center">
+              {grados.map((g) => (
+                <th key={g} className="border-t border-b border-slate-200 px-3 py-2 text-center">
                   {g}
                 </th>
               ))}
@@ -709,8 +710,8 @@ export default function AsignacionDocenteCurso() {
                 <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">
                   {curso.nombre}
                 </td>
-                {grados.map((_, idx) => (
-                  <td key={idx} className="border-t border-slate-200 px-3 py-2 text-center">
+                {grados.map((grado, idx) => (
+                  <td key={`${curso.id}-${grado}`} className="border-t border-slate-200 px-3 py-2 text-center">
                     <input
                       type="number"
                       min="2"
@@ -772,8 +773,8 @@ export default function AsignacionDocenteCurso() {
           <thead className="bg-slate-50 text-slate-700">
             <tr>
               <th className="border-t border-b border-slate-200 px-3 py-2 text-left">Curso</th>
-              {grados.map((g, idx) => (
-                <th key={idx} className="border-t border-b border-slate-200 px-3 py-2 text-center">
+              {grados.map((g) => (
+                <th key={g} className="border-t border-b border-slate-200 px-3 py-2 text-center">
                   {g}
                 </th>
               ))}
@@ -786,8 +787,8 @@ export default function AsignacionDocenteCurso() {
                 <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">
                   {curso.nombre}
                 </td>
-                {grados.map((_, idx) => (
-                  <td key={idx} className="border-t border-slate-200 px-3 py-2">
+                {grados.map((grado, idx) => (
+                  <td key={`${curso.id}-${grado}`} className="border-t border-slate-200 px-3 py-2">
                     <select
                       value={asignaciones[curso.id]?.[idx + 1]?.docente_id || ""}
                       onChange={(e) => handleAsignacion(curso.id, idx + 1, e.target.value)}

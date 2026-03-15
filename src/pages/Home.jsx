@@ -2,7 +2,7 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import SelectorNivel from "../components/SelectorNivel";
 import { useAuth } from "../auth/AuthContext";
-import { motion } from "framer-motion";
+import { LazyMotion, domAnimation, m, useReducedMotion } from "framer-motion";
 import {
   Users,
   School,
@@ -23,6 +23,10 @@ export default function Home() {
   const [nivelSeleccionado, setNivelSeleccionado] = useState("Secundaria");
   const { user, signOut } = useAuth();
   const displayName = user?.user_metadata?.full_name || user?.email || "Usuario";
+  const reduceMotion = useReducedMotion();
+  const fadeUp = reduceMotion
+    ? { initial: false, animate: { opacity: 1, y: 0 }, transition: { duration: 0 } }
+    : { initial: { opacity: 0, y: 8 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5 } };
 
   return (
     <div className="min-h-[100dvh] bg-gradient-to-b from-slate-50 to-white">
@@ -32,23 +36,25 @@ export default function Home() {
         <div className="mx-auto max-w-6xl px-6 pt-10 pb-4">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
             <div>
-              <motion.h1
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.5 }}
-                className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
-              >
-                Bienvenido al <span className="text-blue-700">Generador de Horarios</span>
-              </motion.h1>
-              <motion.p
-                initial={{ opacity: 0, y: 8 }}
-                animate={{ opacity: 1, y: 0 }}
-                transition={{ duration: 0.6, delay: 0.05 }}
-                className="mt-2 text-slate-600 max-w-2xl"
-              >
-                Selecciona un nivel y accede a los modulos para configurar docentes, aulas,
-                restricciones y construir tu horario optimo.
-              </motion.p>
+              <LazyMotion features={domAnimation}>
+                <m.h1
+                  initial={fadeUp.initial}
+                  animate={fadeUp.animate}
+                  transition={fadeUp.transition}
+                  className="text-3xl md:text-4xl font-extrabold tracking-tight text-slate-800"
+                >
+                  Bienvenido al <span className="text-blue-700">Generador de Horarios</span>
+                </m.h1>
+                <m.p
+                  initial={fadeUp.initial}
+                  animate={fadeUp.animate}
+                  transition={reduceMotion ? { duration: 0 } : { duration: 0.6, delay: 0.05 }}
+                  className="mt-2 text-slate-600 max-w-2xl"
+                >
+                  Selecciona un nivel y accede a los modulos para configurar docentes, aulas,
+                  restricciones y construir tu horario optimo.
+                </m.p>
+              </LazyMotion>
             </div>
 
             <div className="flex flex-col items-start gap-2">
@@ -209,14 +215,16 @@ export default function Home() {
 }
 
 function ActionCard({ to, icon: Icon, title, desc, ariaLabel, accent }) {
+  const reduceMotion = useReducedMotion();
   return (
-    <motion.div
-      initial={{ opacity: 0, y: 8 }}
-      animate={{ opacity: 1, y: 0 }}
-      transition={{ duration: 0.35 }}
-      whileHover={{ y: -2 }}
-      className="h-full"
-    >
+    <LazyMotion features={domAnimation}>
+      <m.div
+        initial={reduceMotion ? false : { opacity: 0, y: 8 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: reduceMotion ? 0 : 0.35 }}
+        whileHover={reduceMotion ? undefined : { y: -2 }}
+        className="h-full"
+      >
       <Link
         to={to}
         aria-label={ariaLabel}
@@ -245,6 +253,7 @@ function ActionCard({ to, icon: Icon, title, desc, ariaLabel, accent }) {
           </div>
         </div>
       </Link>
-    </motion.div>
+      </m.div>
+    </LazyMotion>
   );
 }

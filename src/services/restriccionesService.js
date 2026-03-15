@@ -198,7 +198,7 @@ export function disponibilidadEfectiva(disponibilidadMap = {}, reglas = {}) {
 
 /* ======= Helpers: 2.ª restricción (no_solape_docente) ======= */
 
-export const NO_SOLAPE_KEY = "no_solape_docente";
+const NO_SOLAPE_KEY = "no_solape_docente";
 
 export function isReglaActiva(reglas = {}, key) {
   return Object.prototype.hasOwnProperty.call(reglas, key)

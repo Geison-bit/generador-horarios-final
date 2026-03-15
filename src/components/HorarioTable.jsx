@@ -12,7 +12,12 @@ import Breadcrumbs from "../components/Breadcrumbs";
 import { DragDropContext, Droppable, Draggable } from "react-beautiful-dnd";
 import { CalendarRange, Clock3 } from "lucide-react";
 import { loadReglasParaNivel } from "../services/restriccionesService";
-
+import XLSXStyle from "xlsx-js-style";
+import {
+  listSharedScheduleGenerations,
+  saveSharedScheduleGenerations,
+} from "../services/sharedScheduleHistoryService";
+const VERSION_OPTIONS = [1, 2, 3, 4, 5];
 // --- PALETA Y MAPA DE COLORES (persistente en sesiÃ³n) ---
 const coloresDisponibles = [
   "bg-red-300","bg-blue-300","bg-green-300","bg-yellow-300","bg-pink-300",
@@ -162,24 +167,55 @@ const HorarioTable = () => {
 
   // Horario visible: puntero actual del historial de ediciÃ³n
   const horarioVisible = historyStack[historyPointer];
+  const getScheduleOptionKey = (schedule, index) => {
+    if (!Array.isArray(schedule)) return `schedule-${index}`;
+    return `schedule-${index}-${schedule.flat(2).join(".")}`;
+  };
+  const persistHistorial = async (schedules) => {
+    localStorage.setItem(storageKey, JSON.stringify(schedules));
+    try {
+      await saveSharedScheduleGenerations(nivel, version, schedules);
+    } catch (error) {
+      console.warn("No se pudo sincronizar el historial compartido:", error);
+    }
+  };
 
   // --- EFECTOS ---
   useEffect(() => {
-    const almacenado = localStorage.getItem(storageKey);
-    const historico = almacenado ? JSON.parse(almacenado) : [];
-    if (historico.length > 0) {
-      setHistorialGeneraciones(historico);
-      setHistoryStack([historico[0]]);
-      setHistoryPointer(0);
-      setProgreso(100);
-      setIndiceSeleccionado(0);
-    } else {
-      setHistorialGeneraciones([]);
-      setHistoryStack([]);
-      setHistoryPointer(-1);
-      setIndiceSeleccionado(0);
-      setProgreso(0);
-    }
+    const cargarHistorial = async () => {
+      try {
+        const remoto = await listSharedScheduleGenerations(nivel, version);
+        if (remoto.length > 0) {
+          localStorage.setItem(storageKey, JSON.stringify(remoto));
+          setHistorialGeneraciones(remoto);
+          setHistoryStack([remoto[0]]);
+          setHistoryPointer(0);
+          setProgreso(100);
+          setIndiceSeleccionado(0);
+          return;
+        }
+      } catch (error) {
+        console.warn("No se pudo leer el historial compartido:", error);
+      }
+
+      const almacenado = localStorage.getItem(storageKey);
+      const historico = almacenado ? JSON.parse(almacenado) : [];
+      if (historico.length > 0) {
+        setHistorialGeneraciones(historico);
+        setHistoryStack([historico[0]]);
+        setHistoryPointer(0);
+        setProgreso(100);
+        setIndiceSeleccionado(0);
+      } else {
+        setHistorialGeneraciones([]);
+        setHistoryStack([]);
+        setHistoryPointer(-1);
+        setIndiceSeleccionado(0);
+        setProgreso(0);
+      }
+    };
+
+    cargarHistorial();
   }, [storageKey]);
 
   // Cargar horario desde BD al cambiar de nivel
@@ -197,7 +233,7 @@ const HorarioTable = () => {
         setHistoryStack([horarioBD]);
         setHistoryPointer(0);
         setHorarioGeneral(horarioBD);
-        localStorage.setItem(storageKey, JSON.stringify([horarioBD]));
+        persistHistorial([horarioBD]);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -640,8 +676,8 @@ const HorarioTable = () => {
       const horarioOptimizado = aplicarBloquesConsecutivosSiCorresponde(resultado.horario);
 
       const nuevoHistorial = [...historialGeneraciones, horarioOptimizado];
-      if (nuevoHistorial.length > 3) nuevoHistorial.shift(); // mÃ¡x 3 versiones
-      localStorage.setItem(storageKey, JSON.stringify(nuevoHistorial));
+      if (nuevoHistorial.length > 5) nuevoHistorial.shift(); // mÃ¡x 5 versiones
+      await persistHistorial(nuevoHistorial);
       setHistorialGeneraciones(nuevoHistorial);
       setIndiceSeleccionado(nuevoHistorial.length - 1);
       setHorarioGeneral(horarioOptimizado);
@@ -719,7 +755,7 @@ const HorarioTable = () => {
     const nuevasGeneraciones = [...historialGeneraciones];
     nuevasGeneraciones[indiceSeleccionado] = nuevoHorario;
     setHistorialGeneraciones(nuevasGeneraciones);
-    localStorage.setItem(storageKey, JSON.stringify(nuevasGeneraciones));
+    persistHistorial(nuevasGeneraciones);
   };
 
   const handleUndo = () => {
@@ -764,31 +800,169 @@ const HorarioTable = () => {
     pdf.save(`Horario_${nivel}.pdf`);
   };
 
-  // Export Excel
-  const exportarExcel = () => {
-    if (!Array.isArray(horarioVisible)) {
-      alert("No hay horario para exportar.");
-      return;
-    }
-    const wb = XLSX.utils.book_new();
-    horarioVisible.forEach((bloquesDia, diaIndex) => {
-      const sheetData = [["Hora", ...grados]];
-      bloquesHorario.forEach((hora, bloqueIndex) => {
-        const fila = [hora];
-        grados.forEach((_, gradoIndex) => {
-          const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
-          const cursoNombre = cursosDesdeDB.find(c => c.id === cursoId)?.nombre || "";
-          const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
-          fila.push(cursoNombre ? `${cursoNombre} - ${docenteNombre} (${aula || "N/D"})` : "");
-        });
-        sheetData.push(fila);
-      });
-      const ws = XLSX.utils.aoa_to_sheet(sheetData);
-      XLSX.utils.book_append_sheet(wb, ws, ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]);
-    });
-    const wbout = XLSX.write(wb, { bookType: "xlsx", type: "array" });
-    saveAs(new Blob([wbout], { type: "application/octet-stream" }), `Horario_${nivel}.xlsx`);
+const TAILWIND_TO_HEX = {
+  "bg-red-300": "CA8A8A",
+  "bg-blue-300": "93C5FD",
+  "bg-green-300": "86EFAC",
+  "bg-yellow-300": "FDE047",
+  "bg-pink-300": "F9A8D4",
+  "bg-purple-300": "D8B4FE",
+  "bg-indigo-300": "A5B4FC",
+  "bg-orange-300": "FDBA74",
+  "bg-teal-300": "5EEAD4",
+  "bg-lime-300": "BEF264",
+  "bg-cyan-300": "67E8F9",
+  "bg-amber-300": "FCD34D",
+  "bg-rose-300": "FDA4AF",
+  "bg-fuchsia-300": "E879F9",
+  "bg-sky-300": "7DD3FC",
+  "bg-gray-200": "E5E7EB",
+};
+
+const hexToRgb = (hex) => {
+  if (!hex) return null;
+  const clean = hex.replace("#", "").toUpperCase();
+  if (clean.length === 6) return clean;
+  if (clean.length === 8) return clean.slice(2);
+  return null;
+};
+
+// ── Función exportarExcel actualizada ──────────────────────────────────────
+// Pega esto dentro del componente HorarioTable, reemplazando la función actual.
+// Asegúrate de tener: import XLSXStyle from "xlsx-js-style";
+// y haber instalado: npm install xlsx-js-style
+
+const exportarExcel = () => {
+  if (!Array.isArray(horarioVisible)) {
+    alert("No hay horario para exportar.");
+    return;
+  }
+
+  const diasNombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
+  const borderColor = "D1D5DB";
+  const baseBorder = {
+    top: { style: "thin", color: { rgb: borderColor } },
+    bottom: { style: "thin", color: { rgb: borderColor } },
+    left: { style: "thin", color: { rgb: borderColor } },
+    right: { style: "thin", color: { rgb: borderColor } },
   };
+  const headerStyle = {
+    font: { bold: true, color: { rgb: "111827" } },
+    fill: { patternType: "solid", fgColor: { rgb: "D1D5DB" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+  const sideHeaderStyle = {
+    font: { bold: true, color: { rgb: "111827" } },
+    fill: { patternType: "solid", fgColor: { rgb: "F3F4F6" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+
+  const headerRow = [
+    { v: "Hora", s: headerStyle },
+    { v: "Día", s: headerStyle },
+    ...grados.map((g) => ({
+      v: g,
+      s: headerStyle,
+    })),
+  ];
+
+  const sheetData = [headerRow];
+
+  diasNombres.forEach((diaNombre, diaIndex) => {
+    const bloquesDia = horarioVisible[diaIndex] || [];
+
+    bloquesHorario.forEach((horaLabel, bloqueIndex) => {
+      const row = [];
+
+      row.push({
+        v: horaLabel,
+        s: sideHeaderStyle,
+      });
+
+      row.push({
+        v: diaNombre,
+        s: sideHeaderStyle,
+      });
+
+      indicesGradosVisibles.forEach((gradoIndex) => {
+        const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
+        const cursoNombre = cursosDesdeDB.find((c) => c.id === cursoId)?.nombre || "";
+        const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
+        const docenteId = obtenerDocenteIdPorCursoYGrado(cursoId, gradoIndex);
+        const colorHex = getColorHexPorDocenteId(docenteId);
+
+        let bgColor = "FFFFFF";
+        if (cursoId > 0) {
+          if (colorHex) {
+            bgColor = hexToRgb(colorHex) || "FFFFFF";
+          } else {
+            const tailwindClass = getColorPorDocente(docenteNombre);
+            bgColor = TAILWIND_TO_HEX[tailwindClass] || "BFDBFE";
+          }
+        }
+
+        const cellValue =
+          cursoId > 0 ? `${cursoNombre}\n${docenteNombre}${aula ? ` (${aula})` : ""}` : "";
+
+        row.push({
+          v: cellValue,
+          t: "s",
+          s: {
+            font: { color: { rgb: "0F172A" }, sz: 9, bold: !!cursoId },
+            fill: { patternType: "solid", fgColor: { rgb: bgColor } },
+            alignment: { horizontal: "center", vertical: "center", wrapText: true },
+            border: baseBorder,
+          },
+        });
+      });
+
+      sheetData.push(row);
+    });
+
+    const sepRow = Array.from({ length: 2 + grados.length }, () => ({
+      v: "",
+      s: {
+        fill: { patternType: "solid", fgColor: { rgb: "E5E7EB" } },
+        border: baseBorder,
+      },
+    }));
+    sheetData.push(sepRow);
+  });
+
+  const ws = XLSXStyle.utils.aoa_to_sheet(
+    sheetData.map((row) => row.map((cell) => cell?.v ?? ""))
+  );
+
+  sheetData.forEach((row, rIdx) => {
+    row.forEach((cell, cIdx) => {
+      if (cell?.s) {
+        const cellAddr = XLSXStyle.utils.encode_cell({ r: rIdx, c: cIdx });
+        if (!ws[cellAddr]) ws[cellAddr] = { v: cell.v ?? "", t: "s" };
+        ws[cellAddr].s = cell.s;
+      }
+    });
+  });
+
+  ws["!cols"] = [
+    { wch: 14 },
+    { wch: 10 },
+    ...grados.map(() => ({ wch: 22 })),
+  ];
+
+  const rowHeights = sheetData.map((_, i) => ({ hpt: i === 0 ? 20 : 42 }));
+  ws["!rows"] = rowHeights;
+
+  const wb = XLSXStyle.utils.book_new();
+  XLSXStyle.utils.book_append_sheet(wb, ws, `Horario ${nivel}`);
+
+  const wbout = XLSXStyle.write(wb, { bookType: "xlsx", type: "array" });
+  saveAs(
+    new Blob([wbout], { type: "application/octet-stream" }),
+    `Horario_${nivel}.xlsx`
+  );
+};
 
   // === Badge "Restricciones aplicadas: 12345" ===
   const reglasCompactas = useMemo(() => {
@@ -832,9 +1006,9 @@ const HorarioTable = () => {
             }}
             className="border px-2 py-1 rounded"
           >
-            <option value="1">Versión 1</option>
-            <option value="2">Versión 2</option>
-            <option value="3">Versión 3</option>
+            {VERSION_OPTIONS.map((v) => (
+              <option key={v} value={v}>Versión {v}</option>
+            ))}
           </select>
         </div>
 
@@ -895,14 +1069,15 @@ const HorarioTable = () => {
           {historialGeneraciones.length > 0 && (
         <div className="flex flex-col gap-3 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border md:flex-row md:items-center">
           <div className="flex items-center gap-2 w-full md:w-auto">
-            <label className="font-semibold text-sm">Versión:</label>
+            <label htmlFor="horario-general-version" className="font-semibold text-sm">Versión:</label>
             <select
+              id="horario-general-version"
               className="border px-2 py-1 rounded-md text-sm"
               value={indiceSeleccionado}
               onChange={(e) => handleVersionChange(e.target.value)}
             >
-              {historialGeneraciones.map((_, i) => (
-                <option key={i} value={i}>Horario #{i + 1}</option>
+              {historialGeneraciones.map((schedule, i) => (
+                <option key={getScheduleOptionKey(schedule, i)} value={i}>Horario #{i + 1}</option>
               ))}
             </select>
           </div>
@@ -935,8 +1110,9 @@ const HorarioTable = () => {
           </div>
 
           <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
-            <label className="font-semibold text-sm">Vista:</label>
+            <label htmlFor="horario-general-vista-grados" className="font-semibold text-sm">Vista:</label>
             <button
+              id="horario-general-vista-grados"
               onClick={() => setVistaModo("grados")}
               className={`px-3 py-1 rounded border text-sm ${vistaModo === "grados" ? "bg-blue-600 text-white border-blue-600" : "bg-white text-blue-600 border-blue-200"}`}
             >
@@ -1030,10 +1206,18 @@ const HorarioTable = () => {
                                         {(provided2, snapshot2) => (
                                           <div
                                             ref={provided2.innerRef}
-                                            {...provided2.draggableProps}
-                                            {...provided2.dragHandleProps}
-                                            onDoubleClick={() => eliminarCurso(diaIndex, bloqueIndex, gradoIndex)}
-                                            className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow select-none ${colorHex ? "" : getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
+                                          {...provided2.draggableProps}
+                                          {...provided2.dragHandleProps}
+                                          onDoubleClick={() => eliminarCurso(diaIndex, bloqueIndex, gradoIndex)}
+                                          onKeyDown={(event) => {
+                                            if (event.key === "Enter" || event.key === " ") {
+                                              event.preventDefault();
+                                              eliminarCurso(diaIndex, bloqueIndex, gradoIndex);
+                                            }
+                                          }}
+                                          role="button"
+                                          tabIndex={0}
+                                          className={`p-1 rounded text-xs text-center cursor-pointer w-full h-full flex flex-col justify-center shadow select-none ${colorHex ? "" : getColorPorDocente(docenteNombre)} ${snapshot2.isDragging ? "ring-2 ring-blue-500" : ""}`}
                                             style={{
                                               ...(provided2.draggableProps.style || {}),
                                               ...(colorHex ? { backgroundColor: colorHex, color: "#0f172a" } : {}),
@@ -1048,12 +1232,14 @@ const HorarioTable = () => {
                                         )}
                                       </Draggable>
                                     ) : (
-                                      <div
+                                      <button
+                                        type="button"
                                         onClick={() => handleCeldaVaciaClick(diaIndex, bloqueIndex, gradoIndex)}
                                         className="w-full h-full flex justify-center items-center cursor-pointer hover:bg-gray-200"
+                                        aria-label={`Agregar curso en ${["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"][diaIndex]}, bloque ${bloqueIndex + 1}, grado ${grados[gradoIndex]}`}
                                       >
                                         <span className="text-gray-400 text-2xl">+</span>
-                                      </div>
+                                      </button>
                                     )}
                                     {provided.placeholder}
                                   </div>
@@ -1144,7 +1330,7 @@ const HorarioTable = () => {
                 <tr>
                   <th className="border px-4 py-2">Curso</th>
                       {indicesGradosVisibles.map((idx) => (
-                        <th key={idx} className="border px-4 py-2 text-center">
+                        <th key={grados[idx]} className="border px-4 py-2 text-center">
                           {grados[idx]}
                         </th>
                       ))}
@@ -1170,7 +1356,7 @@ const HorarioTable = () => {
                         const h = horasFaltantesRow[i];
                         return (
                           <td
-                            key={i}
+                            key={`${curso.id}-${grados[i]}`}
                             className={`border px-4 py-2 text-center ${h.faltantes > 0 ? "text-red-600 font-bold" : "text-green-600"}`}
                           >
                             {h.esperadas > 0 ? (h.faltantes > 0 ? `${h.faltantes} faltantes` : "✓") : "-"}

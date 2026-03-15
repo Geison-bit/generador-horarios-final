@@ -306,8 +306,9 @@ const FranjasHorariasForm = () => {
 
             <div className="flex flex-col sm:flex-row sm:items-center gap-2 w-full md:w-auto">
               <div className="flex items-center gap-2 w-full sm:w-auto">
-                <label className="text-xs text-slate-600">VersiÃ³n</label>
+                <label htmlFor="franjas-version" className="text-xs text-slate-600">VersiÃ³n</label>
                 <select
+                  id="franjas-version"
                   value={versionNum}
                   onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
                   className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
@@ -366,7 +367,7 @@ const FranjasHorariasForm = () => {
             </thead>
             <tbody>
               {bloques.map((bloque, index) => (
-                <tr key={index} className="odd:bg-white even:bg-slate-50/40">
+                <tr key={`bloque-${bloque.inicio}-${bloque.fin}`} className="odd:bg-white even:bg-slate-50/40">
                   <td className="px-4 py-2 font-medium text-slate-800 border-t border-slate-200">Bloque {index + 1}</td>
                   <td className="px-4 py-2 border-t border-slate-200">
                     <input

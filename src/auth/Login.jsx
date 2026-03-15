@@ -68,10 +68,11 @@ export default function Login() {
         <div className="rounded-2xl border border-slate-200 bg-white p-6 shadow-sm">
           <form className="space-y-4" onSubmit={handleSubmit}>
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-slate-700">Correo</label>
+              <label htmlFor="login-email" className="block text-sm font-medium text-slate-700">Correo</label>
               <div className="relative">
                 <Mail className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <input
+                  id="login-email"
                   type="email"
                   required
                   value={email}
@@ -83,10 +84,11 @@ export default function Login() {
             </div>
 
             <div className="space-y-1.5">
-              <label className="block text-sm font-medium text-slate-700">Contraseña</label>
+              <label htmlFor="login-password" className="block text-sm font-medium text-slate-700">Contraseña</label>
               <div className="relative">
                 <Lock className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400" />
                 <input
+                  id="login-password"
                   type={showPassword ? "text" : "password"}
                   required
                   value={password}
