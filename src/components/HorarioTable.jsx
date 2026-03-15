@@ -951,59 +951,120 @@ const exportarExcel = () => {
   }
 
   const diasNombres = ["Lunes", "Martes", "Miércoles", "Jueves", "Viernes"];
-  const borderColor = "D1D5DB";
+  const totalGrados = indicesGradosVisibles.length;
+  const spacerWidth = 1;
+  const totalCols = 1 + diasNombres.length * totalGrados + (diasNombres.length - 1) * spacerWidth;
+  const borderColor = "1F2937";
   const baseBorder = {
     top: { style: "thin", color: { rgb: borderColor } },
     bottom: { style: "thin", color: { rgb: borderColor } },
     left: { style: "thin", color: { rgb: borderColor } },
     right: { style: "thin", color: { rgb: borderColor } },
   };
-  const headerStyle = {
-    font: { bold: true, color: { rgb: "111827" } },
-    fill: { patternType: "solid", fgColor: { rgb: "D1D5DB" } },
+  const titleStyle = {
+    font: { bold: true, color: { rgb: "0F172A" }, sz: 14 },
+    fill: { patternType: "solid", fgColor: { rgb: "E2E8F0" } },
     alignment: { horizontal: "center", vertical: "center" },
     border: baseBorder,
   };
-  const sideHeaderStyle = {
-    font: { bold: true, color: { rgb: "111827" } },
-    fill: { patternType: "solid", fgColor: { rgb: "F3F4F6" } },
+  const dayHeaderStyle = {
+    font: { bold: true, color: { rgb: "0F172A" }, sz: 12 },
+    fill: { patternType: "solid", fgColor: { rgb: "38BDF8" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+  const gradeHeaderStyle = {
+    font: { bold: true, color: { rgb: "0F172A" } },
+    fill: { patternType: "solid", fgColor: { rgb: "FEF3C7" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+  const hourHeaderStyle = {
+    font: { bold: true, color: { rgb: "0F172A" } },
+    fill: { patternType: "solid", fgColor: { rgb: "FDE68A" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+  const spacerStyle = {
+    fill: { patternType: "solid", fgColor: { rgb: "FFFFFF" } },
+    border: {},
+  };
+  const recessStyle = {
+    font: { bold: true, color: { rgb: "111827" }, sz: 12 },
+    fill: { patternType: "solid", fgColor: { rgb: "E5E7EB" } },
+    alignment: { horizontal: "center", vertical: "center" },
+    border: baseBorder,
+  };
+  const emptyCellStyle = {
+    font: { color: { rgb: "6B7280" }, sz: 9 },
+    fill: { patternType: "solid", fgColor: { rgb: "FFFFFF" } },
     alignment: { horizontal: "center", vertical: "center" },
     border: baseBorder,
   };
 
-  const headerRow = [
-    { v: "Hora", s: headerStyle },
-    { v: "Día", s: headerStyle },
-    ...grados.map((g) => ({
-      v: g,
-      s: headerStyle,
-    })),
-  ];
+  const createRow = () =>
+    Array.from({ length: totalCols }, () => ({ v: "", s: emptyCellStyle }));
 
-  const sheetData = [headerRow];
+  const sheetData = [];
+  const merges = [];
 
+  const titleRow = createRow();
+  titleRow[0] = {
+    v: `HORARIO DE CLASE NIVEL ${nivel.toUpperCase()}`,
+    s: titleStyle,
+  };
+  merges.push({ s: { r: 0, c: 0 }, e: { r: 0, c: totalCols - 1 } });
+  sheetData.push(titleRow);
+
+  const dayRow = createRow();
+  dayRow[0] = { v: "DÍAS", s: hourHeaderStyle };
+
+  let colPointer = 1;
   diasNombres.forEach((diaNombre, diaIndex) => {
-    const bloquesDia = horarioVisible[diaIndex] || [];
+    dayRow[colPointer] = { v: diaNombre.toUpperCase(), s: dayHeaderStyle };
+    merges.push({ s: { r: 1, c: colPointer }, e: { r: 1, c: colPointer + totalGrados - 1 } });
+    colPointer += totalGrados;
+    if (diaIndex < diasNombres.length - 1) {
+      dayRow[colPointer] = { v: "", s: spacerStyle };
+      colPointer += spacerWidth;
+    }
+  });
+  sheetData.push(dayRow);
 
-    bloquesHorario.forEach((horaLabel, bloqueIndex) => {
-      const row = [];
+  const gradeRow = createRow();
+  gradeRow[0] = { v: "HORA", s: hourHeaderStyle };
 
-      row.push({
-        v: horaLabel,
-        s: sideHeaderStyle,
-      });
+  colPointer = 1;
+  diasNombres.forEach((_, diaIndex) => {
+    indicesGradosVisibles.forEach((gradoIndex) => {
+      gradeRow[colPointer] = {
+        v: grados[gradoIndex],
+        s: gradeHeaderStyle,
+      };
+      colPointer += 1;
+    });
+    if (diaIndex < diasNombres.length - 1) {
+      gradeRow[colPointer] = { v: "", s: spacerStyle };
+      colPointer += spacerWidth;
+    }
+  });
+  sheetData.push(gradeRow);
 
-      row.push({
-        v: diaNombre,
-        s: sideHeaderStyle,
-      });
+  const recessAfterIndex = bloquesHorario.length >= 8 ? 3 : -1;
 
+  bloquesHorario.forEach((horaLabel, bloqueIndex) => {
+    const row = createRow();
+    row[0] = { v: horaLabel, s: hourHeaderStyle };
+
+    colPointer = 1;
+    diasNombres.forEach((_, diaIndex) => {
+      const bloquesDia = horarioVisible[diaIndex] || [];
       indicesGradosVisibles.forEach((gradoIndex) => {
         const cursoId = bloquesDia?.[bloqueIndex]?.[gradoIndex] || 0;
         const cursoNombre = cursosDesdeDB.find((c) => c.id === cursoId)?.nombre || "";
-        const { nombre: docenteNombre, aula } = obtenerInfoDocente(cursoId, gradoIndex);
         const docenteId = obtenerDocenteIdPorCursoYGrado(cursoId, gradoIndex);
         const colorHex = getColorHexPorDocenteId(docenteId);
+        const { nombre: docenteNombre } = obtenerInfoDocente(cursoId, gradoIndex);
 
         let bgColor = "FFFFFF";
         if (cursoId > 0) {
@@ -1015,32 +1076,35 @@ const exportarExcel = () => {
           }
         }
 
-        const cellValue =
-          cursoId > 0 ? `${cursoNombre}\n${docenteNombre}${aula ? ` (${aula})` : ""}` : "";
-
-        row.push({
-          v: cellValue,
+        row[colPointer] = {
+          v: cursoId > 0 ? cursoNombre : "",
           t: "s",
           s: {
-            font: { color: { rgb: "0F172A" }, sz: 9, bold: !!cursoId },
+            font: { color: { rgb: "0F172A" }, sz: 10, bold: !!cursoId },
             fill: { patternType: "solid", fgColor: { rgb: bgColor } },
             alignment: { horizontal: "center", vertical: "center", wrapText: true },
             border: baseBorder,
           },
-        });
+        };
+        colPointer += 1;
       });
-
-      sheetData.push(row);
+      if (diaIndex < diasNombres.length - 1) {
+        row[colPointer] = { v: "", s: spacerStyle };
+        colPointer += spacerWidth;
+      }
     });
 
-    const sepRow = Array.from({ length: 2 + grados.length }, () => ({
-      v: "",
-      s: {
-        fill: { patternType: "solid", fgColor: { rgb: "E5E7EB" } },
-        border: baseBorder,
-      },
-    }));
-    sheetData.push(sepRow);
+    sheetData.push(row);
+
+    if (bloqueIndex === recessAfterIndex) {
+      const recessRow = createRow();
+      recessRow[0] = { v: "RECREO", s: recessStyle };
+      merges.push({
+        s: { r: sheetData.length, c: 0 },
+        e: { r: sheetData.length, c: totalCols - 1 },
+      });
+      sheetData.push(recessRow);
+    }
   });
 
   const ws = XLSXStyle.utils.aoa_to_sheet(
@@ -1057,14 +1121,22 @@ const exportarExcel = () => {
     });
   });
 
-  ws["!cols"] = [
-    { wch: 14 },
-    { wch: 10 },
-    ...grados.map(() => ({ wch: 22 })),
-  ];
+  ws["!merges"] = merges;
 
-  const rowHeights = sheetData.map((_, i) => ({ hpt: i === 0 ? 20 : 42 }));
+  const cols = [{ wch: 12 }];
+  diasNombres.forEach((_, diaIndex) => {
+    indicesGradosVisibles.forEach(() => cols.push({ wch: 12 }));
+    if (diaIndex < diasNombres.length - 1) cols.push({ wch: 3 });
+  });
+  ws["!cols"] = cols;
+
+  const rowHeights = sheetData.map((_, i) => {
+    if (i === 0) return { hpt: 24 };
+    if (i === 1 || i === 2) return { hpt: 22 };
+    return { hpt: 34 };
+  });
   ws["!rows"] = rowHeights;
+  ws["!freeze"] = { xSplit: 1, ySplit: 3 };
 
   const wb = XLSXStyle.utils.book_new();
   XLSXStyle.utils.book_append_sheet(wb, ws, `Horario ${nivel}`);
