@@ -1,5 +1,5 @@
 ﻿// src/components/HorarioTable.jsx
-import { useState, useEffect, useMemo } from "react";
+import { useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import jsPDF from "jspdf";
 import html2canvas from "html2canvas";
@@ -42,6 +42,49 @@ const getColorPorDocente = (nombreDocente) => {
 // Horario vacÃ­o helper
 const esHorarioVacio = (horario) =>
   !horario?.some(dia => dia.some(bloque => bloque.some(curso => curso > 0)));
+
+const normalizeScheduleEntry = (entry, fallbackCreatedAt = null) => {
+  if (Array.isArray(entry)) {
+    return {
+      horario: entry,
+      createdAt: fallbackCreatedAt,
+      durationMs: null,
+    };
+  }
+  if (entry && Array.isArray(entry.horario)) {
+    return {
+      horario: entry.horario,
+      createdAt: entry.createdAt || entry.created_at || fallbackCreatedAt,
+      durationMs: Number(entry.durationMs ?? entry.duration_ms ?? null) || null,
+    };
+  }
+  return null;
+};
+
+const normalizeScheduleEntries = (entries) =>
+  (entries || [])
+    .map((entry) => normalizeScheduleEntry(entry))
+    .filter(Boolean);
+
+const formatGenerationTime = (value) => {
+  if (!value) return "Sin hora";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin hora";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatGenerationDuration = (value) => {
+  const durationMs = Number(value);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return "Sin tiempo";
+  const totalSeconds = durationMs / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)} s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} min ${seconds.toFixed(1)} s`;
+};
+
+const getScheduleSignature = (horario) =>
+  Array.isArray(horario) ? horario.flat(2).join(".") : "";
 
 // helpers dias (evita problema con acentos)
 const normalize = (s) =>
@@ -121,6 +164,8 @@ const HorarioTable = () => {
   const [cargando, setCargando] = useState(false);
   const [progreso, setProgreso] = useState(0);
   const [progresoStage, setProgresoStage] = useState("");
+  const progresoObjetivoRef = useRef(0);
+  const progresoTimerRef = useRef(null);
   const [asignacionesDesdeDB, setAsignacionesDesdeDB] = useState([]);
   const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
   const [horasCursosDesdeDB, setHorasCursosDesdeDB] = useState([]);
@@ -167,28 +212,70 @@ const HorarioTable = () => {
 
   // Horario visible: puntero actual del historial de ediciÃ³n
   const horarioVisible = historyStack[historyPointer];
-  const getScheduleOptionKey = (schedule, index) => {
-    if (!Array.isArray(schedule)) return `schedule-${index}`;
-    return `schedule-${index}-${schedule.flat(2).join(".")}`;
+  const generacionSeleccionada = historialGeneraciones[indiceSeleccionado] || null;
+  const getScheduleOptionKey = (scheduleEntry, index) => {
+    const horario = scheduleEntry?.horario;
+    if (!Array.isArray(horario)) return `schedule-${index}`;
+    return `schedule-${index}-${horario.flat(2).join(".")}`;
   };
   const persistHistorial = async (schedules) => {
-    localStorage.setItem(storageKey, JSON.stringify(schedules));
+    const normalized = normalizeScheduleEntries(schedules);
+    localStorage.setItem(storageKey, JSON.stringify(normalized));
     try {
-      await saveSharedScheduleGenerations(nivel, version, schedules);
+      await saveSharedScheduleGenerations(nivel, version, normalized);
     } catch (error) {
       console.warn("No se pudo sincronizar el historial compartido:", error);
     }
   };
 
+  const detenerAnimacionProgreso = () => {
+    if (progresoTimerRef.current) {
+      clearInterval(progresoTimerRef.current);
+      progresoTimerRef.current = null;
+    }
+  };
+
+  const iniciarAnimacionProgreso = () => {
+    detenerAnimacionProgreso();
+    progresoTimerRef.current = setInterval(() => {
+      setProgreso((prev) => {
+        const objetivoReal = Math.max(progresoObjetivoRef.current, 8);
+        const objetivoVisual =
+          prev >= objetivoReal && prev < 94
+            ? Math.min(94, prev + (prev < 25 ? 4 : prev < 55 ? 2 : 1))
+            : objetivoReal;
+
+        if (prev >= objetivoVisual) return prev;
+
+        const incremento = prev < 20 ? 3 : prev < 50 ? 2 : prev < 80 ? 1 : 0.5;
+        return Math.min(objetivoVisual, Number((prev + incremento).toFixed(1)));
+      });
+    }, 350);
+  };
+
+  useEffect(() => () => detenerAnimacionProgreso(), []);
+
   // --- EFECTOS ---
   useEffect(() => {
     const cargarHistorial = async () => {
+      const almacenado = localStorage.getItem(storageKey);
+      const historicoLocal = normalizeScheduleEntries(almacenado ? JSON.parse(almacenado) : []);
       try {
         const remoto = await listSharedScheduleGenerations(nivel, version);
         if (remoto.length > 0) {
-          localStorage.setItem(storageKey, JSON.stringify(remoto));
-          setHistorialGeneraciones(remoto);
-          setHistoryStack([remoto[0]]);
+          const remotoNormalizado = normalizeScheduleEntries(remoto);
+          const combinado = remotoNormalizado.map((entry) => {
+            const matchLocal = historicoLocal.find((localEntry) =>
+              (entry.createdAt && localEntry.createdAt === entry.createdAt) ||
+              getScheduleSignature(localEntry.horario) === getScheduleSignature(entry.horario)
+            );
+            return matchLocal?.durationMs
+              ? { ...entry, durationMs: matchLocal.durationMs }
+              : entry;
+          });
+          localStorage.setItem(storageKey, JSON.stringify(combinado));
+          setHistorialGeneraciones(combinado);
+          setHistoryStack([combinado[0].horario]);
           setHistoryPointer(0);
           setProgreso(100);
           setIndiceSeleccionado(0);
@@ -198,11 +285,10 @@ const HorarioTable = () => {
         console.warn("No se pudo leer el historial compartido:", error);
       }
 
-      const almacenado = localStorage.getItem(storageKey);
-      const historico = almacenado ? JSON.parse(almacenado) : [];
+      const historico = historicoLocal;
       if (historico.length > 0) {
         setHistorialGeneraciones(historico);
-        setHistoryStack([historico[0]]);
+        setHistoryStack([historico[0].horario]);
         setHistoryPointer(0);
         setProgreso(100);
         setIndiceSeleccionado(0);
@@ -222,18 +308,22 @@ const HorarioTable = () => {
   useEffect(() => {
     (async () => {
       const almacenado = localStorage.getItem(storageKey);
-      const historico = almacenado ? JSON.parse(almacenado) : [];
+      const historico = normalizeScheduleEntries(almacenado ? JSON.parse(almacenado) : []);
       // Si ya hay historial en localStorage, no sobrescribimos (se respeta la versiÃ³n local)
       if (historico.length > 0) return;
 
       const horarioBD = await cargarHorarioDesdeBD(nivel, version);
       if (horarioBD) {
-        setHistorialGeneraciones([horarioBD]);
+        const entry = {
+          horario: horarioBD,
+          createdAt: new Date().toISOString(),
+        };
+        setHistorialGeneraciones([entry]);
         setIndiceSeleccionado(0);
         setHistoryStack([horarioBD]);
         setHistoryPointer(0);
         setHorarioGeneral(horarioBD);
-        persistHistorial([horarioBD]);
+        persistHistorial([entry]);
       }
     })();
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -617,9 +707,12 @@ const HorarioTable = () => {
   };
 
   const generarHorario = async () => {
+    const generationStartedAt = performance.now();
     setCargando(true);
     setProgreso(0);
-    setProgresoStage("");
+    setProgresoStage("Preparando generación...");
+    progresoObjetivoRef.current = 2;
+    iniciarAnimacionProgreso();
     try {
       const docentesFiltrados = docentesPorVersion;
 
@@ -663,7 +756,8 @@ const HorarioTable = () => {
         nivel,
         version,
         onProgress: (pct, stage) => {
-          setProgreso(pct);
+          progresoObjetivoRef.current = Math.max(progresoObjetivoRef.current, Number(pct) || 0);
+          setProgreso((prev) => Math.max(prev, Math.min(progresoObjetivoRef.current, 98)));
           setProgresoStage(stage || "");
         },
       });
@@ -672,10 +766,22 @@ const HorarioTable = () => {
         throw new Error("El generador no retornÃ³ una asignaciÃ³n vÃ¡lida (horario vacÃ­o).");
       }
 
+      progresoObjetivoRef.current = 100;
+      setProgreso(100);
+      setProgresoStage("Horario generado");
+
       // â˜… Aplicar Regla 3 local (compactaciÃ³n)
       const horarioOptimizado = aplicarBloquesConsecutivosSiCorresponde(resultado.horario);
+      const durationMs = Math.round(performance.now() - generationStartedAt);
 
-      const nuevoHistorial = [...historialGeneraciones, horarioOptimizado];
+      const nuevoHistorial = [
+        ...historialGeneraciones,
+        {
+          horario: horarioOptimizado,
+          createdAt: new Date().toISOString(),
+          durationMs,
+        },
+      ];
       if (nuevoHistorial.length > 5) nuevoHistorial.shift(); // mÃ¡x 5 versiones
       await persistHistorial(nuevoHistorial);
       setHistorialGeneraciones(nuevoHistorial);
@@ -688,6 +794,7 @@ const HorarioTable = () => {
     } catch (err) {
       alert("✖ Error generando horario: " + (err?.message || String(err)));
     } finally {
+      detenerAnimacionProgreso();
       setCargando(false);
     }
   };
@@ -753,7 +860,12 @@ const HorarioTable = () => {
 
     // Persistir versiÃ³n seleccionada en historial
     const nuevasGeneraciones = [...historialGeneraciones];
-    nuevasGeneraciones[indiceSeleccionado] = nuevoHorario;
+    if (nuevasGeneraciones[indiceSeleccionado]) {
+      nuevasGeneraciones[indiceSeleccionado] = {
+        ...nuevasGeneraciones[indiceSeleccionado],
+        horario: nuevoHorario,
+      };
+    }
     setHistorialGeneraciones(nuevasGeneraciones);
     persistHistorial(nuevasGeneraciones);
   };
@@ -767,7 +879,7 @@ const HorarioTable = () => {
 
   const handleVersionChange = (newIndex) => {
     const numericIndex = Number(newIndex);
-    const selectedSchedule = historialGeneraciones[numericIndex];
+    const selectedSchedule = historialGeneraciones[numericIndex]?.horario;
     if (selectedSchedule) {
       setIndiceSeleccionado(numericIndex);
       setHistoryStack([selectedSchedule]);
@@ -1077,7 +1189,9 @@ const exportarExcel = () => {
               onChange={(e) => handleVersionChange(e.target.value)}
             >
               {historialGeneraciones.map((schedule, i) => (
-                <option key={getScheduleOptionKey(schedule, i)} value={i}>Horario #{i + 1}</option>
+                <option key={getScheduleOptionKey(schedule, i)} value={i}>
+                  {`Horario #${i + 1} · ${formatGenerationTime(schedule.createdAt)}`}
+                </option>
               ))}
             </select>
           </div>
@@ -1106,6 +1220,9 @@ const exportarExcel = () => {
             <span className="font-semibold text-sm">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
+            </span>
+            <span className="text-sm text-slate-600">
+              Hora: <b>{formatGenerationTime(generacionSeleccionada?.createdAt)}</b>
             </span>
           </div>
 
@@ -1150,6 +1267,9 @@ const exportarExcel = () => {
             <span className="font-semibold">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
+            </span>
+            <span className="text-sm text-slate-600">
+              Tiempo: <b>{formatGenerationDuration(generacionSeleccionada?.durationMs)}</b>
             </span>
           </div>
         </div>

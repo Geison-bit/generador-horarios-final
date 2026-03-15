@@ -43,6 +43,43 @@ const formatHora = (value) => {
   return `${h}:${m}`;
 };
 
+const normalizeScheduleEntry = (entry) => {
+  if (Array.isArray(entry)) {
+    return { horario: entry, createdAt: null, durationMs: null };
+  }
+  if (entry && Array.isArray(entry.horario)) {
+    return {
+      horario: entry.horario,
+      createdAt: entry.createdAt || entry.created_at || null,
+      durationMs: Number(entry.durationMs ?? entry.duration_ms ?? null) || null,
+    };
+  }
+  return null;
+};
+
+const normalizeScheduleEntries = (entries) =>
+  (entries || []).map(normalizeScheduleEntry).filter(Boolean);
+
+const formatGenerationTime = (value) => {
+  if (!value) return "Sin hora";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "Sin hora";
+  return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
+};
+
+const formatGenerationDuration = (value) => {
+  const durationMs = Number(value);
+  if (!Number.isFinite(durationMs) || durationMs <= 0) return "Sin tiempo";
+  const totalSeconds = durationMs / 1000;
+  if (totalSeconds < 60) return `${totalSeconds.toFixed(1)} s`;
+  const minutes = Math.floor(totalSeconds / 60);
+  const seconds = totalSeconds % 60;
+  return `${minutes} min ${seconds.toFixed(1)} s`;
+};
+
+const getScheduleSignature = (horario) =>
+  Array.isArray(horario) ? horario.flat(2).join(".") : "";
+
 export default function HorarioPorDocente() {
   const { search } = useLocation();
   const params = new URLSearchParams(search);
@@ -116,20 +153,31 @@ export default function HorarioPorDocente() {
 
   useEffect(() => {
     const cargarHistorial = async () => {
+      const almacenado = localStorage.getItem(storageKey);
+      const historicoLocal = normalizeScheduleEntries(almacenado ? JSON.parse(almacenado) : []);
       try {
         const remoto = await listSharedScheduleGenerations(nivel, version);
         if (remoto.length > 0) {
-          localStorage.setItem(storageKey, JSON.stringify(remoto));
-          setHistorialGeneraciones(remoto);
-          setIndiceSeleccionado(remoto.length - 1);
+          const remotoNormalizado = normalizeScheduleEntries(remoto);
+          const combinado = remotoNormalizado.map((entry) => {
+            const matchLocal = historicoLocal.find((localEntry) =>
+              (entry.createdAt && localEntry.createdAt === entry.createdAt) ||
+              getScheduleSignature(localEntry.horario) === getScheduleSignature(entry.horario)
+            );
+            return matchLocal?.durationMs
+              ? { ...entry, durationMs: matchLocal.durationMs }
+              : entry;
+          });
+          localStorage.setItem(storageKey, JSON.stringify(combinado));
+          setHistorialGeneraciones(combinado);
+          setIndiceSeleccionado(combinado.length - 1);
           return;
         }
       } catch (error) {
         console.warn("No se pudo leer el historial compartido:", error);
       }
 
-      const almacenado = localStorage.getItem(storageKey);
-      const historico = almacenado ? JSON.parse(almacenado) : [];
+      const historico = historicoLocal;
       if (Array.isArray(historico) && historico.length > 0) {
         setHistorialGeneraciones(historico);
         setIndiceSeleccionado(historico.length - 1);
@@ -198,7 +246,7 @@ export default function HorarioPorDocente() {
   }, [asignaciones]);
 
   const horarioLocalDocente = useMemo(() => {
-    const horarioSeleccionado = historialGeneraciones[indiceSeleccionado];
+    const horarioSeleccionado = historialGeneraciones[indiceSeleccionado]?.horario;
     if (!Array.isArray(horarioSeleccionado) || !docenteId) return [];
 
     const filas = [];
@@ -484,7 +532,7 @@ export default function HorarioPorDocente() {
               {historialGeneraciones.length > 0 ? (
                 historialGeneraciones.map((_, idx) => (
                   <option key={`horario-${idx}`} value={idx}>
-                    Horario #{idx + 1}
+                    {`Horario #${idx + 1} · ${formatGenerationTime(historialGeneraciones[idx]?.createdAt)}`}
                   </option>
                 ))
               ) : (
