@@ -1103,12 +1103,12 @@ const exportarExcel = () => {
     <div className="p-4 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      <div className="mt-4 mb-4 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2">
+      <div className="mt-4 mb-4 flex flex-col gap-3 xl:flex-row xl:items-start xl:justify-between">
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800 flex items-center gap-2 xl:flex-1">
           <CalendarRange className="size-6 text-blue-600" />
           Generar horario escolar - {nivel}
         </h2>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <span className="text-sm font-semibold">Datos base:</span>
           <select
             value={version}
@@ -1124,7 +1124,7 @@ const exportarExcel = () => {
           </select>
         </div>
 
-        <div className="flex flex-col gap-2 w-full sm:flex-row sm:items-center sm:gap-3 md:w-auto">
+        <div className="flex w-full flex-wrap items-start gap-2 sm:gap-3 xl:w-auto xl:justify-end">
           {/* Origen claro para humanos */}
           {nivel !== "Primaria" && (
             <span
@@ -1142,7 +1142,7 @@ const exportarExcel = () => {
           {/* Resumen compacto de reglas aplicadas: 12345 */}
           {nivel !== "Primaria" && (
             <span
-              className={`text-xs px-2 py-1 rounded border whitespace-pre ${
+              className={`max-w-full text-xs px-2 py-1 rounded border ${
                 reglasCompactas.hayActivas
                   ? "bg-emerald-50 text-emerald-700 border-emerald-200"
                   : "bg-rose-50 text-rose-700 border-rose-200"
@@ -1154,9 +1154,9 @@ const exportarExcel = () => {
           )}
 
           {ultimaEdicion && (
-            <div className="flex items-center gap-2 text-xs px-3 py-1 rounded bg-gray-100 border">
+            <div className="flex max-w-full items-start gap-2 text-xs px-3 py-1 rounded bg-gray-100 border">
               <Clock3 className="w-4 h-4" />
-              <span>
+              <span className="break-words">
                 Última edición: <b>{ultimaEdicion.actor_email || "desconocido"}</b> ·{" "}
                 {new Date(ultimaEdicion.created_at).toLocaleString()}
               </span>
@@ -1178,13 +1178,13 @@ const exportarExcel = () => {
         </p>
       )}
 
-          {historialGeneraciones.length > 0 && (
-        <div className="flex flex-col gap-3 mt-2 mb-4 p-3 bg-gray-50 rounded-lg shadow sticky top-2 z-10 border md:flex-row md:items-center">
-          <div className="flex items-center gap-2 w-full md:w-auto">
+      {historialGeneraciones.length > 0 && (
+        <div className="mt-2 mb-4 flex flex-col gap-3 rounded-lg border bg-gray-50 p-3 shadow sticky top-2 z-10 xl:flex-row xl:items-center">
+          <div className="flex min-w-0 flex-wrap items-center gap-2 w-full xl:w-auto">
             <label htmlFor="horario-general-version" className="font-semibold text-sm">Versión:</label>
             <select
               id="horario-general-version"
-              className="border px-2 py-1 rounded-md text-sm"
+              className="max-w-full border px-2 py-1 rounded-md text-sm"
               value={indiceSeleccionado}
               onChange={(e) => handleVersionChange(e.target.value)}
             >
@@ -1196,7 +1196,7 @@ const exportarExcel = () => {
             </select>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
+          <div className="flex flex-wrap items-center gap-2 w-full border-t pt-3 xl:w-auto xl:border-t-0 xl:border-l xl:pl-4 xl:pt-0">
             <span className="font-semibold text-sm">Edición:</span>
             <button
               onClick={handleUndo}
@@ -1216,7 +1216,7 @@ const exportarExcel = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-3 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
+          <div className="flex flex-wrap items-center gap-3 w-full border-t pt-3 xl:w-auto xl:border-t-0 xl:border-l xl:pl-4 xl:pt-0">
             <span className="font-semibold text-sm">Completado:</span>
             <span className="text-sm bg-blue-100 text-blue-800 font-bold px-3 py-1 rounded-full">
               {`${completionFiltrado.asignados} / ${completionFiltrado.totales} (${completionFiltrado.porcentaje}%)`}
@@ -1226,7 +1226,7 @@ const exportarExcel = () => {
             </span>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0">
+          <div className="flex flex-wrap items-center gap-2 w-full border-t pt-3 xl:w-auto xl:border-t-0 xl:border-l xl:pl-4 xl:pt-0">
             <label htmlFor="horario-general-vista-grados" className="font-semibold text-sm">Vista:</label>
             <button
               id="horario-general-vista-grados"
@@ -1243,7 +1243,7 @@ const exportarExcel = () => {
             </button>
           </div>
 
-          <div className="flex items-center gap-2 w-full md:w-auto border-t pt-3 md:border-t-0 md:border-l md:pl-4 md:pt-0 md:ml-auto">
+          <div className="flex flex-wrap items-center gap-2 w-full border-t pt-3 xl:ml-auto xl:w-auto xl:border-t-0 xl:border-l xl:pl-4 xl:pt-0">
             <button
               onClick={exportarPDF}
               className="bg-red-600 text-white px-4 py-1.5 rounded hover:bg-red-700 transition-colors text-sm w-full sm:w-auto"
