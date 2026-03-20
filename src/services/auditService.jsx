@@ -22,36 +22,65 @@ export async function listAuditLogs({ table, rowId, limit = 50 }) {
   return q.order("created_at", { ascending: false });
 }
 
-// Helper genérico: ejecuta fn() y registra auditoría si la tabla audit_logs existe
-export async function withAudit(fn, meta = {}) {
-  const result = await fn();
+function normalizeAuditMeta(meta = {}) {
+  return {
+    table_name: meta.tableName || meta.entity || "unknown",
+    operation: (meta.operation || meta.action || "unknown").toLowerCase(),
+    row_id: meta.rowId != null ? String(meta.rowId) : meta.entityId != null ? String(meta.entityId) : null,
+    old_values: meta.oldValues || null,
+    new_values: meta.newValues || meta.details || null,
+  };
+}
+
+async function getActorContext() {
   try {
-    if (meta.action || meta.entity || meta.details) {
-      await supabase.from("audit_logs").insert({
-        action: meta.action || "unknown",
-        entity: meta.entity || "unknown",
-        details: meta.details || null,
-      });
-    }
-  } catch (e) {
-    // No bloquear si la tabla no existe o falla el insert
-    console.warn("Audit log falló:", e?.message || e);
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    return {
+      actor_id: user?.id || null,
+      actor_email: user?.email || null,
+    };
+  } catch {
+    return {
+      actor_id: null,
+      actor_email: null,
+    };
   }
+}
+
+function ensureSupabaseSuccess(result) {
+  if (result?.error) {
+    throw result.error;
+  }
+  return result;
+}
+
+async function insertAudit(meta = {}) {
+  const normalized = normalizeAuditMeta(meta);
+  if (!normalized.table_name || !normalized.operation) return;
+
+  const actor = await getActorContext();
+  const payload = {
+    ...normalized,
+    ...actor,
+  };
+
+  const { error } = await supabase.from("audit_logs").insert(payload);
+  if (error) {
+    console.warn("Audit log falló:", error.message || error);
+  }
+}
+
+// Helper genérico: ejecuta fn() y registra auditoría si la operación principal fue exitosa
+export async function withAudit(fn, meta = {}) {
+  const result = ensureSupabaseSuccess(await fn());
+  await insertAudit(meta);
   return result;
 }
 
 // Inserta un registro de auditoría sin envolver otra operación
 export async function logAudit(meta = {}) {
-  try {
-    if (meta.action || meta.entity || meta.details) {
-      await supabase.from("audit_logs").insert({
-        action: meta.action || "unknown",
-        entity: meta.entity || "unknown",
-        entity_id: meta.entityId || null,
-        details: meta.details || null,
-      });
-    }
-  } catch (e) {
-    console.warn("Audit log falló:", e?.message || e);
-  }
+  await insertAudit(meta);
 }

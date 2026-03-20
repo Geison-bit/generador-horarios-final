@@ -2,22 +2,42 @@ import { useEffect, useMemo, useState } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
 import { Home, ChevronRight, GraduationCap } from "lucide-react";
 
-// Catálogo de rutas visibles como chips
 const RUTAS = [
-  { label: "Registrar Docentes", path: "/docentes" },
-  { label: "Registrar Aulas", path: "/aulas" },
-  { label: "Asignar Materias", path: "/asignacion" },
-  { label: "Franjas Horarias", path: "/franjas" },
-  { label: "Disponibilidad", path: "/restricciones" },
-  { label: "Panel de restricciones", path: "/restricciones-panel" },
-  { label: "Horario General", path: "/horario" },
-  { label: "Horario por Docente", path: "/horario-docente" },
-  // Administración
-  { label: "Gestion de Docentes", path: "/admin/docentes" },
-    { label: "Gestion de Cuentas", path: "/admin/cuentas" },
-  { label: "Crear Usuario", path: "/admin/usuarios/crear" },
-  { label: "Bitacora de Auditoria", path: "/admin/auditoria" },
+  { step: 1, label: "Franjas Horarias", path: "/franjas", group: "horarios" },
+  { step: 2, label: "Asignar Materias", path: "/asignacion", group: "horarios" },
+  { step: 3, label: "Registrar Docentes", path: "/docentes", group: "horarios" },
+  { step: 4, label: "Registrar Aulas", path: "/aulas", group: "horarios" },
+  { step: 5, label: "Disponibilidad", path: "/restricciones", group: "horarios" },
+  { step: 6, label: "Panel de restricciones", path: "/restricciones-panel", group: "horarios" },
+  { step: 7, label: "Horario General", path: "/horario", group: "horarios" },
+  { step: 8, label: "Horario por Docente", path: "/horario-docente", group: "horarios" },
+  { step: 9, label: "Crear Usuario", path: "/admin/usuarios/crear", group: "admin" },
+  { step: 10, label: "Gestion de Cuentas", path: "/admin/cuentas", group: "admin" },
+  { step: 11, label: "Gestion de Docentes", path: "/admin/docentes", group: "admin" },
+  { step: 12, label: "Bitacora de Auditoria", path: "/admin/auditoria", group: "admin" },
 ];
+
+function getChipClasses(group, activo) {
+  if (group === "admin") {
+    return activo
+      ? "border-emerald-200 bg-emerald-50 text-emerald-700"
+      : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+  }
+  return activo
+    ? "border-blue-200 bg-blue-50 text-blue-700"
+    : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50";
+}
+
+function getStepClasses(group, activo) {
+  if (group === "admin") {
+    return activo
+      ? "bg-emerald-600 text-white ring-emerald-200"
+      : "bg-emerald-100 text-emerald-700 ring-emerald-100";
+  }
+  return activo
+    ? "bg-blue-600 text-white ring-blue-200"
+    : "bg-blue-100 text-blue-700 ring-blue-100";
+}
 
 export default function Breadcrumbs() {
   const location = useLocation();
@@ -64,14 +84,14 @@ export default function Breadcrumbs() {
   return (
     <div className="w-full px-4">
       <div className="mx-auto max-w-7xl">
-        <div className="rounded-2xl border border-slate-200 bg-white shadow-sm p-4 md:p-5">
-          <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between min-h-[52px]">
+        <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm md:p-5">
+          <div className="flex min-h-[52px] flex-col gap-4 md:flex-row md:items-center md:justify-between">
             <div className="inline-flex items-center gap-3">
-              <div className="inline-flex items-center justify-center rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-200 size-10">
+              <div className="inline-flex size-10 items-center justify-center rounded-xl bg-blue-50 text-blue-700 ring-1 ring-blue-200">
                 <GraduationCap className="size-5" aria-hidden="true" />
               </div>
               <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-slate-600 leading-9">Nivel</span>
+                <span className="text-sm font-medium leading-9 text-slate-600">Nivel</span>
                 <select
                   aria-label="Seleccionar nivel"
                   className="h-9 min-w-[140px] rounded-lg border border-slate-300 bg-white px-3 text-sm text-slate-800 shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
@@ -84,7 +104,7 @@ export default function Breadcrumbs() {
               </div>
             </div>
 
-            <nav aria-label="Breadcrumb" className="text-sm min-h-[36px] flex items-center">
+            <nav aria-label="Breadcrumb" className="flex min-h-[36px] items-center text-sm">
               <ol className="flex items-center gap-2 text-slate-600">
                 {crumbs.map((c, idx) => (
                   <li key={c.path} className="inline-flex items-center gap-2">
@@ -99,7 +119,9 @@ export default function Breadcrumbs() {
                     ) : (
                       <span className="font-medium text-slate-800">{c.label}</span>
                     )}
-                    {idx < crumbs.length - 1 && <ChevronRight className="size-4 text-slate-400" aria-hidden="true" />}
+                    {idx < crumbs.length - 1 && (
+                      <ChevronRight className="size-4 text-slate-400" aria-hidden="true" />
+                    )}
                   </li>
                 ))}
               </ol>
@@ -107,14 +129,18 @@ export default function Breadcrumbs() {
           </div>
 
           <div className="mt-4">
-            <div className="flex items-center justify-between mb-2">
+            <div className="mb-2 flex items-center justify-between">
               <span className="text-xs uppercase tracking-wide text-slate-500">Módulos</span>
               <button onClick={() => irA("/")} className="text-xs font-medium text-blue-700 hover:underline">
                 Ir al inicio
               </button>
             </div>
 
-            <div className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory" role="tablist" aria-label="Navegación de módulos">
+            <div
+              className="flex gap-2 overflow-x-auto pb-2 snap-x snap-mandatory"
+              role="tablist"
+              aria-label="Navegación de módulos"
+            >
               {RUTAS.map((ruta) => {
                 const activo = location.pathname.startsWith(ruta.path);
                 return (
@@ -123,14 +149,14 @@ export default function Breadcrumbs() {
                     role="tab"
                     aria-selected={activo}
                     onClick={() => irA(ruta.path)}
-                    className={`snap-start whitespace-nowrap rounded-full border px-3 py-1.5 text-sm transition shadow-sm focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600
-                      ${
-                        activo
-                          ? "border-blue-200 bg-blue-50 text-blue-700"
-                          : "border-slate-200 bg-white text-slate-700 hover:bg-slate-50"
-                      }`}
+                    className={`snap-start inline-flex items-center gap-2 whitespace-nowrap rounded-full border px-3 py-1.5 text-sm shadow-sm transition focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-600 ${getChipClasses(ruta.group, activo)}`}
                   >
-                    {ruta.label}
+                    <span
+                      className={`inline-flex size-6 items-center justify-center rounded-full text-[11px] font-bold ring-2 ${getStepClasses(ruta.group, activo)}`}
+                    >
+                      {ruta.step}
+                    </span>
+                    <span>{ruta.label}</span>
                   </button>
                 );
               })}

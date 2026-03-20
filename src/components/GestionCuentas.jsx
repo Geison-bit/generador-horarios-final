@@ -43,10 +43,10 @@ function GestionCuentasInner() {
       await withAudit(
         () => supabase.from("profiles").update({ status: newStatus }).eq("id", userId),
         {
-          action: "update",
-          entity: "profiles",
-          entityId: userId,
-          details: { status: newStatus },
+          operation: "update",
+          tableName: "profiles",
+          rowId: userId,
+          newValues: { status: newStatus },
         }
       );
 
@@ -86,10 +86,14 @@ function GestionCuentasInner() {
       if (error) throw error;
 
       await logAudit({
-        action: "update",
-        entity: "profiles",
-        entityId: user.id,
-        details: { full_name: nombreLimpio, email: correoLimpio },
+        operation: "update",
+        tableName: "profiles",
+        rowId: user.id,
+        oldValues: {
+          full_name: user.nombreCompleto,
+          email: user.email,
+        },
+        newValues: { full_name: nombreLimpio, email: correoLimpio },
       });
 
       alert("Perfil actualizado");
@@ -253,10 +257,14 @@ function CrearUsuarioModal({ onClose, onSuccess, session }) {
 
       alert("Usuario creado exitosamente");
       await logAudit({
-        action: "create",
-        entity: "user_accounts",
-        entityId: out?.user?.id ?? null,
-        details: { email: payload.email, role: payload.roleName, docenteId: payload.docenteId || null },
+        operation: "create",
+        tableName: "profiles",
+        rowId: out?.user?.id ?? null,
+        newValues: {
+          email: payload.email,
+          role: payload.roleName,
+          docenteId: payload.docenteId || null,
+        },
       });
       onSuccess?.();
     } catch (err) {
