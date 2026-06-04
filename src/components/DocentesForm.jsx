@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { Fragment, useState, useEffect, useMemo, useRef } from "react";
 import { useLocation } from "react-router-dom";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
@@ -235,6 +235,7 @@ const DocentesForm = () => {
     jornada: "",
     aulaId: "",
     cursosSeleccionados: [],
+    seccionesSeleccionadas: [],
     color: "#60a5fa",
   };
 
@@ -243,6 +244,8 @@ const DocentesForm = () => {
   const [aulas, setAulas] = useState([]);
   const [docentes, setDocentes] = useState([]);
   const [cursos, setCursos] = useState([]);
+  const [secciones, setSecciones] = useState([]);
+  const [docenteSeccionDisponible, setDocenteSeccionDisponible] = useState(true);
   const [modoEdicion, setModoEdicion] = useState(false);
   const [docenteEditandoId, setDocenteEditandoId] = useState(null);
   const [docenteEditandoVersion, setDocenteEditandoVersion] = useState(null);
@@ -287,6 +290,7 @@ const DocentesForm = () => {
     cargarDocentes();
     cargarAulas();
     cargarCursos();
+    cargarSecciones();
   }, [nivelURL, versionParam]);
 
   useEffect(() => {
@@ -297,6 +301,7 @@ const DocentesForm = () => {
     cargarDocentes();
     cargarAulas();
     cargarCursos();
+    cargarSecciones();
   }, [version]);
 
   // Sincronizar URL cuando cambia la version (evita saltos inesperados)
@@ -320,6 +325,36 @@ const DocentesForm = () => {
   }, []);
 
   // --- Fetchers ---
+  const seccionLabel = (seccion) => {
+    const grado = seccion.grados?.nombre || `${seccion.grados?.ordinal || seccion.grado_id}°`;
+    return `${grado} ${seccion.nombre}`;
+  };
+
+  const cargarDocenteSecciones = async (docenteIds = []) => {
+    if (!docenteIds.length) return new Map();
+    const { data, error } = await supabase
+      .from("docente_seccion")
+      .select("docente_id, seccion_id")
+      .in("docente_id", docenteIds);
+
+    if (error) {
+      if (error.code === "42P01" || error.code === "42703") {
+        setDocenteSeccionDisponible(false);
+        return new Map();
+      }
+      console.error("Error cargando secciones de docentes:", error);
+      return new Map();
+    }
+
+    setDocenteSeccionDisponible(true);
+    const map = new Map();
+    (data || []).forEach((r) => {
+      if (!map.has(r.docente_id)) map.set(r.docente_id, []);
+      map.get(r.docente_id).push(r.seccion_id);
+    });
+    return map;
+  };
+
   const cargarDocentes = async () => {
     const { data, error } = await supabase
       .from("docentes")
@@ -330,8 +365,16 @@ const DocentesForm = () => {
       .order("apellido")
       .order("nombre");
 
-    if (!error) setDocentes(data || []);
-    else setDocentes([]);
+    if (!error) {
+      const base = data || [];
+      const seccionesMap = await cargarDocenteSecciones(base.map((d) => d.id));
+      setDocentes(
+        base.map((d) => ({
+          ...d,
+          seccionesSeleccionadas: seccionesMap.get(d.id) || [],
+        }))
+      );
+    } else setDocentes([]);
   };
 
   const cargarAulas = async () => {
@@ -354,7 +397,72 @@ const DocentesForm = () => {
     setCursos(data || []);
   };
 
+  const cargarSecciones = async () => {
+    const [gradosResp, seccionesResp] = await Promise.all([
+      supabase
+        .from("grados")
+        .select("id, nombre, ordinal")
+        .eq("nivel", nivelURL)
+        .order("ordinal", { ascending: true }),
+      supabase
+        .from("secciones")
+        .select("id, grado_id, nombre, nivel, version_num, activo")
+        .eq("nivel", nivelURL)
+        .eq("version_num", version),
+    ]);
+
+    if (seccionesResp.error) {
+      if (seccionesResp.error.code !== "42P01") console.error("Error cargando secciones:", seccionesResp.error);
+      setSecciones([]);
+      return;
+    }
+
+    const gradosById = new Map((gradosResp.data || []).map((g) => [g.id, g]));
+    const items = (seccionesResp.data || [])
+      .filter((s) => s.activo !== false)
+      .map((s) => ({ ...s, grados: gradosById.get(s.grado_id) || null }))
+      .sort((a, b) => {
+        const sec = String(a.nombre).localeCompare(String(b.nombre));
+        if (sec !== 0) return sec;
+        return (a.grados?.ordinal ?? a.grado_id) - (b.grados?.ordinal ?? b.grado_id);
+      });
+    setSecciones(items);
+  };
+
   const aulasOcupadas = docentes.map((d) => d.aula_id);
+  const seccionesPorNombre = useMemo(() => {
+    const grupos = new Map();
+    secciones.forEach((s) => {
+      if (!grupos.has(s.nombre)) grupos.set(s.nombre, []);
+      grupos.get(s.nombre).push(s);
+    });
+    return Array.from(grupos.entries()).sort(([a], [b]) => String(a).localeCompare(String(b)));
+  }, [secciones]);
+
+  const seccionesDocenteLabel = (ids = []) => {
+    if (!ids.length) return "Sin seccion";
+    const set = new Set(ids);
+    const nombres = seccionesPorNombre
+      .filter(([, items]) => items.some((s) => set.has(s.id)))
+      .map(([nombre]) => nombre);
+    return nombres.length ? nombres.join(", ") : "Sin seccion";
+  };
+
+  const docentesPorSeccion = useMemo(() => {
+    const grupos = [];
+    seccionesPorNombre.forEach(([nombre, items]) => {
+      const ids = new Set(items.map((s) => s.id));
+      const rows = docentes.filter((d) =>
+        (d.seccionesSeleccionadas || []).some((id) => ids.has(id))
+      );
+      if (rows.length) grupos.push([nombre, rows]);
+    });
+
+    const sinSeccion = docentes.filter((d) => !(d.seccionesSeleccionadas || []).length);
+    if (sinSeccion.length) grupos.push(["Sin seccion", sinSeccion]);
+
+    return grupos.length ? grupos : [["Docentes", docentes]];
+  }, [docentes, seccionesPorNombre]);
 
   // --- Handlers ---
   const handleInputChange = (e) => {
@@ -372,6 +480,27 @@ const DocentesForm = () => {
     if (errors.cursosSeleccionados) setErrors((prev) => ({ ...prev, cursosSeleccionados: null }));
   };
 
+  const toggleSeccionSeleccionada = (id) => {
+    const { seccionesSeleccionadas } = formData;
+    const nuevos = seccionesSeleccionadas.includes(id)
+      ? seccionesSeleccionadas.filter((s) => s !== id)
+      : [...seccionesSeleccionadas, id];
+    setFormData((prev) => ({ ...prev, seccionesSeleccionadas: nuevos }));
+    if (errors.seccionesSeleccionadas) setErrors((prev) => ({ ...prev, seccionesSeleccionadas: null }));
+  };
+
+  const toggleGrupoSeccion = (items) => {
+    const ids = items.map((s) => s.id);
+    const actual = new Set(formData.seccionesSeleccionadas);
+    const todosMarcados = ids.every((id) => actual.has(id));
+    ids.forEach((id) => {
+      if (todosMarcados) actual.delete(id);
+      else actual.add(id);
+    });
+    setFormData((prev) => ({ ...prev, seccionesSeleccionadas: Array.from(actual) }));
+    if (errors.seccionesSeleccionadas) setErrors((prev) => ({ ...prev, seccionesSeleccionadas: null }));
+  };
+
   const validateForm = () => {
     const newErrors = {};
   	if (formData.nombre.trim().length < 3) newErrors.nombre = "El nombre es muy corto.";
@@ -383,6 +512,9 @@ const DocentesForm = () => {
 
   	if (!formData.aulaId) newErrors.aulaId = "Seleccione un aula.";
   	if (formData.cursosSeleccionados.length === 0) newErrors.cursosSeleccionados = "Seleccione al menos un curso.";
+    if (docenteSeccionDisponible && secciones.length > 0 && formData.seccionesSeleccionadas.length === 0) {
+      newErrors.seccionesSeleccionadas = "Seleccione al menos una seccion.";
+    }
 
   	setErrors(newErrors);
   	return Object.keys(newErrors).length === 0;
@@ -405,6 +537,10 @@ const DocentesForm = () => {
       return true;
     };
 
+    const versionActual = docenteEditandoId
+      ? (docenteEditandoVersion ?? version)
+      : version;
+
     const payload = {
       nombre: formData.nombre.trim(),
       apellido: formData.apellido.trim(),
@@ -413,10 +549,85 @@ const DocentesForm = () => {
       aula_id: parseInt(formData.aulaId, 10),
       nivel: nivelURL,
       color: formData.color,
-      version_num: docenteEditandoId ? (docenteEditandoVersion ?? version) : version,
+      version_num: versionActual,
     };
 
     let docenteId = null;
+
+    const reemplazarCursosDocente = async () => {
+      const cursosUnicos = [...new Set(formData.cursosSeleccionados)];
+      const registros = cursosUnicos.map((cid) => ({
+        docente_id: docenteId,
+        curso_id: cid,
+        nivel: nivelURL,
+        version_num: versionActual,
+      }));
+
+      const { error: errUpsert } = await supabase
+        .from("docente_curso")
+        .upsert(registros, { onConflict: "docente_id,curso_id,nivel,version_num" });
+
+      if (reportError(errUpsert, "guardar cursos del docente")) return false;
+
+      let deleteQuery = supabase
+        .from("docente_curso")
+        .delete()
+        .eq("docente_id", docenteId)
+        .eq("nivel", nivelURL)
+        .eq("version_num", versionActual);
+
+      if (cursosUnicos.length > 0) {
+        deleteQuery = deleteQuery.not("curso_id", "in", `(${cursosUnicos.join(",")})`);
+      }
+
+      const { error: errDelete } = await deleteQuery;
+      if (reportError(errDelete, "limpiar cursos no seleccionados del docente")) return false;
+
+      return true;
+    };
+
+    const reemplazarSeccionesDocente = async () => {
+      if (!docenteSeccionDisponible) return true;
+      const seccionesUnicas = [...new Set(formData.seccionesSeleccionadas)];
+
+      const { error: errDelete } = await supabase
+        .from("docente_seccion")
+        .delete()
+        .eq("docente_id", docenteId)
+        .eq("nivel", nivelURL)
+        .eq("version_num", versionActual);
+
+      if (errDelete) {
+        if (errDelete.code === "42P01" || errDelete.code === "42703") {
+          setDocenteSeccionDisponible(false);
+          return true;
+        }
+        if (reportError(errDelete, "limpiar secciones del docente")) return false;
+      }
+
+      if (seccionesUnicas.length === 0) return true;
+
+      const registros = seccionesUnicas.map((sid) => ({
+        docente_id: docenteId,
+        seccion_id: sid,
+        nivel: nivelURL,
+        version_num: versionActual,
+      }));
+
+      const { error: errInsert } = await supabase
+        .from("docente_seccion")
+        .insert(registros);
+
+      if (errInsert) {
+        if (errInsert.code === "42P01" || errInsert.code === "42703") {
+          setDocenteSeccionDisponible(false);
+          return true;
+        }
+        if (reportError(errInsert, "guardar secciones del docente")) return false;
+      }
+
+      return true;
+    };
 
     if (docenteEditandoId) {
       const { data, error } = await supabase
@@ -430,11 +641,6 @@ const DocentesForm = () => {
         return;
       }
       docenteId = docenteEditandoId;
-      const { error: errDel } = await supabase
-        .from("docente_curso")
-        .delete()
-        .eq("docente_id", docenteId);
-      if (reportError(errDel, "actualizar cursos del docente")) return;
     } else {
       const { data, error } = await supabase
         .from("docentes")
@@ -445,13 +651,10 @@ const DocentesForm = () => {
     }
 
     if (docenteId) {
-      const registros = formData.cursosSeleccionados.map((cid) => ({
-        docente_id: docenteId,
-        curso_id: cid,
-        nivel: nivelURL,
-      }));
-      const { error } = await supabase.from("docente_curso").insert(registros);
-      if (reportError(error, "guardar cursos del docente")) return;
+      const ok = await reemplazarCursosDocente();
+      if (!ok) return;
+      const okSecciones = await reemplazarSeccionesDocente();
+      if (!okSecciones) return;
     }
 
   	cancelarEdicion();
@@ -469,6 +672,7 @@ const DocentesForm = () => {
       jornada: (docente.jornada_total ?? "").toString(),
       aulaId: (docente.aula_id ?? "").toString(),
       cursosSeleccionados: docente.docente_curso?.map((dc) => dc.curso_id) || [],
+      seccionesSeleccionadas: docente.seccionesSeleccionadas || [],
       color: docente.color || "#60a5fa",
     });
   	setErrors({});
@@ -768,6 +972,31 @@ useEffect(() => {
   		  {errors.aulaId && <p className="text-red-600 text-xs mt-1">{errors.aulaId}</p>}
   		</div>
 
+        {docenteSeccionDisponible && seccionesPorNombre.length > 0 && (
+          <div className="flex flex-col">
+            <span className="mb-1 text-sm font-medium text-gray-700">Secciones</span>
+            <div className={`flex min-h-[42px] w-48 flex-wrap items-center gap-2 rounded-md border px-3 py-2 ${errors.seccionesSeleccionadas ? "border-red-500" : "border-gray-300"}`}>
+              {seccionesPorNombre.map(([nombre, items]) => {
+                const ids = items.map((s) => s.id);
+                const checked = ids.every((id) => formData.seccionesSeleccionadas.includes(id));
+                return (
+                  <label key={nombre} className="inline-flex items-center gap-1 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={checked}
+                      onChange={() => toggleGrupoSeccion(items)}
+                    />
+                    {nombre}
+                  </label>
+                );
+              })}
+            </div>
+            {errors.seccionesSeleccionadas && (
+              <p className="text-red-600 text-xs mt-1">{errors.seccionesSeleccionadas}</p>
+            )}
+          </div>
+        )}
+
         <div className="relative flex flex-col" ref={dropdownRef}>
           <label htmlFor="docentes-cursos-dropdown" className="mb-1 text-sm font-medium text-gray-700">Especialidades</label>
   		  <button
@@ -893,19 +1122,28 @@ useEffect(() => {
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Tipo</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Horas</th>
   			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Aula</th>
+              <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Secciones</th>
 			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3">Especialidades</th>
 			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Color</th>
 			  <th className="border-b px-4 py-1.5 sm:py-2.5 lg:py-3 text-center">Acciones</th>
   			</tr>
   		  </thead>
   		  <tbody>
-  			{docentes.map((d) => (
-  			  <tr key={d.id} className="hover:bg-gray-50">
+            {docentesPorSeccion.map(([nombreSeccion, rows]) => (
+              <Fragment key={nombreSeccion}>
+                <tr className="bg-blue-50/70">
+                  <td colSpan={9} className="border-b px-4 py-2 text-sm font-semibold text-blue-800">
+                    Seccion {nombreSeccion}
+                  </td>
+                </tr>
+  			{rows.map((d) => (
+  			  <tr key={`${nombreSeccion}-${d.id}`} className="hover:bg-gray-50">
   				<td className="border-b px-4 py-2">{d.nombre}</td>
   				<td className="border-b px-4 py-2">{d.apellido}</td>
   				<td className="border-b px-4 py-2">{d.tipo_profesor}</td>
   				<td className="border-b px-4 py-2 text-center">{d.jornada_total}</td>
   				<td className="border-b px-4 py-2">{d.aulas?.nombre || "N/A"}</td>
+                <td className="border-b px-4 py-2">{seccionesDocenteLabel(d.seccionesSeleccionadas)}</td>
 				<td className="border-b px-4 py-2 text-xs">
 				  {(d.docente_curso || []).map((dc) => dc.cursos?.nombre).join(", ")}
 				</td>
@@ -950,6 +1188,8 @@ useEffect(() => {
   				</td>
   			  </tr>
   			))}
+              </Fragment>
+            ))}
   			{docentes.length === 0 && (
   			  <tr>
 				<td className="px-4 py-6 text-center text-gray-500" colSpan={8}>

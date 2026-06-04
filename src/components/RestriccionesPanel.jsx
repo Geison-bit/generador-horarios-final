@@ -4,22 +4,108 @@ import { useLocation, useNavigate } from "react-router-dom";
 import { ShieldCheck } from "lucide-react";
 import Breadcrumbs from "../components/Breadcrumbs";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
+import { supabase } from "../supabaseClient";
 import {
+  loadCatalogoRestricciones,
   loadReglasParaNivel,
   saveReglasParaNivel,
 } from "../services/restriccionesService";
 
+const CATALOGO_FALLBACK = {
+  disponibilidad_docente: {
+    nombre: "Respetar disponibilidad del docente",
+    descripcion: "No asigna clases en horas o dias marcados como no disponibles.",
+  },
+  no_solape_docente: {
+    nombre: "Evitar solape del mismo docente por bloque",
+    descripcion: "Un docente no puede dictar a dos grados en el mismo bloque.",
+  },
+  bloques_consecutivos: {
+    nombre: "Usar bloques consecutivos por segmento",
+    descripcion: "Agrupa horas del mismo curso en sesiones continuas (2-3 seguidas).",
+  },
+  distribuir_en_dias_distintos: {
+    nombre: "Distribuir segmentos en dias distintos",
+    descripcion: "Evita concentrar todas las horas de un curso en un solo dia.",
+  },
+  no_dias_consecutivos: {
+    nombre: "Evitar dias consecutivos por curso",
+    descripcion: "Evita 3 dias seguidos y desincentiva dias consecutivos (solo cursos >4h).",
+  },
+  no_puentes_docente: {
+    nombre: "Evitar puentes del docente",
+    descripcion: "Evita huecos intermedios entre clases del mismo docente en un dia.",
+  },
+  prohibir_sesiones_1h: {
+    nombre: "Omitir cursos con 1h",
+    descripcion: "No intenta ubicar materias que solo tienen 1 hora semanal.",
+  },
+  limitar_carga_docente_grado: {
+    nombre: "Maximo 3h por docente en un grado al dia",
+    descripcion: "Evita que un docente dicte mas de 3 horas al mismo grado en un dia.",
+  },
+};
+
+const normalizarCatalogo = (items = []) =>
+  items.map((item) => {
+    const meta = CATALOGO_FALLBACK[item.key] || {};
+    return {
+      ...item,
+      nombre: item.nombre || meta.nombre || item.key,
+      descripcion: item.descripcion || meta.descripcion || "",
+    };
+  });
+
 export default function RestriccionesPanel() {
   const navigate = useNavigate();
-  const nivel =
-    new URLSearchParams(useLocation().search).get("nivel") || "Secundaria";
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const nivel = params.get("nivel") || "Secundaria";
+  const versionParam = Number(params.get("version")) || 1;
 
   const { refrescarReglas } = useDocentes();
 
   const [catalogo, setCatalogo] = useState([]);
   const [reglas, setReglas] = useState({});
+  const [versiones, setVersiones] = useState([versionParam]);
+  const [versionSeleccionada, setVersionSeleccionada] = useState(versionParam);
   const [cargando, setCargando] = useState(true);
   const [error, setError] = useState("");
+
+  useEffect(() => {
+    setVersionSeleccionada(versionParam);
+  }, [versionParam]);
+
+  useEffect(() => {
+    const cargarVersiones = async () => {
+      const { data, error: versionError } = await supabase
+        .from("franjas_horarias")
+        .select("version_num")
+        .eq("nivel", nivel)
+        .order("version_num", { ascending: true });
+
+      if (!versionError && data?.length) {
+        const unique = Array.from(new Set(data.map((v) => v.version_num))).sort((a, b) => a - b);
+        setVersiones(unique);
+        if (!unique.includes(versionParam)) {
+          setVersionSeleccionada(unique[0]);
+        }
+        return;
+      }
+
+      setVersiones([versionParam || 1]);
+    };
+
+    cargarVersiones();
+  }, [nivel, versionParam]);
+
+  useEffect(() => {
+    const nextParams = new URLSearchParams(location.search);
+    nextParams.set("version", String(versionSeleccionada));
+    if (nextParams.toString() !== location.search.replace(/^\?/, "")) {
+      navigate({ search: nextParams.toString() }, { replace: true });
+    }
+  }, [versionSeleccionada, navigate, location.search]);
 
   // -------------------- CARGA --------------------
   useEffect(() => {
@@ -27,62 +113,12 @@ export default function RestriccionesPanel() {
       setCargando(true);
       setError("");
       try {
-        // 1) Cargar reglas efectivas para el nivel
-        const reglasCargadas = await loadReglasParaNivel(nivel);
+        const [reglasCargadas, catalogoCargado] = await Promise.all([
+          loadReglasParaNivel(nivel, versionSeleccionada),
+          loadCatalogoRestricciones(),
+        ]);
         setReglas(reglasCargadas || {});
-
-        // 2) Catálogo visible (usa texto “base” por si la tabla no tiene nombre/desc)
-        const baseCatalogo = [
-          {
-            key: "disponibilidad_docente",
-            nombre: "Respetar disponibilidad del docente",
-            descripcion:
-              "No asigna clases en horas o días marcados como no disponibles.",
-          },
-          {
-            key: "no_solape_docente",
-            nombre: "Evitar solape del mismo docente por bloque",
-            descripcion:
-              "Un docente no puede dictar a dos grados en el mismo bloque.",
-          },
-          {
-            key: "bloques_consecutivos",
-            nombre: "Usar bloques consecutivos por segmento",
-            descripcion:
-              "Agrupa horas del mismo curso en sesiones continuas (2–3 seguidas).",
-          },
-          {
-            key: "distribuir_en_dias_distintos",
-            nombre: "Distribuir segmentos en días distintos",
-            descripcion:
-              "Evita concentrar todas las horas de un curso en un solo día.",
-          },
-          {
-            key: "no_dias_consecutivos",
-            nombre: "Evitar dias consecutivos por curso",
-            descripcion:
-              "Evita 3 dias seguidos y desincentiva dias consecutivos (solo cursos >4h).",
-          },
-          {
-            key: "no_puentes_docente",
-            nombre: "Evitar puentes del docente",
-            descripcion:
-              "Evita huecos intermedios entre clases del mismo docente en un dÇða.",
-          },
-          {
-            key: "omitir_cursos_1h",
-            nombre: "Omitir cursos con 1h",
-            descripcion:
-              "No intenta ubicar materias que solo tienen 1 hora semanal.",
-          },
-          {
-            key: "limitar_carga_docente_grado",
-            nombre: "Maximo 3h por docente en un grado al dia",
-            descripcion:
-              "Evita que un docente dicte mas de 3 horas al mismo grado en un dia.",
-          },
-        ];
-        setCatalogo(baseCatalogo);
+        setCatalogo(normalizarCatalogo(catalogoCargado || []));
       } catch (e) {
         console.error(e);
         setError(
@@ -95,16 +131,18 @@ export default function RestriccionesPanel() {
           distribuir_en_dias_distintos: true,
           no_puentes_docente: true,
           no_dias_consecutivos: true,
-          omitir_cursos_1h: true,
+          prohibir_sesiones_1h: true,
           limitar_carga_docente_grado: true,
         };
         setReglas(fallback);
         setCatalogo(
-          Object.keys(fallback).map((key) => ({
-            key,
-            nombre: key,
-            descripcion: "",
-          }))
+          normalizarCatalogo(
+            Object.keys(fallback).map((key) => ({
+              key,
+              nombre: "",
+              descripcion: "",
+            }))
+          )
         );
       } finally {
         setCargando(false);
@@ -112,7 +150,7 @@ export default function RestriccionesPanel() {
     };
 
     cargar();
-  }, [nivel]);
+  }, [nivel, versionSeleccionada]);
 
   // -------------------- HANDLERS --------------------
   const toggleRegla = (key) =>
@@ -136,8 +174,8 @@ export default function RestriccionesPanel() {
   const guardar = async () => {
     try {
       setCargando(true);
-      await saveReglasParaNivel(nivel, reglas); // guarda overrides (solo difiere de defaults)
-      await refrescarReglas(); // 🔁 actualiza contexto global para que el generador use las nuevas reglas
+      await saveReglasParaNivel(nivel, reglas, versionSeleccionada);
+      await refrescarReglas({ nivel, versionNum: versionSeleccionada });
       alert("✅ Reglas guardadas y aplicadas correctamente.");
     } catch (e) {
       console.error(e);
@@ -191,8 +229,25 @@ export default function RestriccionesPanel() {
         </div>
       </div>
 
-      <div className="mt-2 text-sm text-slate-600">
-        Nivel: <b>{nivel}</b>
+      <div className="mt-2 flex flex-col gap-2 text-sm text-slate-600 sm:flex-row sm:items-center sm:gap-4">
+        <div>
+          Nivel: <b>{nivel}</b>
+        </div>
+        <div className="flex items-center gap-2">
+          <span>Version</span>
+          <select
+            value={versionSeleccionada}
+            onChange={(e) => setVersionSeleccionada(Number(e.target.value))}
+            disabled={cargando}
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+          >
+            {versiones.map((v) => (
+              <option key={v} value={v}>
+                {v}
+              </option>
+            ))}
+          </select>
+        </div>
       </div>
 
       {error && (

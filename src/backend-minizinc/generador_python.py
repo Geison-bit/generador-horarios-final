@@ -50,7 +50,7 @@ def generar_horario_cp(
     
     # Mapeo de IDs para facilitar el uso en el modelo
     # Diccionarios para acceso rápido
-    map_asignaciones = [] # Lista de tuplas (curso_id, grado_id, docente_id, horas)
+    map_asignaciones = [] # Lista de dicts (curso_id, grupo_id, grado_id, seccion_id, docente_id, horas)
     
     # Normalizar docentes
     docente_ids = set()
@@ -62,35 +62,42 @@ def generar_horario_cp(
     # Procesar horas requeridas y asignaciones
     total_horas_requeridas = 0
     
-    # Estructura auxiliar para guardar info
-    # data_reqs[(curso, grado)] = { 'docente': doc_id, 'horas': n }
-    data_reqs = {}
-
     # Barrido de asignaciones para saber QUÉ curso da QUÉ docente
-    temp_asignaciones = {} # (curso_int, grado_int) -> docente_int
+    temp_asignaciones = {} # (curso_int, target_int) -> metadata de asignacion
     if asignaciones:
-        for curso_id, grados in asignaciones.items():
+        for curso_id, targets in asignaciones.items():
             c_int = normalizar_entero(curso_id)
-            for grado_id, datos in grados.items():
-                g_int = normalizar_entero(grado_id)
+            for target_id, datos in targets.items():
+                target_int = normalizar_entero(target_id)
                 d_int = normalizar_entero(datos.get("docente_id"))
-                temp_asignaciones[(c_int, g_int)] = d_int
+                grado_int = normalizar_entero(datos.get("grado_id")) or target_int
+                seccion_int = normalizar_entero(datos.get("seccion_id")) or None
+                grupo_int = seccion_int or target_int
+                temp_asignaciones[(c_int, target_int)] = {
+                    "docente": d_int,
+                    "grado": grado_int,
+                    "seccion": seccion_int,
+                    "grupo": grupo_int,
+                }
 
     # Barrido de horas para saber CUÁNTO tiempo se necesita
     if horas_curso_grado:
-        for curso_id, grados in horas_curso_grado.items():
+        for curso_id, targets in horas_curso_grado.items():
             c_int = normalizar_entero(curso_id)
-            for grado_id, horas in grados.items():
-                g_int = normalizar_entero(grado_id)
+            for target_id, horas in targets.items():
+                target_int = normalizar_entero(target_id)
                 h_int = normalizar_entero(horas)
                 
                 if h_int > 0:
-                    docente = temp_asignaciones.get((c_int, g_int), 0)
+                    meta = temp_asignaciones.get((c_int, target_int), {})
+                    docente = normalizar_entero(meta.get("docente"))
                     # Solo agregamos si hay docente asignado o si queremos permitir vacantes (asumimos docente necesario)
                     if docente > 0:
                         map_asignaciones.append({
                             'curso': c_int,
-                            'grado': g_int,
+                            'grupo': normalizar_entero(meta.get("grupo")) or target_int,
+                            'grado': normalizar_entero(meta.get("grado")) or target_int,
+                            'seccion': meta.get("seccion"),
                             'docente': docente,
                             'horas': h_int
                         })
@@ -203,8 +210,9 @@ def generar_horario_cp(
     es_k_dia = {}
 
     def _obtener_patron(req):
-        key = f"{req['curso']}-{req['grado']}"
-        raw = patrones_division.get(key)
+        key_grupo = f"{req['curso']}-{req.get('grupo')}"
+        key_grado = f"{req['curso']}-{req['grado']}"
+        raw = patrones_division.get(key_grupo) or patrones_division.get(key_grado)
         if not raw:
             return None
         if isinstance(raw, str):
@@ -240,13 +248,12 @@ def generar_horario_cp(
             sum(x[(idx, d, b)] for d in range(NUM_DIAS) for b in range(num_bloques)) == req['horas']
         )
 
-    # B) Choques de Grado: Un grado no puede tener 2 materias al mismo tiempo
-    # Agrupamos asignaciones por grado
-    reqs_por_grado = {}
+    # B) Choques de grupo: una seccion/grado no puede tener 2 materias al mismo tiempo
+    reqs_por_grupo = {}
     for idx, req in enumerate(map_asignaciones):
-        reqs_por_grado.setdefault(req['grado'], []).append(idx)
+        reqs_por_grupo.setdefault(req['grupo'], []).append(idx)
     
-    for grado, indices in reqs_por_grado.items():
+    for grupo, indices in reqs_por_grupo.items():
         for d in range(NUM_DIAS):
             for b in range(num_bloques):
                 model.Add(sum(x[(idx, d, b)] for idx in indices) <= 1)
@@ -271,10 +278,10 @@ def generar_horario_cp(
     if r_limitar_docente_grado:
         reqs_por_docente_grado = {}
         for idx, req in enumerate(map_asignaciones):
-            key = (req['docente'], req['grado'])
+            key = (req['docente'], req['grupo'])
             reqs_por_docente_grado.setdefault(key, []).append(idx)
 
-        for (doc, grado), indices in reqs_por_docente_grado.items():
+        for (doc, grupo), indices in reqs_por_docente_grado.items():
             for d in range(NUM_DIAS):
                 model.Add(
                     sum(x[(idx, d, b)] for idx in indices for b in range(num_bloques)) <= 3
@@ -377,18 +384,111 @@ def generar_horario_cp(
 
     # --- 6. REGLAS DE DISTRIBUCIÓN DIARIA ---
     if int(version) == 1:
-        for grado, indices in reqs_por_grado.items():
+        for grupo, indices in reqs_por_grupo.items():
             indices_sin_patron = [
                 idx for idx in indices
                 if not _obtener_patron(map_asignaciones[idx])
             ]
             if not indices_sin_patron:
                 continue
+            total_sin_patron = sum(map_asignaciones[idx]["horas"] for idx in indices_sin_patron)
+            # Permite horarios parciales: si una seccion aun no tiene carga completa,
+            # no se fuerza el patron diario de una seccion completa.
+            if total_sin_patron < NUM_DIAS * 5:
+                continue
             for d in range(NUM_DIAS):
                 model.Add(sum(es_3h_dia[(idx, d)] for idx in indices_sin_patron) == 1)
                 total_2h_hoy = sum(es_2h_dia[(idx, d)] for idx in indices_sin_patron)
                 model.Add(total_2h_hoy >= 1)
                 model.Add(total_2h_hoy <= 2)
+
+    def _diagnosticar_datos():
+        diagnostico = {
+            "version": int(version),
+            "num_bloques": num_bloques,
+            "capacidad_por_grupo": NUM_DIAS * num_bloques,
+            "grupos": [],
+            "docentes": [],
+            "docente_grupo": [],
+            "resumen": [],
+        }
+
+        for grupo, indices in sorted(reqs_por_grupo.items()):
+            total = sum(map_asignaciones[idx]["horas"] for idx in indices)
+            sin_patron_indices = [idx for idx in indices if not _obtener_patron(map_asignaciones[idx])]
+            sin_patron = sum(map_asignaciones[idx]["horas"] for idx in sin_patron_indices)
+            con_patron = total - sin_patron
+            problemas = []
+            capacidad = NUM_DIAS * num_bloques
+            if total > capacidad:
+                problemas.append(f"requiere {total} bloques y solo hay {capacidad} disponibles")
+            if int(version) == 1 and sin_patron_indices:
+                minimo = NUM_DIAS * 5
+                maximo = NUM_DIAS * 7
+                if sin_patron > maximo:
+                    problemas.append(
+                        f"version 1 permite como maximo {maximo} bloques sin patron por seccion; tiene {sin_patron}"
+                    )
+            diagnostico["grupos"].append({
+                "grupo": grupo,
+                "grado": map_asignaciones[indices[0]].get("grado") if indices else None,
+                "seccion": map_asignaciones[indices[0]].get("seccion") if indices else None,
+                "total_horas": total,
+                "horas_sin_patron": sin_patron,
+                "horas_con_patron": con_patron,
+                "capacidad": capacidad,
+                "problemas": problemas,
+            })
+
+        for doc, indices in sorted(reqs_por_docente.items()):
+            total = sum(map_asignaciones[idx]["horas"] for idx in indices)
+            libres = NUM_DIAS * num_bloques - bloqueos_por_docente.get(doc, 0)
+            problemas = []
+            if total > libres:
+                problemas.append(f"docente requiere {total} bloques y solo tiene {libres} libres")
+            if problemas:
+                diagnostico["docentes"].append({
+                    "docente": doc,
+                    "total_horas": total,
+                    "bloques_libres": libres,
+                    "problemas": problemas,
+                })
+
+        if r_limitar_docente_grado:
+            for (doc, grupo), indices in sorted(reqs_por_docente_grado.items()):
+                total = sum(map_asignaciones[idx]["horas"] for idx in indices)
+                maximo = NUM_DIAS * 3
+                if total > maximo:
+                    diagnostico["docente_grupo"].append({
+                        "docente": doc,
+                        "grupo": grupo,
+                        "total_horas": total,
+                        "maximo": maximo,
+                        "problemas": [
+                            f"un docente no puede dictar mas de {maximo} bloques semanales en la misma seccion"
+                        ],
+                    })
+
+        for g in diagnostico["grupos"]:
+            if g["problemas"]:
+                diagnostico["resumen"].append(
+                    f"Grupo {g['grupo']}: " + "; ".join(g["problemas"])
+                )
+        for d in diagnostico["docentes"]:
+            diagnostico["resumen"].append(
+                f"Docente {d['docente']}: " + "; ".join(d["problemas"])
+            )
+        for dg in diagnostico["docente_grupo"]:
+            diagnostico["resumen"].append(
+                f"Docente {dg['docente']} en grupo {dg['grupo']}: " + "; ".join(dg["problemas"])
+            )
+        if not diagnostico["resumen"]:
+            diagnostico["resumen"].append(
+                "No hay una causa simple por conteo. Revisa disponibilidad, patrones de division y combinacion de docentes por seccion."
+            )
+        return diagnostico
+
+    diagnostico_datos = _diagnosticar_datos()
 
     # 5. Configuración del Solver
     # ---------------------------------------------------------
@@ -416,7 +516,7 @@ def generar_horario_cp(
         
         for idx, req in enumerate(map_asignaciones):
             c_id = req['curso']
-            g_id = req['grado']
+            grupo_id = req['grupo']
             d_id = req['docente'] # No se usa en la estructura final visual, pero útil saberlo
             
             horas_asignadas_curso = 0
@@ -424,7 +524,7 @@ def generar_horario_cp(
                 for b in range(num_bloques):
                     if solver.Value(x[(idx, d, b)]) == 1:
                         # Asignar en la estructura
-                        horario_salida[d][b][g_id] = c_id
+                        horario_salida[d][b][grupo_id] = c_id
                         horas_asignadas_curso += 1
                         asignaciones_exitosas += 1
             
@@ -433,6 +533,10 @@ def generar_horario_cp(
                 fallidos += (req['horas'] - horas_asignadas_curso)
     else:
         print("[CP-SAT] No se encontró solución factible con las restricciones actuales.")
+        print("========== DIAGNOSTICO INFACTIBILIDAD ==========")
+        for linea in diagnostico_datos.get("resumen", [])[:30]:
+            print("-", linea)
+        print("===============================================")
         fallidos = total_horas_requeridas # Todo falló
 
     # Estadísticas básicas para el reporte
@@ -503,7 +607,8 @@ def generar_horario_cp(
         "total_bloques_asignados": asignaciones_exitosas,
         "faltan_3h": faltan_3h, # CP-SAT maneja esto internamente, devolvemos vacio
         "faltan_2h": faltan_2h,
-        "status": solver.StatusName(status)
+        "status": solver.StatusName(status),
+        "diagnostico": diagnostico_datos,
     }
 
 

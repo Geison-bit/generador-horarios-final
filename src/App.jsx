@@ -11,6 +11,7 @@ import HorarioTable from "./components/HorarioTable";
 import HorarioPorDocente from "./components/HorarioPorDocente";
 import AsignacionDocentesPage from "./pages/AsignacionDocentesPage";
 import AulasForm from "./components/AulasForm";
+import SeccionesForm from "./components/SeccionesForm";
 
 // Panel de restricciones
 import RestriccionesPanel from "./components/RestriccionesPanel";
@@ -56,6 +57,14 @@ function App() {
           element={
             <ProtectedRoute>
               <AsignacionDocentesPage />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/secciones"
+          element={
+            <ProtectedRoute>
+              <SeccionesForm />
             </ProtectedRoute>
           }
         />

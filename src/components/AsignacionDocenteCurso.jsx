@@ -1,16 +1,14 @@
-// src/components/AsignacionDocenteCurso.jsx
 import { useEffect, useMemo, useState } from "react";
 import { useLocation } from "react-router-dom";
 import { useDocentes } from "../context(CONTROLLER)/DocenteContext";
 import { supabase } from "../supabaseClient";
 import Breadcrumbs from "../components/Breadcrumbs";
-
-// 🔎 Iconografía coherente con tus otras vistas (lucide-react)
 import {
   AlertTriangle,
   BarChart3,
   ClipboardList,
   Clock8,
+  Layers3,
   Loader2,
   Plus,
   Save,
@@ -19,20 +17,41 @@ import {
   Users,
 } from "lucide-react";
 
-const grados = ["1°", "2°", "3°", "4°", "5°"]; // 1..5 (ids 1..5)
+const GRADOS_FALLBACK = [
+  { id: 1, grado_id: 1, label: "1°" },
+  { id: 2, grado_id: 2, label: "2°" },
+  { id: 3, grado_id: 3, label: "3°" },
+  { id: 4, grado_id: 4, label: "4°" },
+  { id: 5, grado_id: 5, label: "5°" },
+];
+
+const hasMissingColumn = (error, column) =>
+  error?.code === "42703" || new RegExp(`column .*${column}`, "i").test(error?.message || "");
+
+const hasMissingTable = (error) => error?.code === "42P01";
+
+const labelSeccion = (s) => {
+  const grado = s.grados?.nombre || `${s.grados?.ordinal || s.grado_id}°`;
+  return `${grado} ${s.nombre}`;
+};
+
+const sortTargets = (items) =>
+  [...items].sort((a, b) => {
+    const seccionCmp = String(a.nombre || "").localeCompare(String(b.nombre || ""));
+    if (seccionCmp !== 0) return seccionCmp;
+    const ao = a.grados?.ordinal ?? a.grado_id;
+    const bo = b.grados?.ordinal ?? b.grado_id;
+    return ao - bo;
+  });
 
 export default function AsignacionDocenteCurso() {
-  const {
-    docentes,
-    setDocentes,
-    asignaciones,
-    setAsignaciones,
-    horasCursos,
-    setHorasCursos,
-  } = useDocentes();
+  const { docentes, setDocentes, asignaciones, setAsignaciones, horasCursos, setHorasCursos } =
+    useDocentes();
 
   const [docentesEspecializados, setDocentesEspecializados] = useState({});
   const [cursos, setCursos] = useState([]);
+  const [secciones, setSecciones] = useState([]);
+  const [usaSecciones, setUsaSecciones] = useState(false);
   const [nuevoCurso, setNuevoCurso] = useState("");
   const [bloquesUsados, setBloquesUsados] = useState(0);
   const [limiteBloques, setLimiteBloques] = useState(200);
@@ -49,7 +68,30 @@ export default function AsignacionDocenteCurso() {
   const nivel = new URLSearchParams(useLocation().search).get("nivel") || "Secundaria";
   const nivelSeguro = nivel || "Secundaria";
 
-  // ------- Carga inicial (versiones) -------
+  const targets = useMemo(() => {
+    if (usaSecciones && secciones.length) {
+      return sortTargets(secciones).map((s) => ({
+        id: s.id,
+        grado_id: s.grado_id,
+        seccion_id: s.id,
+        seccion_nombre: s.nombre,
+        label: labelSeccion(s),
+      }));
+    }
+    return GRADOS_FALLBACK.map((g) => ({ ...g, seccion_id: null }));
+  }, [usaSecciones, secciones]);
+
+  const targetGroups = useMemo(() => {
+    if (!usaSecciones) return [{ nombre: "Grados", items: targets }];
+    const groups = new Map();
+    targets.forEach((target) => {
+      const key = target.seccion_nombre || "Sin seccion";
+      if (!groups.has(key)) groups.set(key, []);
+      groups.get(key).push(target);
+    });
+    return Array.from(groups.entries()).map(([nombre, items]) => ({ nombre, items }));
+  }, [targets, usaSecciones]);
+
   useEffect(() => {
     (async () => {
       setLoading(true);
@@ -58,7 +100,7 @@ export default function AsignacionDocenteCurso() {
         await cargarVersiones();
       } catch (e) {
         console.error(e);
-        setError("No se pudo cargar la información inicial.");
+        setError("No se pudo cargar la informacion inicial.");
       } finally {
         setLoading(false);
       }
@@ -66,24 +108,16 @@ export default function AsignacionDocenteCurso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelSeguro]);
 
-  // ------- Refrescar por versión -------
   useEffect(() => {
     (async () => {
       setLoading(true);
       setError("");
       try {
-        await Promise.all([
-          cargarDocentes(),
-          cargarDocentesConEspecialidad(),
-          cargarCursos(),
-          cargarHorasCursoGrado(),
-          cargarDivisionesHoras(),
-          cargarAsignacionesExistentes(),
-          cargarLimiteBloques(),
-        ]);
+        await Promise.all([cargarDocentes(), cargarDocentesConEspecialidad(), cargarCursos()]);
+        await cargarSecciones();
       } catch (e) {
         console.error(e);
-        setError("No se pudo cargar la información inicial.");
+        setError("No se pudo cargar la informacion inicial.");
       } finally {
         setLoading(false);
       }
@@ -91,21 +125,38 @@ export default function AsignacionDocenteCurso() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [nivelSeguro, versionNum]);
 
-  // ------- Recalcular bloques usados -------
+  useEffect(() => {
+    (async () => {
+      if (!targets.length) return;
+      setLoading(true);
+      try {
+        await Promise.all([
+          cargarHorasCursoTarget(),
+          cargarDivisionesHoras(),
+          cargarAsignacionesExistentes(),
+          cargarLimiteBloques(),
+        ]);
+      } catch (e) {
+        console.error(e);
+        setError("No se pudieron cargar horas o asignaciones.");
+      } finally {
+        setLoading(false);
+      }
+    })();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [targets.length, usaSecciones, nivelSeguro, versionNum]);
+
   useEffect(() => {
     let total = 0;
     for (const curso of cursos) {
       const cursoId = curso.id;
       if (horasCursos[cursoId]) {
-        for (const gradoId in horasCursos[cursoId]) {
-          total += horasCursos[cursoId][gradoId] || 0;
-        }
+        for (const targetId in horasCursos[cursoId]) total += horasCursos[cursoId][targetId] || 0;
       }
     }
     setBloquesUsados(total);
   }, [horasCursos, cursos]);
 
-  // ------- Derivados -------
   const progresoBloques = useMemo(() => {
     const total = Math.max(limiteBloques, 1);
     return Math.min(100, Math.round((bloquesUsados / total) * 100));
@@ -114,9 +165,9 @@ export default function AsignacionDocenteCurso() {
   const { resumenHoras, docentesFiltrados } = useMemo(() => {
     const contador = {};
     for (const cursoId in asignaciones) {
-      for (const gradoId in asignaciones[cursoId]) {
-        const { docente_id } = asignaciones[cursoId][gradoId];
-        const horas = horasCursos[cursoId]?.[gradoId] || 0;
+      for (const targetId in asignaciones[cursoId]) {
+        const { docente_id } = asignaciones[cursoId][targetId];
+        const horas = horasCursos[cursoId]?.[targetId] || 0;
         if (!contador[docente_id]) contador[docente_id] = 0;
         contador[docente_id] += horas;
       }
@@ -127,53 +178,119 @@ export default function AsignacionDocenteCurso() {
     return { resumenHoras: contador, docentesFiltrados: filtrados };
   }, [asignaciones, horasCursos, docentes, nivelSeguro, versionNum]);
 
-  // ------- Supabase fetchers -------
+  const resumenPorGrupo = useMemo(() => {
+    const bloquesPorColumna = Math.max(1, Math.round(limiteBloques / Math.max(targets.length, 1)));
+    return targetGroups.map((group) => {
+      const targetIds = new Set(group.items.map((target) => String(target.id)));
+      const horasDocente = {};
+      let bloques = 0;
+
+      for (const cursoId in horasCursos) {
+        for (const targetId in horasCursos[cursoId] || {}) {
+          if (!targetIds.has(String(targetId))) continue;
+          bloques += Number(horasCursos[cursoId][targetId] || 0);
+        }
+      }
+
+      for (const cursoId in asignaciones) {
+        for (const targetId in asignaciones[cursoId] || {}) {
+          if (!targetIds.has(String(targetId))) continue;
+          const docenteId = asignaciones[cursoId][targetId]?.docente_id;
+          const horas = Number(horasCursos[cursoId]?.[targetId] || 0);
+          if (!docenteId || horas <= 0) continue;
+          horasDocente[docenteId] = (horasDocente[docenteId] || 0) + horas;
+        }
+      }
+
+      const limite = bloquesPorColumna * Math.max(group.items.length, 1);
+      const progreso = Math.min(100, Math.round((bloques / Math.max(limite, 1)) * 100));
+      return {
+        ...group,
+        bloques,
+        limite,
+        progreso,
+        horasDocente,
+      };
+    });
+  }, [targetGroups, horasCursos, asignaciones, limiteBloques, targets.length]);
+
   async function cargarVersiones() {
-    const { data, error } = await supabase
+    const { data, error: versionError } = await supabase
       .from("franjas_horarias")
       .select("version_num")
       .eq("nivel", nivelSeguro);
+    if (versionError) throw versionError;
 
-    if (!error && data?.length) {
-      const unique = [...new Set(data.map((d) => d.version_num))].sort((a, b) => a - b);
-      setVersions(unique);
-      if (!unique.includes(versionNum)) setVersionNum(unique[0]);
-    } else {
-      setVersions([1]);
-      setVersionNum(1);
+    const unique = data?.length
+      ? [...new Set(data.map((d) => d.version_num))].sort((a, b) => a - b)
+      : [1];
+    setVersions(unique);
+    if (!unique.includes(versionNum)) setVersionNum(unique[0]);
+  }
+
+  async function cargarSecciones() {
+    const [gradosResp, seccionesResp] = await Promise.all([
+      supabase
+        .from("grados")
+        .select("id, nombre, ordinal")
+        .eq("nivel", nivelSeguro)
+        .order("ordinal", { ascending: true }),
+      supabase
+        .from("secciones")
+        .select("id, grado_id, nombre, nivel, version_num, activo")
+        .eq("nivel", nivelSeguro)
+        .eq("version_num", versionNum),
+    ]);
+
+    const { data, error: seccionesError } = seccionesResp;
+
+    if (hasMissingTable(seccionesError)) {
+      setUsaSecciones(false);
+      setSecciones([]);
+      return;
     }
+    if (gradosResp.error) throw gradosResp.error;
+    if (seccionesError) throw seccionesError;
+
+    const gradosById = new Map((gradosResp.data || []).map((g) => [g.id, g]));
+    const activas = (data || [])
+      .filter((s) => s.activo !== false)
+      .map((s) => ({ ...s, grados: gradosById.get(s.grado_id) || null }));
+    setSecciones(activas);
+    setUsaSecciones(activas.length > 0);
   }
 
   async function cargarLimiteBloques() {
-    const { data, error } = await supabase
+    const { data, error: franjasError } = await supabase
       .from("franjas_horarias")
       .select("bloque")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum);
-    if (error) console.error(error);
-    const bloquesPorDia = data?.length || 8; // fallback 8
-    setLimiteBloques(bloquesPorDia * 5 * grados.length);
+    if (franjasError) throw franjasError;
+    const bloquesPorDia = data?.length || 8;
+    setLimiteBloques(bloquesPorDia * 5 * Math.max(targets.length, 1));
   }
 
   async function cargarDocentes() {
-    const { data, error } = await supabase
+    const { data, error: docentesError } = await supabase
       .from("docentes")
-      .select("id, nombre, jornada_total, nivel, version_num")
+      .select("id, nombre, apellido, jornada_total, nivel, version_num")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum)
       .eq("activo", true);
-    if (error) console.error(error);
+    if (docentesError) throw docentesError;
     setDocentes(data || []);
   }
 
   async function cargarDocentesConEspecialidad() {
-    const { data, error } = await supabase
+    const { data, error: docentesError } = await supabase
       .from("docentes")
       .select("id, nombre, docente_curso(curso_id), nivel")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum)
       .eq("activo", true);
-    if (error) console.error(error);
+    if (docentesError) throw docentesError;
+
     const mapa = {};
     for (const d of data || []) {
       mapa[d.id] = {
@@ -185,110 +302,163 @@ export default function AsignacionDocenteCurso() {
   }
 
   async function cargarCursos() {
-    const { data, error } = await supabase
+    const { data, error: cursosError } = await supabase
       .from("cursos")
       .select("id, nombre, nivel")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum)
       .order("nombre", { ascending: true });
-    if (error) console.error(error);
+    if (cursosError) throw cursosError;
     setCursos(data || []);
   }
 
-  async function cargarHorasCursoGrado() {
-    const { data, error } = await supabase
+  async function cargarHorasCursoTarget() {
+    let query = supabase
       .from("horas_curso_grado")
-      .select("horas, curso_id, grado_id")
+      .select("horas, curso_id, grado_id, seccion_id")
+      .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum);
-    if (error) console.error(error);
+    if (usaSecciones) query = query.in("seccion_id", targets.map((t) => t.seccion_id));
+
+    let { data, error: horasError } = await query;
+    if (hasMissingColumn(horasError, "seccion_id")) {
+      const fallback = await supabase
+        .from("horas_curso_grado")
+        .select("horas, curso_id, grado_id")
+        .eq("version_num", versionNum);
+      data = fallback.data;
+      horasError = fallback.error;
+    }
+    if (horasError) throw horasError;
+
     const map = {};
-    (data || []).forEach(({ curso_id, grado_id, horas }) => {
+    (data || []).forEach(({ curso_id, grado_id, seccion_id, horas }) => {
+      const targetId = usaSecciones ? seccion_id : grado_id;
+      if (!targetId) return;
       if (!map[curso_id]) map[curso_id] = {};
-      map[curso_id][grado_id] = horas;
+      map[curso_id][targetId] = horas;
     });
     setHorasCursos(map);
   }
 
   async function cargarDivisionesHoras() {
-    const { data, error } = await supabase
+    let query = supabase
       .from("horas_curso_grado_division")
-      .select("curso_id, grado_id, total_horas, patron")
+      .select("curso_id, grado_id, seccion_id, total_horas, patron")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum);
-    if (error) {
-      console.error(error);
-      setDivisionesHoras({});
-      return;
+    if (usaSecciones) query = query.in("seccion_id", targets.map((t) => t.seccion_id));
+
+    let { data, error: divError } = await query;
+    if (hasMissingColumn(divError, "seccion_id")) {
+      const fallback = await supabase
+        .from("horas_curso_grado_division")
+        .select("curso_id, grado_id, total_horas, patron")
+        .eq("nivel", nivelSeguro)
+        .eq("version_num", versionNum);
+      data = fallback.data;
+      divError = fallback.error;
     }
+    if (divError) throw divError;
+
     const map = {};
-    (data || []).forEach(({ curso_id, grado_id, total_horas, patron }) => {
+    (data || []).forEach(({ curso_id, grado_id, seccion_id, total_horas, patron }) => {
+      const targetId = usaSecciones ? seccion_id : grado_id;
+      if (!targetId) return;
       if (!map[curso_id]) map[curso_id] = {};
-      map[curso_id][grado_id] = { total_horas, patron };
+      map[curso_id][targetId] = { total_horas, patron };
     });
     setDivisionesHoras(map);
   }
 
   async function cargarAsignacionesExistentes() {
-    const { data, error } = await supabase
+    let query = supabase
       .from("asignaciones")
-      .select("curso_id, grado_id, docente_id, nivel")
+      .select("curso_id, grado_id, seccion_id, docente_id, nivel")
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum);
-    if (error) console.error(error);
+    if (usaSecciones) query = query.in("seccion_id", targets.map((t) => t.seccion_id));
+
+    let { data, error: asigError } = await query;
+    if (hasMissingColumn(asigError, "seccion_id")) {
+      const fallback = await supabase
+        .from("asignaciones")
+        .select("curso_id, grado_id, docente_id, nivel")
+        .eq("nivel", nivelSeguro)
+        .eq("version_num", versionNum);
+      data = fallback.data;
+      asigError = fallback.error;
+    }
+    if (asigError) throw asigError;
+
     const map = {};
-    (data || []).forEach(({ curso_id, grado_id, docente_id }) => {
+    (data || []).forEach(({ curso_id, grado_id, seccion_id, docente_id }) => {
+      const targetId = usaSecciones ? seccion_id : grado_id;
+      if (!targetId) return;
       if (!map[curso_id]) map[curso_id] = {};
-      map[curso_id][grado_id] = { docente_id, curso_id, grado_id };
+      map[curso_id][targetId] = { docente_id, curso_id, grado_id, seccion_id };
     });
     setAsignaciones(map);
   }
 
-  // ------- Acciones -------
   async function agregarCurso() {
     if (!nuevoCurso.trim()) return;
     try {
-      const { data, error } = await supabase
+      const { data, error: cursoError } = await supabase
         .from("cursos")
         .insert({ nombre: nuevoCurso.trim(), nivel: nivelSeguro, version_num: versionNum })
         .select();
-      if (error) throw error;
-      if (data) {
-        const cursoId = data[0].id;
-        const nuevasHoras = grados.map((_, idx) => ({
+      if (cursoError) throw cursoError;
+
+      const cursoId = data?.[0]?.id;
+      if (cursoId) {
+        const nuevasHoras = targets.map((t) => ({
           curso_id: cursoId,
-          grado_id: idx + 1,
+          grado_id: t.grado_id,
+          ...(usaSecciones ? { seccion_id: t.seccion_id } : {}),
           horas: 0,
+          nivel: nivelSeguro,
           version_num: versionNum,
         }));
-        await supabase.from("horas_curso_grado").insert(nuevasHoras);
-        setNuevoCurso("");
-        await Promise.all([cargarCursos(), cargarHorasCursoGrado()]);
+        if (nuevasHoras.length) await supabase.from("horas_curso_grado").insert(nuevasHoras);
       }
+      setNuevoCurso("");
+      await Promise.all([cargarCursos(), cargarHorasCursoTarget()]);
     } catch (e) {
       console.error(e);
       setError("No se pudo agregar el curso.");
     }
   }
 
-  async function editarHoras(cursoId, gradoId, nuevaHora) {
-    const horaAnterior = horasCursos[cursoId]?.[gradoId] || 0;
+  async function editarHoras(cursoId, target, nuevaHora) {
+    const targetId = target.id;
+    const horaAnterior = horasCursos[cursoId]?.[targetId] || 0;
     const nuevaHoraInt = parseInt(nuevaHora || 0, 10);
     const bloquesActualizados = bloquesUsados - horaAnterior + nuevaHoraInt;
 
     if (bloquesActualizados > limiteBloques) {
-      alert(`⚠️ No puedes exceder los ${limiteBloques} bloques totales disponibles.`);
+      alert(`No puedes exceder los ${limiteBloques} bloques totales disponibles.`);
       return;
     }
 
-    await supabase
+    const payload = {
+      curso_id: cursoId,
+      grado_id: target.grado_id,
+      ...(usaSecciones ? { seccion_id: target.seccion_id } : {}),
+      horas: nuevaHoraInt,
+      nivel: nivelSeguro,
+      version_num: versionNum,
+    };
+    const conflict = usaSecciones ? "curso_id,seccion_id,nivel,version_num" : "curso_id,grado_id,nivel";
+    const { error: horasError } = await supabase
       .from("horas_curso_grado")
-      .upsert({
-        curso_id: cursoId,
-        grado_id: gradoId,
-        horas: nuevaHoraInt,
-        version_num: versionNum,
-      });
-    await cargarHorasCursoGrado();
+      .upsert(payload, { onConflict: conflict });
+    if (horasError) {
+      console.error(horasError);
+      alert("No se pudieron guardar las horas.");
+      return;
+    }
+    await cargarHorasCursoTarget();
   }
 
   const patronesPorTotal = (total) => {
@@ -303,91 +473,89 @@ export default function AsignacionDocenteCurso() {
     return [String(t)];
   };
 
-  const abrirModalDivision = (cursoId, gradoId) => {
-    const totalHoras = horasCursos[cursoId]?.[gradoId] || 0;
+  const abrirModalDivision = (cursoId, target) => {
+    const totalHoras = horasCursos[cursoId]?.[target.id] || 0;
     if (!totalHoras || totalHoras <= 0) {
-      alert("Primero define las horas de este curso/grade.");
+      alert("Primero define las horas de este curso/seccion.");
       return;
     }
-    const divisionActual = divisionesHoras?.[cursoId]?.[gradoId];
-    const patronActual =
-      divisionActual?.total_horas === totalHoras ? divisionActual?.patron : "";
-    setDivisionTarget({ cursoId, gradoId, totalHoras });
+    const divisionActual = divisionesHoras?.[cursoId]?.[target.id];
+    const patronActual = divisionActual?.total_horas === totalHoras ? divisionActual?.patron : "";
+    setDivisionTarget({ cursoId, target, totalHoras });
     setDivisionSelected(patronActual || patronesPorTotal(totalHoras)[0] || "");
     setModalDivisionOpen(true);
   };
 
   const guardarDivision = async () => {
-    if (!divisionTarget) return;
-    const { cursoId, gradoId, totalHoras } = divisionTarget;
-    if (!divisionSelected) return;
+    if (!divisionTarget || !divisionSelected) return;
+    const { cursoId, target, totalHoras } = divisionTarget;
+    const payload = {
+      curso_id: cursoId,
+      grado_id: target.grado_id,
+      ...(usaSecciones ? { seccion_id: target.seccion_id } : {}),
+      nivel: nivelSeguro,
+      version_num: versionNum,
+      total_horas: totalHoras,
+      patron: divisionSelected,
+    };
+    const conflict = usaSecciones
+      ? "curso_id,seccion_id,nivel,version_num"
+      : "curso_id,grado_id,nivel,version_num";
+
     try {
-      await supabase
+      const { error: divError } = await supabase
         .from("horas_curso_grado_division")
-        .upsert(
-          {
-            curso_id: cursoId,
-            grado_id: gradoId,
-            nivel: nivelSeguro,
-            version_num: versionNum,
-            total_horas: totalHoras,
-            patron: divisionSelected,
-          },
-          { onConflict: "curso_id,grado_id,nivel,version_num" }
-        );
+        .upsert(payload, { onConflict: conflict });
+      if (divError) throw divError;
       setDivisionesHoras((prev) => ({
         ...prev,
         [cursoId]: {
           ...(prev[cursoId] || {}),
-          [gradoId]: { total_horas: totalHoras, patron: divisionSelected },
+          [target.id]: { total_horas: totalHoras, patron: divisionSelected },
         },
       }));
       setModalDivisionOpen(false);
       setDivisionTarget(null);
     } catch (e) {
       console.error(e);
-      alert("❌ No se pudo guardar la división. Verifica la tabla en BD.");
+      alert("No se pudo guardar la division.");
     }
   };
 
-
   async function eliminarCurso(cursoId) {
     const confirmar = window.confirm(
-      "¿Deseas eliminar este curso y todas sus asignaciones y horas? Esta acción es irreversible."
+      "Deseas eliminar este curso y todas sus asignaciones y horas? Esta accion es irreversible."
     );
     if (!confirmar) return;
 
-    const { error } = await supabase
+    const { error: cursoError } = await supabase
       .from("cursos")
       .delete()
       .eq("id", cursoId)
       .eq("version_num", versionNum);
-    if (error) {
-      console.error("Error al eliminar el curso:", error);
-      alert("❌ No se pudo eliminar el curso.");
+    if (cursoError) {
+      console.error(cursoError);
+      alert("No se pudo eliminar el curso.");
       return;
     }
 
-    alert("✅ Curso eliminado correctamente.");
-    await Promise.all([
-      cargarCursos(),
-      cargarHorasCursoGrado(),
-      cargarAsignacionesExistentes(),
-    ]);
+    await Promise.all([cargarCursos(), cargarHorasCursoTarget(), cargarAsignacionesExistentes()]);
   }
 
-  function handleAsignacion(cursoId, gradoId, docenteId) {
-    const nuevaHora = horasCursos[cursoId]?.[gradoId] || 0;
+  function handleAsignacion(cursoId, target, docenteId) {
+    const nuevaHora = horasCursos[cursoId]?.[target.id] || 0;
     const nuevoId = parseInt(docenteId, 10);
-    const actual = asignaciones[cursoId]?.[gradoId];
+    if (!nuevoId) return eliminarAsignacion(cursoId, target);
+
+    const actual = asignaciones[cursoId]?.[target.id];
     const anteriorId = actual?.docente_id;
 
     let horasActuales = 0;
     for (const cId in asignaciones) {
-      for (const gId in asignaciones[cId]) {
-        const asignacion = asignaciones[cId][gId];
-        if (asignacion.docente_id === nuevoId && !(cId == cursoId && gId == gradoId)) {
-          horasActuales += horasCursos[cId]?.[gId] || 0;
+      for (const tId in asignaciones[cId]) {
+        const asignacion = asignaciones[cId][tId];
+        if (asignacion.docente_id === nuevoId && !(cId == cursoId && tId == target.id)) {
+          horasActuales += horasCursos[cId]?.[tId] || 0;
         }
       }
     }
@@ -399,7 +567,7 @@ export default function AsignacionDocenteCurso() {
 
     if (nuevasHorasAsignadas > jornada) {
       alert(
-        `❌ ${docente?.nombre || "El docente"} ya tiene asignadas ${horasActuales} horas y su jornada es de ${jornada}. No se puede asignar más.`
+        `${docente?.nombre || "El docente"} ya tiene asignadas ${horasActuales} horas y su jornada es de ${jornada}.`
       );
       return;
     }
@@ -408,42 +576,47 @@ export default function AsignacionDocenteCurso() {
       ...prev,
       [cursoId]: {
         ...prev[cursoId],
-        [gradoId]: {
+        [target.id]: {
           docente_id: nuevoId,
           curso_id: parseInt(cursoId, 10),
-          grado_id: parseInt(gradoId, 10),
+          grado_id: target.grado_id,
+          ...(usaSecciones ? { seccion_id: target.seccion_id } : {}),
         },
       },
     }));
   }
 
-  async function eliminarAsignacion(cursoId, gradoId) {
+  async function eliminarAsignacion(cursoId, target) {
     setAsignaciones((prev) => {
       const actualizado = { ...prev };
       if (actualizado[cursoId]) {
-        delete actualizado[cursoId][gradoId];
+        delete actualizado[cursoId][target.id];
         if (Object.keys(actualizado[cursoId]).length === 0) delete actualizado[cursoId];
       }
       return actualizado;
     });
 
-    await supabase
+    let query = supabase
       .from("asignaciones")
       .delete()
       .eq("curso_id", cursoId)
-      .eq("grado_id", gradoId)
       .eq("nivel", nivelSeguro)
       .eq("version_num", versionNum);
+    query = usaSecciones ? query.eq("seccion_id", target.seccion_id) : query.eq("grado_id", target.grado_id);
+    await query;
   }
 
-  function asignarATodosLosGrados(cursoId, docenteId) {
+  function asignarATodos(cursoId, docenteId) {
+    const nuevoId = parseInt(docenteId, 10);
+    if (!nuevoId) return;
     setAsignaciones((prev) => ({
       ...prev,
-      [cursoId]: grados.reduce((acc, _, idx) => {
-        acc[idx + 1] = {
-          docente_id: parseInt(docenteId, 10),
+      [cursoId]: targets.reduce((acc, t) => {
+        acc[t.id] = {
+          docente_id: nuevoId,
           curso_id: parseInt(cursoId, 10),
-          grado_id: idx + 1,
+          grado_id: t.grado_id,
+          ...(usaSecciones ? { seccion_id: t.seccion_id } : {}),
         };
         return acc;
       }, {}),
@@ -458,14 +631,16 @@ export default function AsignacionDocenteCurso() {
       const horasPorDocente = {};
 
       for (const cursoId in asignaciones) {
-        for (const gradoId in asignaciones[cursoId]) {
-          const item = asignaciones[cursoId][gradoId];
-          const horas = horasCursos[cursoId]?.[gradoId] || 0;
+        for (const targetId in asignaciones[cursoId]) {
+          const item = asignaciones[cursoId][targetId];
+          const horas = horasCursos[cursoId]?.[targetId] || 0;
           if (!item?.docente_id || isNaN(horas) || horas <= 0) continue;
           registros.push({
             curso_id: parseInt(cursoId, 10),
-            grado_id: parseInt(gradoId, 10),
+            grado_id: item.grado_id,
+            ...(usaSecciones ? { seccion_id: item.seccion_id } : {}),
             docente_id: parseInt(item.docente_id, 10),
+            horas,
             nivel: nivelSeguro,
             version_num: versionNum,
           });
@@ -474,22 +649,12 @@ export default function AsignacionDocenteCurso() {
         }
       }
 
-      const { data: docentesConHoras, error: errorDocentes } = await supabase
-        .from("docentes")
-        .select("id, jornada_total")
-        .eq("nivel", nivelSeguro)
-        .eq("version_num", versionNum)
-        .eq("activo", true);
-      if (errorDocentes) throw errorDocentes;
-
       for (const docenteId in horasPorDocente) {
-        const docente = docentesConHoras.find((d) => d.id === parseInt(docenteId, 10));
+        const docente = docentesFiltrados.find((d) => d.id === parseInt(docenteId, 10));
         const disponible = docente?.jornada_total || 0;
         const asignadas = horasPorDocente[docenteId];
         if (asignadas > disponible) {
-          alert(
-            `❌ El docente con ID ${docenteId} tiene asignadas ${asignadas} horas, pero su jornada es de ${disponible}.`
-          );
+          alert(`El docente con ID ${docenteId} tiene ${asignadas} horas, pero su jornada es ${disponible}.`);
           setSaving(false);
           return;
         }
@@ -497,44 +662,46 @@ export default function AsignacionDocenteCurso() {
 
       const registrosHoras = [];
       for (const cursoId in horasCursos) {
-        for (const gradoId in horasCursos[cursoId]) {
-          const valor = horasCursos[cursoId][gradoId];
-          const horas = parseInt(valor, 10);
+        for (const targetId in horasCursos[cursoId]) {
+          const target = targets.find((t) => String(t.id) === String(targetId));
+          if (!target) continue;
+          const horas = parseInt(horasCursos[cursoId][targetId], 10);
           if (isNaN(horas) || horas <= 0) continue;
           registrosHoras.push({
             curso_id: parseInt(cursoId, 10),
-            grado_id: parseInt(gradoId, 10),
+            grado_id: target.grado_id,
+            ...(usaSecciones ? { seccion_id: target.seccion_id } : {}),
             horas,
             nivel: nivelSeguro,
+            version_num: versionNum,
           });
         }
       }
 
-      const { error: errorHoras } = await supabase
-        .from("horas_curso_grado")
-        .upsert(
-          registrosHoras.map((r) => ({ ...r, version_num: versionNum })),
-          { onConflict: "curso_id,grado_id,nivel" }
-        );
-      if (errorHoras) throw errorHoras;
-
-      const registrosUnicos = Array.from(
-        new Map(registros.map((r) => [`${r.curso_id}-${r.grado_id}-${r.nivel}`, r])).values()
-      );
+      const horasConflict = usaSecciones ? "curso_id,seccion_id,nivel,version_num" : "curso_id,grado_id,nivel";
+      if (registrosHoras.length) {
+        const { error: horasError } = await supabase
+          .from("horas_curso_grado")
+          .upsert(registrosHoras, { onConflict: horasConflict });
+        if (horasError) throw horasError;
+      }
 
       const registrosDivision = [];
       for (const cursoId in horasCursos) {
-        for (const gradoId in horasCursos[cursoId]) {
-          const totalHoras = parseInt(horasCursos[cursoId][gradoId], 10);
+        for (const targetId in horasCursos[cursoId]) {
+          const target = targets.find((t) => String(t.id) === String(targetId));
+          if (!target) continue;
+          const totalHoras = parseInt(horasCursos[cursoId][targetId], 10);
           if (isNaN(totalHoras) || totalHoras <= 0) continue;
-          const existente = divisionesHoras?.[cursoId]?.[gradoId];
+          const existente = divisionesHoras?.[cursoId]?.[targetId];
           const patron =
             existente?.total_horas === totalHoras && existente?.patron
               ? existente.patron
-              : (patronesPorTotal(totalHoras)[0] || String(totalHoras));
+              : patronesPorTotal(totalHoras)[0] || String(totalHoras);
           registrosDivision.push({
             curso_id: parseInt(cursoId, 10),
-            grado_id: parseInt(gradoId, 10),
+            grado_id: target.grado_id,
+            ...(usaSecciones ? { seccion_id: target.seccion_id } : {}),
             nivel: nivelSeguro,
             version_num: versionNum,
             total_horas: totalHoras,
@@ -543,34 +710,45 @@ export default function AsignacionDocenteCurso() {
         }
       }
 
-      if (registrosDivision.length > 0) {
-        const { error: errorDivision } = await supabase
+      const divisionConflict = usaSecciones
+        ? "curso_id,seccion_id,nivel,version_num"
+        : "curso_id,grado_id,nivel,version_num";
+      if (registrosDivision.length) {
+        const { error: divError } = await supabase
           .from("horas_curso_grado_division")
-          .upsert(registrosDivision, { onConflict: "curso_id,grado_id,nivel,version_num" });
-        if (errorDivision) throw errorDivision;
+          .upsert(registrosDivision, { onConflict: divisionConflict });
+        if (divError) throw divError;
       }
 
-      const { error } = await supabase
-        .from("asignaciones")
-        .upsert(registrosUnicos, { onConflict: "curso_id,grado_id,nivel,version_num" });
-      if (error) throw error;
+      const asignacionConflict = usaSecciones
+        ? "curso_id,seccion_id,nivel,version_num"
+        : "curso_id,grado_id,nivel,version_num";
+      if (registros.length) {
+        const keyFn = (r) =>
+          usaSecciones
+            ? `${r.curso_id}-${r.seccion_id}-${r.nivel}-${r.version_num}`
+            : `${r.curso_id}-${r.grado_id}-${r.nivel}-${r.version_num}`;
+        const registrosUnicos = Array.from(new Map(registros.map((r) => [keyFn(r), r])).values());
+        const { error: asigError } = await supabase
+          .from("asignaciones")
+          .upsert(registrosUnicos, { onConflict: asignacionConflict });
+        if (asigError) throw asigError;
+      }
 
-      alert("✅ Todo guardado correctamente.");
+      alert("Todo guardado correctamente.");
     } catch (e) {
       console.error(e);
-      setError("Ocurrió un error al guardar.");
-      alert("❌ Error al guardar asignaciones u horas.");
+      setError("Ocurrio un error al guardar.");
+      alert("Error al guardar asignaciones u horas.");
     } finally {
       setSaving(false);
     }
   }
 
-  // ------- Render -------
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto">
       <Breadcrumbs />
 
-      {/* ======= Encabezado principal sticky con icono ======= */}
       <div className="sticky top-0 z-30 -mx-4 md:-mx-6 mt-4 mb-4 bg-white/80 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-slate-200">
         <div className="px-4 md:px-6 py-3 max-w-7xl mx-auto">
           <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -578,29 +756,33 @@ export default function AsignacionDocenteCurso() {
               <ClipboardList className="size-6 text-blue-600" />
               <div>
                 <h1 className="text-xl md:text-2xl font-semibold text-slate-800 leading-tight">
-                  Asignación de Docentes y Horas
+                  Asignacion de Docentes y Horas
                 </h1>
-                <div className="mt-1">
-                  <div className="flex flex-wrap items-center gap-2">
-                    <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
-                      <Users className="size-3.5" />
-                      Nivel — <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
-                    </span>
-                    <div className="flex items-center gap-2">
-                      <label htmlFor="asignacion-version" className="text-xs text-slate-600">Versión</label>
-                      <select
-                        id="asignacion-version"
-                        value={versionNum}
-                        onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
-                        className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
-                      >
-                        {versions.map((v) => (
-                          <option key={v} value={v}>
-                            {v}
-                          </option>
-                        ))}
-                      </select>
-                    </div>
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                    <Users className="size-3.5" />
+                    Nivel <strong className="font-semibold text-slate-700">{nivelSeguro}</strong>
+                  </span>
+                  <span className="inline-flex items-center gap-2 rounded-full border border-slate-200 bg-slate-50 px-2.5 py-0.5 text-xs text-slate-600">
+                    <Layers3 className="size-3.5" />
+                    {usaSecciones ? "Por secciones" : "Por grados"}
+                  </span>
+                  <div className="flex items-center gap-2">
+                    <label htmlFor="asignacion-version" className="text-xs text-slate-600">
+                      Version
+                    </label>
+                    <select
+                      id="asignacion-version"
+                      value={versionNum}
+                      onChange={(e) => setVersionNum(parseInt(e.target.value, 10))}
+                      className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm"
+                    >
+                      {versions.map((v) => (
+                        <option key={v} value={v}>
+                          {v}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 </div>
               </div>
@@ -618,87 +800,92 @@ export default function AsignacionDocenteCurso() {
         </div>
       </div>
 
-      {/* Barra de estado */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
-        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+        <div className="flex flex-col gap-4">
           <div className="flex items-center gap-2 text-slate-700">
             <Users2 className="size-5" />
             <span className="text-sm">Docentes activos:</span>
             <strong>{docentesFiltrados.length}</strong>
           </div>
-          <div className="w-full md:w-1/2">
-            <div className="flex justify-between text-xs text-slate-600">
-              <span>Bloques usados</span>
-              <span>
-                {bloquesUsados} / {limiteBloques} ({progresoBloques}%)
-              </span>
-            </div>
-            <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-slate-100">
-              <div
-                className={`h-2 rounded-full ${progresoBloques >= 100 ? "bg-rose-500" : "bg-blue-600"}`}
-                style={{ width: `${progresoBloques}%` }}
-              />
-            </div>
+
+          <div className="grid gap-3 md:grid-cols-2">
+            {resumenPorGrupo.map((group) => (
+              <div key={group.nombre} className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2">
+                <div className="flex justify-between text-xs text-slate-600">
+                  <span>Bloques usados - {usaSecciones ? `Seccion ${group.nombre}` : group.nombre}</span>
+                  <span>
+                    {group.bloques} / {group.limite} ({group.progreso}%)
+                  </span>
+                </div>
+                <div className="mt-1 h-2 w-full overflow-hidden rounded-full bg-white">
+                  <div
+                    className={`h-2 rounded-full ${group.progreso >= 100 ? "bg-rose-500" : "bg-blue-600"}`}
+                    style={{ width: `${group.progreso}%` }}
+                  />
+                </div>
+              </div>
+            ))}
           </div>
         </div>
-        {progresoBloques > 100 && (
-          <p className="mt-2 flex items-center gap-2 text-sm text-rose-600">
-            <AlertTriangle className="size-4" /> No puedes exceder el límite total de bloques.
+        {!usaSecciones && (
+          <p className="mt-3 flex items-center gap-2 text-sm text-amber-700">
+            <AlertTriangle className="size-4" />
+            No hay secciones activas para esta version. Se usara el modo antiguo por grado.
           </p>
         )}
       </div>
 
-      {/* Error global */}
-      {error && (
-        <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">
-          {error}
-        </div>
-      )}
+      {error && <div className="mb-4 rounded-lg border border-rose-200 bg-rose-50 p-3 text-rose-700">{error}</div>}
 
-      {/* Crear curso */}
       <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm mb-6">
         <div className="flex flex-wrap items-center gap-2">
           <input
             type="text"
             value={nuevoCurso}
-            onChange={(e) => {
-              const valor = e.target.value;
-              const esValido = /^[a-zA-ZáéíóúÁÉÍÓÚñÑüÜ\s]{0,30}$/.test(valor);
-              if (esValido || valor === "") setNuevoCurso(valor);
-            }}
+            onChange={(e) => setNuevoCurso(e.target.value)}
             placeholder="Nombre del curso"
             className="w-64 rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-600"
           />
           <button
             onClick={agregarCurso}
-            disabled={!nuevoCurso.trim()}
+            disabled={!nuevoCurso.trim() || !targets.length}
             className="inline-flex items-center gap-2 rounded-lg bg-emerald-600 px-4 py-2 text-white shadow hover:bg-emerald-700 disabled:opacity-60"
           >
             <Plus className="size-4" /> Agregar
           </button>
-          <span
-            className={`ml-4 text-sm font-semibold ${
-              bloquesUsados > limiteBloques ? "text-rose-600" : "text-slate-700"
-            }`}
-          >
-            Bloques usados: {bloquesUsados} / {limiteBloques}
+          <span className="ml-4 text-sm font-semibold text-slate-700">
+            Columnas: {targets.length} {usaSecciones ? "secciones" : "grados"}
           </span>
         </div>
       </div>
 
-      {/* Tabla: Horas programadas */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto mb-8">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Clock8 className="size-4 text-slate-700" />
-          <h3 className="text-sm font-semibold text-slate-800">Horas programadas por curso y grado</h3>
+          <h3 className="text-sm font-semibold text-slate-800">Horas programadas por curso y seccion</h3>
         </header>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-700">
+            {usaSecciones && (
+              <tr>
+                <th className="border-t border-b border-slate-200 px-3 py-2 text-left" />
+                {targetGroups.map((group) => (
+                  <th
+                    key={group.nombre}
+                    colSpan={group.items.length}
+                    className="border-t border-b border-slate-200 bg-blue-50 px-3 py-2 text-center text-blue-800"
+                  >
+                    Seccion {group.nombre}
+                  </th>
+                ))}
+                <th className="border-t border-b border-slate-200 px-3 py-2 text-center" />
+              </tr>
+            )}
             <tr>
               <th className="border-t border-b border-slate-200 px-3 py-2 text-left">Curso</th>
-              {grados.map((g) => (
-                <th key={g} className="border-t border-b border-slate-200 px-3 py-2 text-center">
-                  {g}
+              {targets.map((target) => (
+                <th key={target.id} className="border-t border-b border-slate-200 px-3 py-2 text-center">
+                  {target.label}
                 </th>
               ))}
               <th className="border-t border-b border-slate-200 px-3 py-2 text-center">Acciones</th>
@@ -707,53 +894,44 @@ export default function AsignacionDocenteCurso() {
           <tbody>
             {cursos.map((curso) => (
               <tr key={curso.id} className="odd:bg-white even:bg-slate-50/40">
-                <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">
-                  {curso.nombre}
-                </td>
-                {grados.map((grado, idx) => (
-                  <td key={`${curso.id}-${grado}`} className="border-t border-slate-200 px-3 py-2 text-center">
+                <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">{curso.nombre}</td>
+                {targets.map((target) => (
+                  <td key={`${curso.id}-${target.id}`} className="border-t border-slate-200 px-3 py-2 text-center">
                     <input
                       type="number"
-                      min="2"
+                      min="0"
                       max="7"
-                      value={horasCursos[curso.id]?.[idx + 1] ?? ""}
+                      value={horasCursos[curso.id]?.[target.id] ?? ""}
                       onChange={(e) => {
                         const v = e.target.value;
-                        if (v === "") return editarHoras(curso.id, idx + 1, 0);
+                        if (v === "") return editarHoras(curso.id, target, 0);
                         const n = parseInt(v, 10);
-                        if (n >= 2 && n <= 7) editarHoras(curso.id, idx + 1, n);
-                        else alert("⚠️ Las horas deben estar entre 2 y 7.");
+                        if (n >= 0 && n <= 7) editarHoras(curso.id, target, n);
+                        else alert("Las horas deben estar entre 0 y 7.");
                       }}
                       className="w-16 rounded border border-slate-300 px-2 py-1 text-center focus:outline-none focus:ring-2 focus:ring-blue-600"
                     />
                     {(() => {
-                      const gradoId = idx + 1;
-                      const horasActuales = horasCursos[curso.id]?.[gradoId] || 0;
-                      const division = divisionesHoras?.[curso.id]?.[gradoId];
-                      const patron =
-                        division?.total_horas === horasActuales ? division?.patron : "";
+                      const horasActuales = horasCursos[curso.id]?.[target.id] || 0;
+                      const division = divisionesHoras?.[curso.id]?.[target.id];
+                      const patron = division?.total_horas === horasActuales ? division?.patron : "";
                       return (
                         <div className="mt-1 flex flex-col items-center gap-1">
                           <button
                             type="button"
-                            onClick={() => abrirModalDivision(curso.id, gradoId)}
+                            onClick={() => abrirModalDivision(curso.id, target)}
                             className="text-[11px] text-blue-700 hover:underline"
                           >
                             Dividir
                           </button>
-                          {patron && (
-                            <span className="text-[10px] text-slate-500">Patrón: {patron}</span>
-                          )}
+                          {patron && <span className="text-[10px] text-slate-500">Patron: {patron}</span>}
                         </div>
                       );
                     })()}
                   </td>
                 ))}
                 <td className="border-t border-slate-200 px-3 py-2 text-center">
-                  <button
-                    onClick={() => eliminarCurso(curso.id)}
-                    className="inline-flex items-center gap-1 text-rose-600 hover:underline"
-                  >
+                  <button onClick={() => eliminarCurso(curso.id)} className="inline-flex items-center gap-1 text-rose-600 hover:underline">
                     <Trash2 className="size-4" /> Eliminar
                   </button>
                 </td>
@@ -763,19 +941,33 @@ export default function AsignacionDocenteCurso() {
         </table>
       </section>
 
-      {/* Tabla: Asignación de docentes */}
       <section className="rounded-xl border border-slate-200 bg-white shadow-sm overflow-x-auto">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <Users2 className="size-4 text-slate-700" />
-          <h3 className="text-sm font-semibold text-slate-800">Asignar docentes a cada curso y grado</h3>
+          <h3 className="text-sm font-semibold text-slate-800">Asignar docentes a cada curso y seccion</h3>
         </header>
         <table className="w-full text-sm">
           <thead className="bg-slate-50 text-slate-700">
+            {usaSecciones && (
+              <tr>
+                <th className="border-t border-b border-slate-200 px-3 py-2 text-left" />
+                {targetGroups.map((group) => (
+                  <th
+                    key={group.nombre}
+                    colSpan={group.items.length}
+                    className="border-t border-b border-slate-200 bg-blue-50 px-3 py-2 text-center text-blue-800"
+                  >
+                    Seccion {group.nombre}
+                  </th>
+                ))}
+                <th className="border-t border-b border-slate-200 px-3 py-2 text-center" />
+              </tr>
+            )}
             <tr>
               <th className="border-t border-b border-slate-200 px-3 py-2 text-left">Curso</th>
-              {grados.map((g) => (
-                <th key={g} className="border-t border-b border-slate-200 px-3 py-2 text-center">
-                  {g}
+              {targets.map((target) => (
+                <th key={target.id} className="border-t border-b border-slate-200 px-3 py-2 text-center">
+                  {target.label}
                 </th>
               ))}
               <th className="border-t border-b border-slate-200 px-3 py-2 text-center">Acciones</th>
@@ -784,14 +976,12 @@ export default function AsignacionDocenteCurso() {
           <tbody>
             {cursos.map((curso) => (
               <tr key={curso.id} className="odd:bg-white even:bg-slate-50/40">
-                <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">
-                  {curso.nombre}
-                </td>
-                {grados.map((grado, idx) => (
-                  <td key={`${curso.id}-${grado}`} className="border-t border-slate-200 px-3 py-2">
+                <td className="border-t border-slate-200 px-3 py-2 font-medium text-slate-800">{curso.nombre}</td>
+                {targets.map((target) => (
+                  <td key={`${curso.id}-${target.id}`} className="border-t border-slate-200 px-3 py-2">
                     <select
-                      value={asignaciones[curso.id]?.[idx + 1]?.docente_id || ""}
-                      onChange={(e) => handleAsignacion(curso.id, idx + 1, e.target.value)}
+                      value={asignaciones[curso.id]?.[target.id]?.docente_id || ""}
+                      onChange={(e) => handleAsignacion(curso.id, target, e.target.value)}
                       className="w-full rounded border border-slate-300 bg-white px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-600"
                     >
                       <option value="">-- Asignar --</option>
@@ -803,9 +993,9 @@ export default function AsignacionDocenteCurso() {
                         ) : null
                       )}
                     </select>
-                    {asignaciones[curso.id]?.[idx + 1] && (
+                    {asignaciones[curso.id]?.[target.id] && (
                       <button
-                        onClick={() => eliminarAsignacion(curso.id, idx + 1)}
+                        onClick={() => eliminarAsignacion(curso.id, target)}
                         className="mt-1 text-xs text-rose-600 hover:underline"
                       >
                         Eliminar
@@ -816,10 +1006,10 @@ export default function AsignacionDocenteCurso() {
                 <td className="border-t border-slate-200 px-3 py-2 text-center">
                   <button
                     onClick={() => {
-                      const primerGrado = 1;
-                      const docenteId = asignaciones[curso.id]?.[primerGrado]?.docente_id;
-                      if (docenteId) asignarATodosLosGrados(curso.id, docenteId);
-                      else alert("Primero asigna al menos un grado.");
+                      const primerTarget = targets[0];
+                      const docenteId = asignaciones[curso.id]?.[primerTarget?.id]?.docente_id;
+                      if (docenteId) asignarATodos(curso.id, docenteId);
+                      else alert("Primero asigna la primera columna.");
                     }}
                     className="rounded bg-emerald-600 px-3 py-1 text-white hover:bg-emerald-700"
                   >
@@ -832,52 +1022,63 @@ export default function AsignacionDocenteCurso() {
         </table>
       </section>
 
-      {/* Resumen por docente */}
       <section className="mt-8 rounded-xl border border-slate-200 bg-white shadow-sm">
         <header className="flex items-center gap-2 p-3 border-b border-slate-200 bg-slate-50">
           <BarChart3 className="size-4 text-slate-700" />
-          <h3 className="text-sm font-semibold text-slate-800">Resumen de horas asignadas por docente</h3>
+          <h3 className="text-sm font-semibold text-slate-800">Resumen de horas asignadas por docente y seccion</h3>
         </header>
-        <div className="overflow-x-auto">
-          <table className="w-full text-sm">
-            <thead className="bg-slate-50 text-slate-700">
-              <tr>
-                <th className="border-t border-b border-slate-200 px-4 py-2 text-left">Docente</th>
-                <th className="border-t border-b border-slate-200 px-4 py-2 text-center">Horas asignadas</th>
-                <th className="border-t border-b border-slate-200 px-4 py-2 text-center">Horas faltantes</th>
-              </tr>
-            </thead>
-            <tbody>
-              {docentesFiltrados.map((docente) => {
-                const asignadas = resumenHoras[docente.id] || 0;
-                const faltantes = Math.max(docente.jornada_total - asignadas, 0);
-                return (
-                  <tr key={docente.id} className="odd:bg-white even:bg-slate-50/40">
-                    <td className="border-t border-slate-200 px-4 py-2">{docente.nombre}</td>
-                    <td className="border-t border-slate-200 px-4 py-2 text-center">{asignadas}</td>
-                    <td
-                      className={`border-t border-slate-200 px-4 py-2 text-center ${
-                        faltantes > 0 ? "text-rose-600 font-semibold" : ""
-                      }`}
-                    >
-                      {faltantes}
-                    </td>
+        <div className="space-y-6 p-3">
+          {resumenPorGrupo.map((group) => (
+            <div key={group.nombre} className="overflow-x-auto rounded-lg border border-slate-200">
+              <div className="border-b border-slate-200 bg-blue-50 px-4 py-2 text-sm font-semibold text-blue-800">
+                {usaSecciones ? `Seccion ${group.nombre}` : group.nombre}
+              </div>
+              <table className="w-full text-sm">
+                <thead className="bg-slate-50 text-slate-700">
+                  <tr>
+                    <th className="border-b border-slate-200 px-4 py-2 text-left">Docente</th>
+                    <th className="border-b border-slate-200 px-4 py-2 text-center">Horas asignadas</th>
+                    <th className="border-b border-slate-200 px-4 py-2 text-center">Horas faltantes</th>
                   </tr>
-                );
-              })}
-            </tbody>
-          </table>
+                </thead>
+                <tbody>
+                  {docentesFiltrados
+                    .filter((docente) => (group.horasDocente[docente.id] || 0) > 0)
+                    .map((docente) => {
+                      const asignadas = group.horasDocente[docente.id] || 0;
+                      const faltantes = Math.max(docente.jornada_total - asignadas, 0);
+                      const nombreDocente = `${docente.nombre || ""} ${docente.apellido || ""}`.trim();
+                      return (
+                        <tr key={`${group.nombre}-${docente.id}`} className="odd:bg-white even:bg-slate-50/40">
+                          <td className="border-t border-slate-200 px-4 py-2">{nombreDocente}</td>
+                          <td className="border-t border-slate-200 px-4 py-2 text-center">{asignadas}</td>
+                          <td className={`border-t border-slate-200 px-4 py-2 text-center ${faltantes > 0 ? "text-rose-600 font-semibold" : ""}`}>
+                            {faltantes}
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  {docentesFiltrados.every((docente) => (group.horasDocente[docente.id] || 0) === 0) && (
+                    <tr>
+                      <td colSpan={3} className="px-4 py-4 text-center text-sm text-slate-500">
+                        No hay docentes asignados en esta seccion.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          ))}
         </div>
       </section>
 
-      {/* Modal: dividir horas */}
       {modalDivisionOpen && divisionTarget && (
         <div className="fixed inset-0 z-50 grid place-items-center bg-black/30 p-4">
           <div className="w-full max-w-md rounded-xl bg-white shadow-lg border border-slate-200">
             <div className="px-4 py-3 border-b border-slate-200">
               <h3 className="text-sm font-semibold text-slate-800">Dividir horas</h3>
               <p className="text-xs text-slate-600">
-                Total: <b>{divisionTarget.totalHoras}</b> horas
+                {divisionTarget.target.label}: <b>{divisionTarget.totalHoras}</b> horas
               </p>
             </div>
             <div className="p-4 space-y-2">
@@ -892,9 +1093,6 @@ export default function AsignacionDocenteCurso() {
                   {p}
                 </label>
               ))}
-              {(patronesPorTotal(divisionTarget.totalHoras) || []).length === 0 && (
-                <p className="text-xs text-slate-500">No hay patrones disponibles.</p>
-              )}
             </div>
             <div className="p-4 flex justify-end gap-2 border-t border-slate-200">
               <button
@@ -916,15 +1114,6 @@ export default function AsignacionDocenteCurso() {
                 Guardar
               </button>
             </div>
-          </div>
-        </div>
-      )}
-
-      {loading && (
-        <div className="fixed inset-0 z-50 grid place-items-center bg-white/60">
-          <div className="rounded-xl bg-white p-4 shadow ring-1 ring-slate-200 inline-flex items-center gap-3">
-            <Loader2 className="size-5 animate-spin" />
-            <span className="text-sm text-slate-700">Cargando…</span>
           </div>
         </div>
       )}

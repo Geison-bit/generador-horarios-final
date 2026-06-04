@@ -143,7 +143,7 @@ def cargar_patrones_division(sb, nivel, version):
     try:
         rows = (
             sb.table("horas_curso_grado_division")
-            .select("curso_id,grado_id,patron")
+            .select("curso_id,grado_id,seccion_id,patron")
             .eq("nivel", nivel)
             .eq("version_num", version)
             .execute()
@@ -157,16 +157,124 @@ def cargar_patrones_division(sb, nivel, version):
         try:
             curso_id = int(r.get("curso_id"))
             grado_id = int(r.get("grado_id"))
+            seccion_id = r.get("seccion_id")
+            seccion_id = int(seccion_id) if seccion_id is not None else None
             patron_raw = str(r.get("patron") or "").strip()
             if not patron_raw:
                 continue
             partes = [int(x) for x in patron_raw.split("+") if x.strip().isdigit()]
             if not partes:
                 continue
-            patrones[f"{curso_id}-{grado_id}"] = partes
+            patrones[f"{curso_id}-{seccion_id or grado_id}"] = partes
         except Exception:
             continue
     return patrones
+
+def _get_int_key(dic, key, default=None):
+    if not isinstance(dic, dict):
+        return default
+    return dic.get(key, dic.get(str(key), default))
+
+def _columnas_horario(data, horario_dict, nivel):
+    columnas = data.get("columnas") or data.get("secciones") or []
+    salida = []
+    vistos = set()
+    for col in columnas:
+        try:
+            col_id = int(col.get("id") or col.get("seccion_id") or col.get("grado_id"))
+        except Exception:
+            continue
+        if col_id in vistos:
+            continue
+        vistos.add(col_id)
+        salida.append({
+            "id": col_id,
+            "grado_id": int(col.get("grado_id") or col_id),
+            "seccion_id": int(col["seccion_id"]) if col.get("seccion_id") is not None else None,
+            "label": col.get("label") or str(col_id),
+        })
+    if salida:
+        return salida
+
+    ids = set()
+    for bloques in (horario_dict or {}).values():
+        for grupos in (bloques or {}).values():
+            for grupo_id in (grupos or {}).keys():
+                try:
+                    ids.add(int(grupo_id))
+                except Exception:
+                    continue
+    if ids:
+        return [{"id": i, "grado_id": i, "seccion_id": None, "label": str(i)} for i in sorted(ids)]
+
+    grado_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
+    return [{"id": i, "grado_id": i, "seccion_id": None, "label": str(i)} for i in grado_ids]
+
+def _armar_registros_y_matriz(data, horario_dict, asignaciones, nivel, version_num, num_bloques):
+    columnas = _columnas_horario(data, horario_dict, nivel)
+    columnas_por_id = {c["id"]: c for c in columnas}
+    registros = []
+
+    for dia_key, bloques in (horario_dict or {}).items():
+        try:
+            dia_idx = int(dia_key)
+        except Exception:
+            continue
+        if not (0 <= dia_idx < len(DIAS)):
+            continue
+        dia_nombre = DIAS[dia_idx]
+
+        for blq_key, grupos in (bloques or {}).items():
+            try:
+                bloque_idx = int(blq_key)
+            except Exception:
+                continue
+            if not (0 <= bloque_idx < num_bloques):
+                continue
+
+            for grupo_key, curso_id in (grupos or {}).items():
+                if not isinstance(curso_id, int) or curso_id <= 0:
+                    continue
+                try:
+                    grupo_id = int(grupo_key)
+                except Exception:
+                    continue
+
+                meta = (
+                    asignaciones
+                    .get(str(curso_id), {})
+                    .get(str(grupo_id), {})
+                    or {}
+                )
+                col = columnas_por_id.get(grupo_id, {})
+                docente_id = meta.get("docente_id")
+                grado_id = meta.get("grado_id") or col.get("grado_id") or grupo_id
+                seccion_id = meta.get("seccion_id") or col.get("seccion_id")
+                if docente_id:
+                    registro = {
+                        "docente_id": int(docente_id),
+                        "curso_id": int(curso_id),
+                        "grado_id": int(grado_id),
+                        "dia": dia_nombre,
+                        "bloque": int(bloque_idx),
+                        "nivel": nivel,
+                        "version_num": int(version_num),
+                    }
+                    if seccion_id is not None:
+                        registro["seccion_id"] = int(seccion_id)
+                    registros.append(registro)
+
+    horario_lista = [
+        [
+            [
+                _get_int_key(_get_int_key(_get_int_key(horario_dict, d, {}), b, {}), col["id"], 0)
+                for col in columnas
+            ]
+            for b in range(num_bloques)
+        ]
+        for d in range(5)
+    ]
+    return registros, horario_lista, columnas
 
 @app.route("/generar-horario-general", methods=["POST", "OPTIONS"])
 @app.route("/generar-horario-general/", methods=["POST", "OPTIONS"])
@@ -245,28 +353,33 @@ def generar_horario_general():
                     except Exception:
                         continue
 
-                    # asignaciones usa claves string
-                    docente_id = (
+                    meta_asignacion = (
                         asignaciones
                         .get(str(curso_id), {})
                         .get(str(grado_id), {})
-                        .get("docente_id")
+                        or {}
                     )
+                    docente_id = meta_asignacion.get("docente_id")
+                    grado_real_id = meta_asignacion.get("grado_id") or grado_id
+                    seccion_id = meta_asignacion.get("seccion_id")
                     if docente_id:
-                        registros.append({
+                        registro = {
                             "docente_id": int(docente_id),
                             "curso_id": int(curso_id),
-                            "grado_id": int(grado_id),
+                            "grado_id": int(grado_real_id),
                             "dia": dia_nombre,           # 'lunes'..'viernes'
                             "bloque": int(bloque_idx),   # 0..7
                             "nivel": nivel,
                             "version_num": int(nueva_version)
-                        })
+                        }
+                        if seccion_id is not None:
+                            registro["seccion_id"] = int(seccion_id)
+                        registros.append(registro)
 
         # Persistencia robusta evitando duplicados
         if registros:
             # Si quieres intentar UPSERT primero (cuando tu UNIQUE sea (grado_id, dia, bloque)):
-            CONFLICT_COLS = ["grado_id", "dia", "bloque"]  # Si tu UNIQUE incluye nivel, agrega "nivel" aqui.
+            CONFLICT_COLS = ["nivel", "version_num", "dia", "bloque", "seccion_id"]
 
             if overwrite:
                 # Estrategia clara y consistente: borra e inserta todo el nivel
@@ -289,12 +402,13 @@ def generar_horario_general():
         else:
             print("[WARN] No se generaron registros (todo vacio).")
         # Devuelve matriz para el front (5 días × NUM_BLOQUES × (5 ó 6 grados))
-        grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
+        columnas = _columnas_horario(data, horario_dict, nivel)
+        columnas_ids = [c["id"] for c in columnas]
         horario_lista = [
             [
                 [
-                    (horario_dict.get(d, {}).get(b, {}).get(g, 0))
-                    for g in grados_ids
+                    _get_int_key(_get_int_key(_get_int_key(horario_dict, d, {}), b, {}), col_id, 0)
+                    for col_id in columnas_ids
                 ]
                 for b in range(num_bloques)
             ]
@@ -303,9 +417,11 @@ def generar_horario_general():
 
         return jsonify({
             "horario": horario_lista,
+            "columnas": columnas,
             "asignaciones_exitosas": resultado.get("asignaciones_exitosas", 0),
             "asignaciones_fallidas": resultado.get("asignaciones_fallidas", 0),
             "total_bloques_asignados": total_asignados,
+            "diagnostico": resultado.get("diagnostico"),
             "version": nueva_version
         }), 200
 
@@ -405,25 +521,31 @@ def generar_horario_job():
                             except Exception:
                                 continue
 
-                            docente_id = (
+                            meta_asignacion = (
                                 asignaciones
                                 .get(str(curso_id), {})
                                 .get(str(grado_id), {})
-                                .get("docente_id")
+                                or {}
                             )
+                            docente_id = meta_asignacion.get("docente_id")
+                            grado_real_id = meta_asignacion.get("grado_id") or grado_id
+                            seccion_id = meta_asignacion.get("seccion_id")
                             if docente_id:
-                                registros.append({
+                                registro = {
                                     "docente_id": int(docente_id),
                                     "curso_id": int(curso_id),
-                                    "grado_id": int(grado_id),
+                                    "grado_id": int(grado_real_id),
                                     "dia": dia_nombre,
                                     "bloque": int(bloque_idx),
                                     "nivel": nivel,
                                     "version_num": int(nueva_version)
-                                })
+                                }
+                                if seccion_id is not None:
+                                    registro["seccion_id"] = int(seccion_id)
+                                registros.append(registro)
 
                 if registros:
-                    CONFLICT_COLS = ["grado_id", "dia", "bloque"]
+                    CONFLICT_COLS = ["nivel", "version_num", "dia", "bloque", "seccion_id"]
                     if overwrite:
                         supabase.table("horarios").delete().eq("nivel", nivel).eq("version_num", nueva_version).execute()
                         supabase.table("horarios").insert(registros).execute()
@@ -438,12 +560,13 @@ def generar_horario_job():
                             else:
                                 raise
 
-                grados_ids = list(range(6, 12)) if nivel == "Primaria" else list(range(1, 6))
+                columnas = _columnas_horario(data, horario_dict, nivel)
+                columnas_ids = [c["id"] for c in columnas]
                 horario_lista = [
                     [
                         [
-                            (horario_dict.get(d, {}).get(b, {}).get(g, 0))
-                            for g in grados_ids
+                            _get_int_key(_get_int_key(_get_int_key(horario_dict, d, {}), b, {}), col_id, 0)
+                            for col_id in columnas_ids
                         ]
                         for b in range(num_bloques)
                     ]
@@ -452,9 +575,11 @@ def generar_horario_job():
 
                 payload = {
                     "horario": horario_lista,
+                    "columnas": columnas,
                     "asignaciones_exitosas": resultado.get("asignaciones_exitosas", 0),
                     "asignaciones_fallidas": resultado.get("asignaciones_fallidas", 0),
                     "total_bloques_asignados": total_asignados,
+                    "diagnostico": resultado.get("diagnostico"),
                     "version": nueva_version
                 }
                 with _jobs_lock:

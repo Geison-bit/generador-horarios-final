@@ -17,6 +17,7 @@ import {
   User,
   LogOut,
   Users2,
+  Layers3,
 } from "lucide-react";
 
 const horarioFlowCards = [
@@ -31,15 +32,24 @@ const horarioFlowCards = [
   },
   {
     step: 2,
+    to: "/secciones",
+    icon: Layers3,
+    title: "Crear Secciones",
+    desc: "Gestiona grupos como 1 A, 1 B y copia su configuracion base.",
+    ariaLabel: "Ir a gestion de secciones",
+    accent: "from-cyan-600/10 to-cyan-600/0",
+  },
+  {
+    step: 3,
     to: "/asignacion",
     icon: BookOpen,
     title: "Asignar Materias",
-    desc: "Vincula cursos con docentes y grupos segun carga horaria.",
+    desc: "Vincula cursos con docentes por seccion y carga horaria.",
     ariaLabel: "Ir a asignacion de materias",
     accent: "from-emerald-600/10 to-emerald-600/0",
   },
   {
-    step: 3,
+    step: 4,
     to: "/docentes",
     icon: Users,
     title: "Registrar Docentes",
@@ -48,7 +58,7 @@ const horarioFlowCards = [
     accent: "from-blue-600/10 to-blue-600/0",
   },
   {
-    step: 4,
+    step: 5,
     to: "/aulas",
     icon: School,
     title: "Registrar Aulas",
@@ -57,7 +67,7 @@ const horarioFlowCards = [
     accent: "from-indigo-700/10 to-indigo-700/0",
   },
   {
-    step: 5,
+    step: 6,
     to: "/restricciones",
     icon: Ban,
     title: "Disponibilidad del Profesor",
@@ -66,7 +76,7 @@ const horarioFlowCards = [
     accent: "from-rose-600/10 to-rose-600/0",
   },
   {
-    step: 6,
+    step: 7,
     to: "/restricciones-panel",
     icon: Ban,
     title: "Panel de Restricciones",
@@ -75,7 +85,7 @@ const horarioFlowCards = [
     accent: "from-fuchsia-600/10 to-fuchsia-600/0",
   },
   {
-    step: 7,
+    step: 8,
     to: "/horario",
     icon: CalendarDays,
     title: "Horario General",
@@ -84,7 +94,7 @@ const horarioFlowCards = [
     accent: "from-violet-600/10 to-violet-600/0",
   },
   {
-    step: 8,
+    step: 9,
     to: "/horario-docente",
     icon: IdCard,
     title: "Horario por Docente",
@@ -96,7 +106,7 @@ const horarioFlowCards = [
 
 const adminCards = [
   {
-    step: 9,
+    step: 10,
     to: "/admin/usuarios/crear",
     icon: UserPlus,
     title: "Crear Usuario",
@@ -105,7 +115,7 @@ const adminCards = [
     accent: "from-emerald-600/10 to-emerald-600/0",
   },
   {
-    step: 10,
+    step: 11,
     to: "/admin/cuentas",
     icon: Users2,
     title: "Gestion de Cuentas",
@@ -114,7 +124,7 @@ const adminCards = [
     accent: "from-cyan-600/10 to-cyan-600/0",
   },
   {
-    step: 11,
+    step: 12,
     to: "/admin/docentes",
     icon: UserCog,
     title: "Gestion de Docentes",
@@ -123,7 +133,7 @@ const adminCards = [
     accent: "from-sky-600/10 to-sky-600/0",
   },
   {
-    step: 12,
+    step: 13,
     to: "/admin/auditoria",
     icon: FileSearch,
     title: "Bitacora de Auditoria",
@@ -213,7 +223,7 @@ export default function Home() {
         <div className="mb-5 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700 md:grid-cols-2">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-              1-8
+              1-9
             </span>
             <div>
               <p className="font-semibold text-slate-800">Proceso de generacion de horarios</p>
@@ -222,7 +232,7 @@ export default function Home() {
           </div>
           <div className="flex items-start gap-3">
             <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
-              9-12
+              10-13
             </span>
             <div>
               <p className="font-semibold text-slate-800">Seguridad y administracion</p>

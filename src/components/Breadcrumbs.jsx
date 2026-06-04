@@ -4,17 +4,18 @@ import { Home, ChevronRight, GraduationCap } from "lucide-react";
 
 const RUTAS = [
   { step: 1, label: "Franjas Horarias", path: "/franjas", group: "horarios" },
-  { step: 2, label: "Asignar Materias", path: "/asignacion", group: "horarios" },
-  { step: 3, label: "Registrar Docentes", path: "/docentes", group: "horarios" },
-  { step: 4, label: "Registrar Aulas", path: "/aulas", group: "horarios" },
-  { step: 5, label: "Disponibilidad", path: "/restricciones", group: "horarios" },
-  { step: 6, label: "Panel de restricciones", path: "/restricciones-panel", group: "horarios" },
-  { step: 7, label: "Horario General", path: "/horario", group: "horarios" },
-  { step: 8, label: "Horario por Docente", path: "/horario-docente", group: "horarios" },
-  { step: 9, label: "Crear Usuario", path: "/admin/usuarios/crear", group: "admin" },
-  { step: 10, label: "Gestion de Cuentas", path: "/admin/cuentas", group: "admin" },
-  { step: 11, label: "Gestion de Docentes", path: "/admin/docentes", group: "admin" },
-  { step: 12, label: "Bitacora de Auditoria", path: "/admin/auditoria", group: "admin" },
+  { step: 2, label: "Secciones", path: "/secciones", group: "horarios" },
+  { step: 3, label: "Asignar Materias", path: "/asignacion", group: "horarios" },
+  { step: 4, label: "Registrar Docentes", path: "/docentes", group: "horarios" },
+  { step: 5, label: "Registrar Aulas", path: "/aulas", group: "horarios" },
+  { step: 6, label: "Disponibilidad", path: "/restricciones", group: "horarios" },
+  { step: 7, label: "Panel de restricciones", path: "/restricciones-panel", group: "horarios" },
+  { step: 8, label: "Horario General", path: "/horario", group: "horarios" },
+  { step: 9, label: "Horario por Docente", path: "/horario-docente", group: "horarios" },
+  { step: 10, label: "Crear Usuario", path: "/admin/usuarios/crear", group: "admin" },
+  { step: 11, label: "Gestion de Cuentas", path: "/admin/cuentas", group: "admin" },
+  { step: 12, label: "Gestion de Docentes", path: "/admin/docentes", group: "admin" },
+  { step: 13, label: "Bitacora de Auditoria", path: "/admin/auditoria", group: "admin" },
 ];
 
 function getChipClasses(group, activo) {

@@ -1,6 +1,10 @@
 // src/services/restriccionesService.js
 import { supabase } from "../supabaseClient";
 
+const isMissingVersionColumn = (error) =>
+  error?.code === "42703" ||
+  /column .*version_num/i.test(error?.message || "");
+
 /**
  * Lee el catálogo con columnas EXACTAS de tu esquema.
  * Sin .order() (evitamos 400 si algún entorno no la tiene) y luego
@@ -26,18 +30,48 @@ async function safeSelectCatalog() {
  * Lee overrides del nivel y normaliza a {regla_key, aplica, nivel}.
  * Tu tabla usa 'regla_key' (confirmado).
  */
-async function safeSelectOverrides(nivel) {
-  const { data, error } = await supabase
+async function safeSelectOverrides(nivel, versionNum = null) {
+  const selectCols = versionNum != null
+    ? "regla_key, aplica, nivel, version_num"
+    : "regla_key, aplica, nivel";
+
+  let query = supabase
     .from("restricciones_overrides")
-    .select("regla_key, aplica, nivel")
+    .select(selectCols)
     .eq("nivel", nivel);
 
-  if (error) throw error;
-  return (data || []).map((r) => ({
-    regla_key: r.regla_key,
-    aplica: r.aplica,
-    nivel: r.nivel,
-  }));
+  if (versionNum != null) {
+    query = query.eq("version_num", versionNum);
+  }
+
+  const { data, error } = await query;
+
+  if (!error) {
+    return (data || []).map((r) => ({
+      regla_key: r.regla_key,
+      aplica: r.aplica,
+      nivel: r.nivel,
+      version_num: r.version_num ?? null,
+    }));
+  }
+
+  if (isMissingVersionColumn(error)) {
+    const fallback = await supabase
+      .from("restricciones_overrides")
+      .select("regla_key, aplica, nivel")
+      .eq("nivel", nivel);
+
+    if (fallback.error) throw fallback.error;
+
+    return (fallback.data || []).map((r) => ({
+      regla_key: r.regla_key,
+      aplica: r.aplica,
+      nivel: r.nivel,
+      version_num: null,
+    }));
+  }
+
+  throw error;
 }
 
 /**
@@ -50,32 +84,33 @@ const DEFAULTS_FALLBACK = [
   { key: "distribuir_en_dias_distintos", default_aplica: true, orden: 4 },
   { key: "no_puentes_docente",    default_aplica: true, orden: 5 },
   { key: "no_dias_consecutivos",  default_aplica: true, orden: 6 },
-  { key: "omitir_cursos_1h",      default_aplica: true, orden: 7 },
+  { key: "prohibir_sesiones_1h",  default_aplica: true, orden: 7 },
   { key: "limitar_carga_docente_grado", default_aplica: true, orden: 8 },
 ];
+
+export async function loadCatalogoRestricciones() {
+  const catalogo = await safeSelectCatalog();
+  const base = (catalogo && catalogo.length) ? [...catalogo] : DEFAULTS_FALLBACK;
+
+  if (base.length && Object.prototype.hasOwnProperty.call(base[0], "orden")) {
+    base.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
+  }
+
+  return base.filter((r) =>
+    Object.prototype.hasOwnProperty.call(r, "activo") ? r.activo !== false : true
+  );
+}
 
 /**
  * Devuelve { [regla_key]: boolean } con el valor efectivo (override o default).
  * - Usa 'default_aplica' si existe; si no, cae a 'por_defecto'.
  * - Filtra por 'activo' si existiera (en tu tabla no está; tolerante).
  */
-export async function loadReglasParaNivel(nivel = "Secundaria") {
-  const catalogo = await safeSelectCatalog();
-
-  const base = (catalogo && catalogo.length) ? [...catalogo] : DEFAULTS_FALLBACK;
-
-  // Orden en cliente si existe 'orden'
-  if (base.length && Object.prototype.hasOwnProperty.call(base[0], "orden")) {
-    base.sort((a, b) => (a.orden ?? 0) - (b.orden ?? 0));
-  }
-
-  // Si existiera 'activo', respétalo; en tu tabla no está.
-  const activas = base.filter((r) =>
-    Object.prototype.hasOwnProperty.call(r, "activo") ? r.activo !== false : true
-  );
+export async function loadReglasParaNivel(nivel = "Secundaria", versionNum = null) {
+  const activas = await loadCatalogoRestricciones();
 
   // Overrides normalizados
-  const ov = await safeSelectOverrides(nivel);
+  const ov = await safeSelectOverrides(nivel, versionNum);
   const overrides = new Map(ov.map((r) => [r.regla_key, r.aplica]));
 
   // Fusión
@@ -105,16 +140,15 @@ export async function loadReglasParaNivel(nivel = "Secundaria") {
  * - Inserta SOLO reglas que difieren del default
  * - Sin onConflict (no necesitas índice único)
  */
-export async function saveReglasParaNivel(nivel = "Secundaria", reglas = {}) {
+export async function saveReglasParaNivel(
+  nivel = "Secundaria",
+  reglas = {},
+  versionNum = null
+) {
   if (!nivel) throw new Error("Nivel requerido");
   if (!reglas || typeof reglas !== "object") throw new Error("Reglas inválidas");
 
-  const catalogo = await safeSelectCatalog();
-  const base = catalogo.length ? catalogo : DEFAULTS_FALLBACK;
-
-  const activos = base.filter((r) =>
-    Object.prototype.hasOwnProperty.call(r, "activo") ? r.activo !== false : true
-  );
+  const activos = await loadCatalogoRestricciones();
 
   const defaults = new Map(
     activos.map((r) => {
@@ -140,20 +174,46 @@ export async function saveReglasParaNivel(nivel = "Secundaria", reglas = {}) {
       regla_key: key,
       nivel,
       aplica: Boolean(val),
+      ...(versionNum != null ? { version_num: versionNum } : {}),
     }));
 
-  // Borrar todo lo del nivel…
-  const { error: errDel } = await supabase
+  // Borrar todo lo del nivel/version…
+  let deleteQuery = supabase
     .from("restricciones_overrides")
     .delete()
     .eq("nivel", nivel);
+
+  if (versionNum != null) {
+    deleteQuery = deleteQuery.eq("version_num", versionNum);
+  }
+
+  let { error: errDel } = await deleteQuery;
+
+  if (errDel && versionNum != null && isMissingVersionColumn(errDel)) {
+    const fallbackDelete = await supabase
+      .from("restricciones_overrides")
+      .delete()
+      .eq("nivel", nivel);
+    errDel = fallbackDelete.error;
+  }
+
   if (errDel) throw errDel;
 
   // …y reinsertar solo diferencias (si hay)
   if (difs.length > 0) {
-    const { error: errIns } = await supabase
+    let { error: errIns } = await supabase
       .from("restricciones_overrides")
       .insert(difs); // sin onConflict
+
+    if (errIns && versionNum != null && isMissingVersionColumn(errIns)) {
+      const fallbackInsert = await supabase
+        .from("restricciones_overrides")
+        .insert(
+          difs.map(({ version_num, ...rest }) => rest)
+        );
+      errIns = fallbackInsert.error;
+    }
+
     if (errIns) throw errIns;
   }
 }
@@ -174,7 +234,7 @@ export function buildRestriccionesPayload(disponibilidadMap = {}, reglas = {}) {
       distribuir_en_dias_distintos: true,
       no_puentes_docente: true,
       no_dias_consecutivos: true,
-      omitir_cursos_1h: true,
+      prohibir_sesiones_1h: true,
       limitar_carga_docente_grado: true,
       // overrides efectivos
       ...reglas,

@@ -170,6 +170,7 @@ const HorarioTable = () => {
   const [cursosDesdeDB, setCursosDesdeDB] = useState([]);
   const [horasCursosDesdeDB, setHorasCursosDesdeDB] = useState([]);
   const [aulasDesdeDB, setAulasDesdeDB] = useState([]);
+  const [seccionesDesdeDB, setSeccionesDesdeDB] = useState([]);
 
   // ediciÃ³n manual
   const [celdaActiva, setCeldaActiva] = useState(null);
@@ -194,9 +195,45 @@ const HorarioTable = () => {
   const version = Number(params.get("version")) || 1;
   const nivel = params.get("nivel") || "Secundaria";
   const storageKey = `historialHorarios:${nivel}:${version}`;
-  const grados = (nivel === "Primaria")
+  const gradosBase = (nivel === "Primaria")
     ? ["1°", "2°", "3°", "4°", "5°", "6°"]
     : ["1°", "2°", "3°", "4°", "5°"];
+  const columnasHorario = useMemo(() => {
+    const baseId = nivel === "Primaria" ? 6 : 1;
+    const seccionesActivas = (seccionesDesdeDB || [])
+      .filter((s) => s.activo !== false)
+      .sort((a, b) => {
+        const seccionCmp = String(a.nombre || "").localeCompare(String(b.nombre || ""), "es", { numeric: true });
+        if (seccionCmp !== 0) return seccionCmp;
+        return Number(a.grado_id || 0) - Number(b.grado_id || 0);
+      });
+
+    if (seccionesActivas.length > 0) {
+      return seccionesActivas.map((s) => {
+        const gradoId = Number(s.grado_id);
+        const gradoLabel = gradosBase[gradoId - baseId] || `${gradoId}°`;
+        return {
+          id: Number(s.id),
+          grado_id: gradoId,
+          seccion_id: Number(s.id),
+          seccion_nombre: s.nombre,
+          label: `${gradoLabel} ${s.nombre}`,
+        };
+      });
+    }
+
+    return gradosBase.map((label, idx) => {
+      const gradoId = baseId + idx;
+      return {
+        id: gradoId,
+        grado_id: gradoId,
+        seccion_id: null,
+        seccion_nombre: null,
+        label,
+      };
+    });
+  }, [gradosBase, nivel, seccionesDesdeDB]);
+  const grados = columnasHorario.map((col) => col.label);
   const docentesPorVersion = useMemo(
     () => (docentes || []).filter((d) => d.nivel === nivel && d.version_num === version),
     [docentes, nivel, version]
@@ -205,7 +242,7 @@ const HorarioTable = () => {
     const mapa = {};
     horasCursosDesdeDB.forEach((h) => {
       if (!mapa[h.curso_id]) mapa[h.curso_id] = {};
-      mapa[h.curso_id][h.grado_id] = h.horas;
+      mapa[h.curso_id][h.seccion_id || h.grado_id] = h.horas;
     });
     return mapa;
   }, [horasCursosDesdeDB]);
@@ -363,10 +400,17 @@ const HorarioTable = () => {
     const cargarDatos = async () => {
       const { data: asignacionesData } = await supabase
         .from("asignaciones")
-        .select("curso_id, grado_id, docente_id")
+        .select("curso_id, grado_id, seccion_id, docente_id")
         .eq("nivel", nivel)
         .eq("version_num", version);
       if (asignacionesData) setAsignacionesDesdeDB(asignacionesData);
+
+      const { data: seccionesData } = await supabase
+        .from("secciones")
+        .select("id, grado_id, nombre, nivel, version_num, activo")
+        .eq("nivel", nivel)
+        .eq("version_num", version);
+      if (seccionesData) setSeccionesDesdeDB(seccionesData);
 
       const { data: cursosData } = await supabase
         .from("cursos")
@@ -380,7 +424,7 @@ const HorarioTable = () => {
 
       const { data: horasData } = await supabase
         .from("horas_curso_grado")
-        .select("curso_id, grado_id, horas")
+        .select("curso_id, grado_id, seccion_id, horas")
         .eq("nivel", nivel)
         .eq("version_num", version);
       if (horasData) setHorasCursosDesdeDB(horasData);
@@ -411,7 +455,7 @@ const HorarioTable = () => {
         if (nivel === "Primaria") {
           let reglas = restricciones?.reglas;
           if (!reglas) {
-            try { reglas = await loadReglasParaNivel(nivel); } catch { reglas = null; }
+            try { reglas = await loadReglasParaNivel(nivel, version); } catch { reglas = null; }
           }
           setReglasEfectivas(reglas || { ...DEFAULT_REGLAS });
           setDisponibilidadEfectiva({});
@@ -447,7 +491,7 @@ const HorarioTable = () => {
 
         // 3) Reglas efectivas desde BD (catÃ¡logo + overrides)
         let reglasBD = null;
-        try { reglasBD = await loadReglasParaNivel(nivel); } catch {}
+        try { reglasBD = await loadReglasParaNivel(nivel, version); } catch {}
         setReglasEfectivas(reglasBD || { ...(restricciones?.reglas || DEFAULT_REGLAS) });
 
         setUsandoPanel(false);
@@ -455,7 +499,7 @@ const HorarioTable = () => {
         console.error("Error cargando restricciones:", e);
         setDisponibilidadEfectiva({});
         try {
-          const reglasBD = await loadReglasParaNivel(nivel);
+          const reglasBD = await loadReglasParaNivel(nivel, version);
           setReglasEfectivas(reglasBD);
         } catch {
           setReglasEfectivas({ ...(restricciones?.reglas || DEFAULT_REGLAS) });
@@ -470,10 +514,15 @@ const HorarioTable = () => {
   // --- HELPERS ---
   const indicesGradosVisibles = grados.map((_, idx) => idx);
 
+  const getColumnaHorario = (gradoIndex) => columnasHorario[gradoIndex] || null;
+
   const obtenerInfoDocente = (cursoId, gradoIndex) => {
-    const gradoId = (nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1);
+    const columna = getColumnaHorario(gradoIndex);
+    const gradoId = columna?.grado_id || ((nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1));
+    const seccionId = columna?.seccion_id;
     const asignacion = asignacionesDesdeDB.find(
-      a => a.curso_id === cursoId && a.grado_id === gradoId
+      a => a.curso_id === cursoId &&
+        (seccionId ? Number(a.seccion_id) === Number(seccionId) : Number(a.grado_id) === Number(gradoId))
     );
     if (!asignacion) return { nombre: "", aula: "" };
     const docente = docentesPorVersion.find(d => d.id === asignacion.docente_id);
@@ -520,9 +569,12 @@ const HorarioTable = () => {
   };
 
   const obtenerDocenteIdPorCursoYGrado = (cursoId, gradoIndex) => {
-    const gradoId = (nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1);
+    const columna = getColumnaHorario(gradoIndex);
+    const gradoId = columna?.grado_id || ((nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1));
+    const seccionId = columna?.seccion_id;
     const asignacion = asignacionesDesdeDB.find(
-      a => a.curso_id === cursoId && a.grado_id === gradoId
+      a => a.curso_id === cursoId &&
+        (seccionId ? Number(a.seccion_id) === Number(seccionId) : Number(a.grado_id) === Number(gradoId))
     );
     return asignacion ? asignacion.docente_id : null;
   };
@@ -568,11 +620,12 @@ const HorarioTable = () => {
 
   const handleCeldaVaciaClick = (diaIndex, bloqueIndex, gradoIndex) => {
     if (!horarioVisible) return;
-    const gradoId = (nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1);
+    const columna = getColumnaHorario(gradoIndex);
+    const targetId = columna?.id || ((nivel === "Primaria") ? (gradoIndex + 6) : (gradoIndex + 1));
 
     const cursosConHorasFaltantes = Object.entries(horasCursosPorVersion || {})
       .filter(([_, horasPorGrado]) => {
-        const horasEsperadas = horasPorGrado?.[gradoId] || 0;
+        const horasEsperadas = horasPorGrado?.[targetId] || 0;
         const horasAsignadas = contarHorasAsignadas(parseInt(_, 10), gradoIndex);
         return horasEsperadas > horasAsignadas;
       })
@@ -706,6 +759,45 @@ const HorarioTable = () => {
     return nuevo;
   };
 
+  const formatearDiagnostico = (diagnostico) => {
+    if (!diagnostico) return "";
+    const columnasPorId = new Map(columnasHorario.map((col) => [Number(col.id), col]));
+    const docentesPorId = new Map(docentesPorVersion.map((doc) => [Number(doc.id), doc]));
+    const lineas = [];
+
+    (diagnostico.grupos || [])
+      .filter((g) => (g.problemas || []).length > 0)
+      .slice(0, 8)
+      .forEach((g) => {
+        const col = columnasPorId.get(Number(g.grupo));
+        const label = col?.label || `grupo ${g.grupo}`;
+        lineas.push(
+          `${label}: ${g.total_horas}/${g.capacidad} bloques. ${(g.problemas || []).join("; ")}`
+        );
+      });
+
+    (diagnostico.docentes || []).slice(0, 8).forEach((d) => {
+      const doc = docentesPorId.get(Number(d.docente));
+      const nombre = doc ? `${doc.nombre || ""} ${doc.apellido || ""}`.trim() : `docente ${d.docente}`;
+      lineas.push(
+        `${nombre}: ${d.total_horas}/${d.bloques_libres} bloques libres. ${(d.problemas || []).join("; ")}`
+      );
+    });
+
+    (diagnostico.docente_grupo || []).slice(0, 8).forEach((dg) => {
+      const doc = docentesPorId.get(Number(dg.docente));
+      const col = columnasPorId.get(Number(dg.grupo));
+      const nombre = doc ? `${doc.nombre || ""} ${doc.apellido || ""}`.trim() : `docente ${dg.docente}`;
+      const label = col?.label || `grupo ${dg.grupo}`;
+      lineas.push(`${nombre} en ${label}: ${(dg.problemas || []).join("; ")}`);
+    });
+
+    if (lineas.length === 0 && Array.isArray(diagnostico.resumen)) {
+      lineas.push(...diagnostico.resumen.slice(0, 8));
+    }
+    return lineas.length ? `\n\nDiagnóstico:\n- ${lineas.join("\n- ")}` : "";
+  };
+
   const generarHorario = async () => {
     const generationStartedAt = performance.now();
     setCargando(true);
@@ -716,18 +808,18 @@ const HorarioTable = () => {
     try {
       const docentesFiltrados = docentesPorVersion;
 
-      // filtrar asignaciones por nivel
-      const asignacionesFiltradas = Object.fromEntries(
-        Object.entries(asignaciones || {}).map(([cursoId, gradosObj]) => [
-          cursoId,
-          Object.fromEntries(
-            Object.entries(gradosObj || {}).filter(([gradoId]) => {
-              const g = parseInt(gradoId, 10);
-              return (nivel === "Primaria") ? g >= 6 : g <= 5;
-            })
-          ),
-        ])
-      );
+      const targetIds = new Set(columnasHorario.map((col) => Number(col.id)));
+      const asignacionesFiltradas = {};
+      (asignacionesDesdeDB || []).forEach((a) => {
+        const targetId = Number(a.seccion_id || a.grado_id);
+        if (!targetIds.has(targetId)) return;
+        if (!asignacionesFiltradas[a.curso_id]) asignacionesFiltradas[a.curso_id] = {};
+        asignacionesFiltradas[a.curso_id][targetId] = {
+          docente_id: a.docente_id,
+          grado_id: a.grado_id,
+          seccion_id: a.seccion_id || null,
+        };
+      });
 
       // Si la regla de disponibilidad estÃ¡ OFF, no enviamos disponibilidad
       const disponibilidadParaEnviar = reglasEfectivas.disponibilidad_docente
@@ -753,6 +845,7 @@ const HorarioTable = () => {
         asignaciones: asignacionesFiltradas,
         restricciones: payloadRestricciones,
         horasCursos: horasCursosPorVersion || {},
+        columnas: columnasHorario,
         nivel,
         version,
         onProgress: (pct, stage) => {
@@ -763,7 +856,10 @@ const HorarioTable = () => {
       });
 
       if (!resultado?.horario || esHorarioVacio(resultado.horario)) {
-        throw new Error("El generador no retornÃ³ una asignaciÃ³n vÃ¡lida (horario vacÃ­o).");
+        throw new Error(
+          "El modelo no encontro una solucion factible con los datos actuales." +
+          formatearDiagnostico(resultado?.diagnostico)
+        );
       }
 
       progresoObjetivoRef.current = 100;
@@ -805,18 +901,16 @@ const HorarioTable = () => {
       return { asignados: 0, totales: 0, porcentaje: "0.0" };
     }
 
-    const gradoIdBase = (nivel === "Primaria") ? 6 : 1;
-
     // 1) Requeridas por par (curso, grado) + total
     const requeridasPorPar = new Map();
     let totales = 0;
     for (const [cursoIdStr, byGrado] of Object.entries(horasCursosPorVersion || {})) {
       const cursoId = Number(cursoIdStr);
-      for (let i = 0; i < grados.length; i++) {
-        const gradoId = gradoIdBase + i;
-        const req = byGrado?.[gradoId] || 0;
+      for (let i = 0; i < columnasHorario.length; i++) {
+        const targetId = columnasHorario[i]?.id;
+        const req = byGrado?.[targetId] || 0;
         if (req > 0) {
-          requeridasPorPar.set(`${cursoId}-${gradoId}`, req);
+          requeridasPorPar.set(`${cursoId}-${targetId}`, req);
           totales += req;
         }
       }
@@ -831,8 +925,8 @@ const HorarioTable = () => {
         for (let g = 0; g < (bloque?.length || 0); g++) {
           const cursoId = bloque[g] || 0;
           if (cursoId > 0) {
-            const gradoId = gradoIdBase + g;
-            const key = `${cursoId}-${gradoId}`;
+            const targetId = columnasHorario[g]?.id;
+            const key = `${cursoId}-${targetId}`;
             if (requeridasPorPar.has(key)) {
               asignadasPorPar.set(key, (asignadasPorPar.get(key) || 0) + 1);
             }
@@ -850,7 +944,7 @@ const HorarioTable = () => {
 
     const porcentaje = totales > 0 ? ((asignados / totales) * 100).toFixed(1) : "0.0";
     return { asignados, totales, porcentaje };
-  }, [horarioVisible, horasCursosPorVersion, grados, nivel]);
+  }, [horarioVisible, horasCursosPorVersion, grados, columnasHorario]);
 
   const actualizarHistorialDeEdicion = (nuevoHorario) => {
     const nuevoStack = historyStack.slice(0, historyPointer + 1);
@@ -1530,10 +1624,9 @@ const exportarExcel = () => {
               </thead>
               <tbody>
                 {cursosDesdeDB.map(curso => {
-                  const gradoIdBase = (nivel === "Primaria") ? 6 : 1;
                   const horasFaltantesRow = grados.map((_, gradoIndex) => {
-                    const gradoId = gradoIdBase + gradoIndex;
-                    const esperadas = horasCursosPorVersion?.[curso.id]?.[gradoId] || 0;
+                    const targetId = columnasHorario[gradoIndex]?.id;
+                    const esperadas = horasCursosPorVersion?.[curso.id]?.[targetId] || 0;
                     const asignadas = contarHorasAsignadas(curso.id, gradoIndex);
                     const faltantes = esperadas - asignadas;
                     return { faltantes, esperadas };

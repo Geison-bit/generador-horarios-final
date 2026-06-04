@@ -102,9 +102,11 @@ export const DocenteProvider = ({ children }) => {
   }, [refresh]);
 
   // =================== Carga de REGLAS por nivel ===================
-  const cargarReglas = useCallback(async () => {
+  const cargarReglas = useCallback(async (options = {}) => {
     try {
-      const reglasActivas = await loadReglasParaNivel(nivelSeleccionado);
+      const nivelObjetivo = options.nivel ?? nivelSeleccionado;
+      const versionObjetivo = options.versionNum ?? null;
+      const reglasActivas = await loadReglasParaNivel(nivelObjetivo, versionObjetivo);
       setReglas(reglasActivas || {});
     } catch (e) {
       console.error("❌ Error al cargar reglas:", e);
@@ -118,8 +120,8 @@ export const DocenteProvider = ({ children }) => {
   }, [cargarReglas]);
 
   // Llamar esto después de guardar en el panel para reflejar cambios al instante
-  const refrescarReglas = useCallback(async () => {
-    await cargarReglas();
+  const refrescarReglas = useCallback(async (options = {}) => {
+    await cargarReglas(options);
   }, [cargarReglas]);
 
   // =================== Exponer en contexto ===================

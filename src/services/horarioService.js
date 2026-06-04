@@ -63,6 +63,7 @@ export async function generarHorarioConProgreso({
   asignaciones,
   restricciones,
   horasCursos,
+  columnas,
   nivel,
   version = 1,
   onProgress,
@@ -75,6 +76,7 @@ export async function generarHorarioConProgreso({
       asignaciones,
       restricciones,
       horas_curso_grado: horasCursos,
+      columnas,
       nivel,
       version,
       overwrite: false,
@@ -167,7 +169,7 @@ export async function generarHorarioConReglas({
   disponibilidadMap = {},
 }) {
   // 1) Reglas efectivas (overrides + defaults)
-  const reglasEfectivas = await loadReglasParaNivel(nivel);
+  const reglasEfectivas = await loadReglasParaNivel(nivel, version);
 
   // 2) Disponibilidad efectiva según la regla 'disponibilidad_docente'
   //    - Si la regla está OFF: se envía {}
