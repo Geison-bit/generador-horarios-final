@@ -1,0 +1,51 @@
+[CP-SAT] Iniciando modelado matemático...
+[CP-SAT] Total de requerimientos: 50 asignaturas.
+[CP-SAT] Total de horas a programar: 175
+========== DEBUG ASIGNACIONES ==========
+0 {'curso': 101, 'grupo': 1, 'grado': 1, 'seccion': 1, 'docente': 1, 'horas': 5}
+1 {'curso': 101, 'grupo': 2, 'grado': 2, 'seccion': 2, 'docente': 1, 'horas': 5}
+2 {'curso': 101, 'grupo': 3, 'grado': 3, 'seccion': 3, 'docente': 1, 'horas': 5}
+3 {'curso': 101, 'grupo': 4, 'grado': 4, 'seccion': 4, 'docente': 1, 'horas': 5}
+4 {'curso': 101, 'grupo': 5, 'grado': 5, 'seccion': 5, 'docente': 1, 'horas': 5}
+5 {'curso': 102, 'grupo': 1, 'grado': 1, 'seccion': 1, 'docente': 2, 'horas': 5}
+6 {'curso': 102, 'grupo': 2, 'grado': 2, 'seccion': 2, 'docente': 2, 'horas': 5}
+7 {'curso': 102, 'grupo': 3, 'grado': 3, 'seccion': 3, 'docente': 2, 'horas': 5}
+8 {'curso': 102, 'grupo': 4, 'grado': 4, 'seccion': 4, 'docente': 2, 'horas': 5}
+9 {'curso': 102, 'grupo': 5, 'grado': 5, 'seccion': 5, 'docente': 2, 'horas': 5}
+Total asignaciones: 50
+=======================================
+[CP-SAT][DEBUG] disponibilidad docentes sample: []
+========== DEBUG DISPONIBILIDAD ==========
+Total docentes con reglas: 0
+Total bloqueos generados: 0
+==========================================
+========== DEBUG BLOQUES DISPONIBLES ==========
+Docente 1: libres 35/35
+Docente 2: libres 35/35
+Docente 3: libres 35/35
+Docente 4: libres 35/35
+Docente 5: libres 35/35
+Docente 6: libres 35/35
+Docente 7: libres 35/35
+Docente 8: libres 35/35
+==============================================
+========== DEBUG HORAS VS DISP ==========
+========================================
+[CP-SAT] Variables creadas: 1750
+[CP-SAT] Iniciando solver...
+[CP-SAT] Solución encontrada: OPTIMAL
+[INFO] Total asignado: 175 bloques
+
+================ METRICAS PARA TESIS ================
+Bloques requeridos: 175
+Bloques asignados: 175
+Conflictos docentes: 0
+Conflictos por grupo: 0
+Violaciones de disponibilidad: 0
+Violaciones de carga: 0
+Tiempo de ejecucion: 1.559 segundos
+Estado del solver: OPTIMAL
+NumConflicts: 677
+NumBranches: 40787
+=====================================================
+

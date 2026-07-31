@@ -1,0 +1,59 @@
+[CP-SAT] Iniciando modelado matemático...
+[CP-SAT] Total de requerimientos: 100 asignaturas.
+[CP-SAT] Total de horas a programar: 350
+========== DEBUG ASIGNACIONES ==========
+0 {'curso': 101, 'grupo': 1, 'grado': 1, 'seccion': 1, 'docente': 1, 'horas': 5}
+1 {'curso': 101, 'grupo': 2, 'grado': 2, 'seccion': 2, 'docente': 1, 'horas': 5}
+2 {'curso': 101, 'grupo': 3, 'grado': 3, 'seccion': 3, 'docente': 1, 'horas': 5}
+3 {'curso': 101, 'grupo': 4, 'grado': 4, 'seccion': 4, 'docente': 1, 'horas': 5}
+4 {'curso': 101, 'grupo': 5, 'grado': 5, 'seccion': 5, 'docente': 1, 'horas': 5}
+5 {'curso': 101, 'grupo': 6, 'grado': 1, 'seccion': 6, 'docente': 9, 'horas': 5}
+6 {'curso': 101, 'grupo': 7, 'grado': 2, 'seccion': 7, 'docente': 9, 'horas': 5}
+7 {'curso': 101, 'grupo': 8, 'grado': 3, 'seccion': 8, 'docente': 9, 'horas': 5}
+8 {'curso': 101, 'grupo': 9, 'grado': 4, 'seccion': 9, 'docente': 9, 'horas': 5}
+9 {'curso': 101, 'grupo': 10, 'grado': 5, 'seccion': 10, 'docente': 9, 'horas': 5}
+Total asignaciones: 100
+=======================================
+[CP-SAT][DEBUG] disponibilidad docentes sample: []
+========== DEBUG DISPONIBILIDAD ==========
+Total docentes con reglas: 0
+Total bloqueos generados: 0
+==========================================
+========== DEBUG BLOQUES DISPONIBLES ==========
+Docente 1: libres 35/35
+Docente 2: libres 35/35
+Docente 3: libres 35/35
+Docente 4: libres 35/35
+Docente 5: libres 35/35
+Docente 6: libres 35/35
+Docente 7: libres 35/35
+Docente 8: libres 35/35
+Docente 9: libres 35/35
+Docente 10: libres 35/35
+Docente 11: libres 35/35
+Docente 12: libres 35/35
+Docente 13: libres 35/35
+Docente 14: libres 35/35
+Docente 15: libres 35/35
+Docente 16: libres 35/35
+==============================================
+========== DEBUG HORAS VS DISP ==========
+========================================
+[CP-SAT] Variables creadas: 3500
+[CP-SAT] Iniciando solver...
+[CP-SAT] Solución encontrada: OPTIMAL
+[INFO] Total asignado: 350 bloques
+
+================ METRICAS PARA TESIS ================
+Bloques requeridos: 350
+Bloques asignados: 350
+Conflictos docentes: 0
+Conflictos por grupo: 0
+Violaciones de disponibilidad: 0
+Violaciones de carga: 0
+Tiempo de ejecucion: 2.735 segundos
+Estado del solver: OPTIMAL
+NumConflicts: 4741
+NumBranches: 99969
+=====================================================
+

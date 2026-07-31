@@ -1,0 +1,3 @@
+﻿algorithm,required_blocks,assigned_blocks,coverage_rate,unassigned_blocks,status,runtime_seconds,teacher_conflicts,group_conflicts,availability_violations,workload_violations,greedy_restarts_used,solver_conflicts,solver_branches,same_instance_verified,instance_hash_sha256
+CP-SAT,175,175,1.0,0,OPTIMAL,1.662925,0,0,0,0,,6596,47485,True,8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39
+Greedy,175,167,0.954285714,8,PARTIAL,4.3814336,0,0,0,0,20,,,True,8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39

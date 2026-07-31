@@ -1,0 +1,54 @@
+{
+  "schema_version": 1,
+  "generated_at_utc": "2026-07-18T02:13:12.675559+00:00",
+  "source_snapshot": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\web_real_instance_last.json",
+  "snapshot_captured_at_utc": "2026-07-18T02:12:04.920690+00:00",
+  "snapshot_metadata": {
+    "endpoint": "/generar-horario-general-job",
+    "job_mode": true,
+    "job_id": "6e69f06a-143f-4b4c-8826-4472c044d6d7"
+  },
+  "same_instance_verified": true,
+  "instance_hash_sha256": "8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39",
+  "time_limit_seconds": null,
+  "workers": 8,
+  "results": [
+    {
+      "algorithm": "CP-SAT",
+      "required_blocks": 175,
+      "assigned_blocks": 175,
+      "coverage_rate": 1.0,
+      "unassigned_blocks": 0,
+      "status": "OPTIMAL",
+      "runtime_seconds": 1.662925,
+      "teacher_conflicts": 0,
+      "group_conflicts": 0,
+      "availability_violations": 0,
+      "workload_violations": 0,
+      "greedy_restarts_used": "",
+      "solver_conflicts": 6596,
+      "solver_branches": 47485,
+      "same_instance_verified": true,
+      "instance_hash_sha256": "8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39"
+    },
+    {
+      "algorithm": "Greedy",
+      "required_blocks": 175,
+      "assigned_blocks": 167,
+      "coverage_rate": 0.954285714,
+      "unassigned_blocks": 8,
+      "status": "PARTIAL",
+      "runtime_seconds": 4.3814336,
+      "teacher_conflicts": 0,
+      "group_conflicts": 0,
+      "availability_violations": 0,
+      "workload_violations": 0,
+      "greedy_restarts_used": 20,
+      "solver_conflicts": "",
+      "solver_branches": "",
+      "same_instance_verified": true,
+      "instance_hash_sha256": "8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39"
+    }
+  ],
+  "conclusion": "CP-SAT 175/175 (OPTIMAL); Greedy 167/175 (PARTIAL)"
+}

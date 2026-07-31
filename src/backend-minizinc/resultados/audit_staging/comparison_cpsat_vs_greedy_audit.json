@@ -1,0 +1,65 @@
+{
+  "mode": "synthetic",
+  "cpsat_rerun": false,
+  "greedy_restarts_requested": 20,
+  "scenarios": [
+    {
+      "scenario": "x1",
+      "same_instance": true,
+      "instance_fingerprint": "f696aa3d430db2034aaf72c6d03454d762e98120103fe8757ea4e395a2f3495f",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\logs\\stress_x1.log",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 175,
+      "required_blocks": 175
+    },
+    {
+      "scenario": "x2",
+      "same_instance": true,
+      "instance_fingerprint": "6f16f0d8fe3316ac7cba79ba1a831f5642f50bd911642e260b887732cd6fac1a",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\logs\\stress_x2.log",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 350,
+      "required_blocks": 350
+    },
+    {
+      "scenario": "x5",
+      "same_instance": true,
+      "instance_fingerprint": "8181f1d3ecca8be042636c9370e8e703f5241aa0e88512f5b5fe5c6043ce0bc1",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\logs\\stress_x5.log",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 875,
+      "required_blocks": 875
+    },
+    {
+      "scenario": "x10",
+      "same_instance": true,
+      "instance_fingerprint": "915bb297897451baeef4eb5b33fcb8cf31be3201416ab28d4a5ee17145c083f5",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\logs\\stress_x10.log",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 1750,
+      "required_blocks": 1750
+    },
+    {
+      "scenario": "x20",
+      "same_instance": true,
+      "instance_fingerprint": "64b70d7e602522a1a43bef5ad079c314064ce203b2a969e12c64626b4427692a",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\logs\\stress_x20.log",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 3500,
+      "required_blocks": 3500
+    },
+    {
+      "scenario": "x30",
+      "same_instance": true,
+      "instance_fingerprint": "99a069b089eab66c31fef30b7a086796128f2762402c1fd45cbf39f6e342c7cd",
+      "cp_source": "D:\\USUARIO EDINSON (no tocar)\\Descargas\\generador-horarios-final\\src\\backend-minizinc\\resultados\\stress_cp_sat_x30.json",
+      "greedy_status": "COMPLETE",
+      "greedy_assigned_blocks": 5250,
+      "required_blocks": 5250
+    }
+  ],
+  "audit_41_of_175": {
+    "artifact_found": false,
+    "conclusion": "No se encontro un artefacto 41/175 en resultados. La implementacion fortalecida se reevalua sobre x1 y solo coloca sesiones completas."
+  }
+}

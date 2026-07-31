@@ -1,0 +1,1017 @@
+{
+  "schema_version": 1,
+  "captured_at_utc": "2026-07-28T17:09:26.198995+00:00",
+  "source": "baseline_greedy.py::generar_horario_baseline",
+  "metadata": {
+    "endpoint": "/generar-horario-general-job",
+    "job_mode": true,
+    "job_id": "0defc600-bcfe-4155-b33c-f2b613c8c807"
+  },
+  "instance_hash_sha256": "8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39",
+  "instance": {
+    "docentes": [
+      {
+        "id": 3,
+        "nombre": "Cesar",
+        "apellido": "Alcalde",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 30,
+        "aula_id": 13,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#e40712",
+        "version_num": 1
+      },
+      {
+        "id": 2,
+        "nombre": "Omar",
+        "apellido": "Alcántara",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 30,
+        "aula_id": 6,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#1303fc",
+        "version_num": 1
+      },
+      {
+        "id": 1,
+        "nombre": "Javier",
+        "apellido": "Delgado",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 30,
+        "aula_id": 16,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#f2eb07",
+        "version_num": 1
+      },
+      {
+        "id": 9,
+        "nombre": "Padre Otto",
+        "apellido": "Mendoza",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 10,
+        "aula_id": 24,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#99670f",
+        "version_num": 1
+      },
+      {
+        "id": 8,
+        "nombre": "Rolando",
+        "apellido": "Obeso",
+        "tipo_profesor": "Contratado",
+        "jornada_total": 10,
+        "aula_id": 23,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#bc10ad",
+        "version_num": 1
+      },
+      {
+        "id": 7,
+        "nombre": "Jhon",
+        "apellido": "Perez",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 30,
+        "aula_id": 22,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#00d5ff",
+        "version_num": 1
+      },
+      {
+        "id": 28,
+        "nombre": "Profe",
+        "apellido": "Primero",
+        "tipo_profesor": "Contratado",
+        "jornada_total": 25,
+        "aula_id": 27,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#60a5fa",
+        "version_num": 1
+      },
+      {
+        "id": 24,
+        "nombre": "Elmerí",
+        "apellido": "Salinas",
+        "tipo_profesor": "Contratado",
+        "jornada_total": 30,
+        "aula_id": 15,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#1ae817",
+        "version_num": 1
+      },
+      {
+        "id": 29,
+        "nombre": "Profe",
+        "apellido": "Segundo",
+        "tipo_profesor": "Contratado",
+        "jornada_total": 26,
+        "aula_id": 37,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#73fa61",
+        "version_num": 1
+      },
+      {
+        "id": 30,
+        "nombre": "Profe",
+        "apellido": "Tercero",
+        "tipo_profesor": "Contratado",
+        "jornada_total": 10,
+        "aula_id": 38,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#a855f7",
+        "version_num": 1
+      },
+      {
+        "id": 26,
+        "nombre": "Kevin",
+        "apellido": "Torres",
+        "tipo_profesor": "Nombrado",
+        "jornada_total": 29,
+        "aula_id": 21,
+        "nivel": "Secundaria",
+        "activo": true,
+        "color": "#fa8e29",
+        "version_num": 1
+      }
+    ],
+    "asignaciones": {
+      "5": {
+        "16": {
+          "docente_id": 1,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 1,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 1,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 1,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 1,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "6": {
+        "16": {
+          "docente_id": 3,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 2,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 2,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 3,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 2,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "7": {
+        "16": {
+          "docente_id": 24,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 7,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 24,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 2,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 2,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "8": {
+        "16": {
+          "docente_id": 3,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 26,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 2,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 7,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 3,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "9": {
+        "16": {
+          "docente_id": 3,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 3,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 2,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 3,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 3,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "10": {
+        "16": {
+          "docente_id": 24,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 24,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 24,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 24,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 24,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "12": {
+        "16": {
+          "docente_id": 26,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 7,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 7,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 26,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 26,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "13": {
+        "16": {
+          "docente_id": 7,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 7,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 7,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 7,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 7,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "14": {
+        "16": {
+          "docente_id": 8,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 8,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 8,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 8,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 8,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "15": {
+        "16": {
+          "docente_id": 9,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 9,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 9,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 9,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 9,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      },
+      "17": {
+        "16": {
+          "docente_id": 26,
+          "grado_id": 5,
+          "seccion_id": 16
+        },
+        "19": {
+          "docente_id": 26,
+          "grado_id": 2,
+          "seccion_id": 19
+        },
+        "21": {
+          "docente_id": 26,
+          "grado_id": 1,
+          "seccion_id": 21
+        },
+        "34": {
+          "docente_id": 26,
+          "grado_id": 4,
+          "seccion_id": 34
+        },
+        "35": {
+          "docente_id": 26,
+          "grado_id": 3,
+          "seccion_id": 35
+        }
+      }
+    },
+    "restricciones": {
+      "disponibilidad": {
+        "1": {
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true,
+          "miercoles-3": true,
+          "martes-3": true,
+          "viernes-3": true
+        },
+        "2": {
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true
+        },
+        "3": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        },
+        "5": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "martes-0": true,
+          "martes-1": true
+        },
+        "6": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true
+        },
+        "7": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true,
+          "martes-4": true
+        },
+        "8": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true
+        },
+        "9": {
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        },
+        "13": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true
+        },
+        "14": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true,
+          "martes-4": true
+        },
+        "24": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true
+        },
+        "26": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        },
+        "28": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        },
+        "29": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        },
+        "30": {
+          "lunes-0": true,
+          "lunes-1": true,
+          "lunes-2": true,
+          "lunes-3": true,
+          "lunes-4": true,
+          "lunes-5": true,
+          "lunes-6": true,
+          "martes-0": true,
+          "martes-1": true,
+          "martes-2": true,
+          "martes-3": true,
+          "martes-4": true,
+          "martes-5": true,
+          "martes-6": true,
+          "miercoles-0": true,
+          "miercoles-1": true,
+          "miercoles-2": true,
+          "miercoles-3": true,
+          "miercoles-4": true,
+          "miercoles-5": true,
+          "miercoles-6": true,
+          "jueves-0": true,
+          "jueves-1": true,
+          "jueves-2": true,
+          "jueves-3": true,
+          "jueves-4": true,
+          "jueves-5": true,
+          "jueves-6": true,
+          "viernes-0": true,
+          "viernes-1": true,
+          "viernes-2": true,
+          "viernes-3": true,
+          "viernes-4": true,
+          "viernes-5": true,
+          "viernes-6": true
+        }
+      },
+      "reglas": {
+        "disponibilidad_docente": true,
+        "no_solape_docente": true,
+        "bloques_consecutivos": true,
+        "distribuir_en_dias_distintos": true,
+        "no_puentes_docente": true,
+        "no_dias_consecutivos": true,
+        "prohibir_sesiones_1h": true,
+        "limitar_carga_docente_grado": true
+      }
+    },
+    "horas_curso_grado": {
+      "5": {
+        "16": 5,
+        "19": 5,
+        "21": 5,
+        "34": 5,
+        "35": 5
+      },
+      "6": {
+        "16": 5,
+        "19": 5,
+        "21": 5,
+        "34": 5,
+        "35": 5
+      },
+      "7": {
+        "16": 3,
+        "19": 3,
+        "21": 3,
+        "34": 3,
+        "35": 3
+      },
+      "8": {
+        "16": 2,
+        "19": 2,
+        "21": 2,
+        "34": 2,
+        "35": 2
+      },
+      "9": {
+        "16": 3,
+        "19": 3,
+        "21": 3,
+        "34": 3,
+        "35": 3
+      },
+      "10": {
+        "16": 4,
+        "19": 4,
+        "21": 4,
+        "34": 4,
+        "35": 4
+      },
+      "12": {
+        "16": 3,
+        "19": 3,
+        "21": 3,
+        "34": 3,
+        "35": 3
+      },
+      "13": {
+        "16": 3,
+        "19": 3,
+        "21": 3,
+        "34": 3,
+        "35": 3
+      },
+      "14": {
+        "16": 2,
+        "19": 2,
+        "21": 2,
+        "34": 2,
+        "35": 2
+      },
+      "15": {
+        "16": 2,
+        "19": 2,
+        "21": 2,
+        "34": 2,
+        "35": 2
+      },
+      "17": {
+        "16": 3,
+        "19": 3,
+        "21": 3,
+        "34": 3,
+        "35": 3
+      }
+    },
+    "nivel": "Secundaria",
+    "version": 1,
+    "patrones_division": {}
+  },
+  "greedy_result": {
+    "required_blocks": 175,
+    "assigned_blocks": 167,
+    "coverage_rate": 0.954285714,
+    "unassigned_blocks": 8,
+    "unplaced_assignments": 5,
+    "teacher_conflicts": 0,
+    "group_conflicts": 0,
+    "availability_violations": 0,
+    "workload_violations": 0,
+    "runtime_seconds": 4.0130487,
+    "greedy_restarts_used": 20,
+    "best_restart": 13,
+    "repair_attempts_used": 1448,
+    "status": "PARTIAL",
+    "observacion": "Greedy parcial tras estrategia MRV, 20 reinicios y reparacion simple; bloques_no_asignados=8; violaciones_huecos_grupo=0",
+    "instance_fingerprint": "8db7674e306ef20d3fe9021a30efc870d3357e407eec78be806c5dac6ce91e39"
+  }
+}

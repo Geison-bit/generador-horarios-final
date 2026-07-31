@@ -1,0 +1,73 @@
+[CP-SAT] Iniciando modelado matemático...
+[CP-SAT] Total de requerimientos: 55 asignaturas.
+[CP-SAT] Total de horas a programar: 175
+========== DEBUG ASIGNACIONES ==========
+0 {'curso': 5, 'grupo': 16, 'grado': 5, 'seccion': 16, 'docente': 1, 'horas': 5}
+1 {'curso': 5, 'grupo': 19, 'grado': 2, 'seccion': 19, 'docente': 1, 'horas': 5}
+2 {'curso': 5, 'grupo': 21, 'grado': 1, 'seccion': 21, 'docente': 1, 'horas': 5}
+3 {'curso': 5, 'grupo': 34, 'grado': 4, 'seccion': 34, 'docente': 1, 'horas': 5}
+4 {'curso': 5, 'grupo': 35, 'grado': 3, 'seccion': 35, 'docente': 1, 'horas': 5}
+5 {'curso': 6, 'grupo': 16, 'grado': 5, 'seccion': 16, 'docente': 3, 'horas': 5}
+6 {'curso': 6, 'grupo': 19, 'grado': 2, 'seccion': 19, 'docente': 2, 'horas': 5}
+7 {'curso': 6, 'grupo': 21, 'grado': 1, 'seccion': 21, 'docente': 2, 'horas': 5}
+8 {'curso': 6, 'grupo': 34, 'grado': 4, 'seccion': 34, 'docente': 3, 'horas': 5}
+9 {'curso': 6, 'grupo': 35, 'grado': 3, 'seccion': 35, 'docente': 2, 'horas': 5}
+Total asignaciones: 55
+=======================================
+[CP-SAT][DEBUG] disponibilidad docentes sample: ['1', '2', '3', '5', '6']
+[CP-SAT][DEBUG] disponibilidad claves sample: ['lunes-2', 'lunes-3', 'lunes-4', 'lunes-5', 'lunes-6', 'martes-0', 'martes-1', 'martes-2']
+[CP-SAT][DEBUG] key-> lunes-2 | dia_norm: lunes | bloque_raw: 2
+[CP-SAT][DEBUG] key-> lunes-3 | dia_norm: lunes | bloque_raw: 3
+[CP-SAT][DEBUG] key-> lunes-4 | dia_norm: lunes | bloque_raw: 4
+[CP-SAT][DEBUG] key-> lunes-5 | dia_norm: lunes | bloque_raw: 5
+[CP-SAT][DEBUG] key-> lunes-6 | dia_norm: lunes | bloque_raw: 6
+[CP-SAT][DEBUG] key-> martes-0 | dia_norm: martes | bloque_raw: 0
+[CP-SAT][DEBUG] key-> martes-1 | dia_norm: martes | bloque_raw: 1
+[CP-SAT][DEBUG] key-> martes-2 | dia_norm: martes | bloque_raw: 2
+========== DEBUG DISPONIBILIDAD ==========
+Total docentes con reglas: 15
+Total bloqueos generados: 98
+Docente 9 -> bloqueos: 23
+Docente 26 -> bloqueos: 6
+Docente 24 -> bloqueos: 6
+Docente 8 -> bloqueos: 23
+Docente 1 -> bloqueos: 4
+Docente 3 -> bloqueos: 6
+Docente 2 -> bloqueos: 8
+Docente 7 -> bloqueos: 6
+Docente 5 -> bloqueos: 3
+Docente 14 -> bloqueos: 4
+==========================================
+========== DEBUG BLOQUES DISPONIBLES ==========
+Docente 1: libres 31/35
+Docente 2: libres 27/35
+Docente 3: libres 29/35
+Docente 7: libres 29/35
+Docente 8: libres 12/35
+Docente 9: libres 12/35
+Docente 24: libres 29/35
+Docente 26: libres 29/35
+Docente 28: libres 35/35
+Docente 29: libres 35/35
+Docente 30: libres 35/35
+==============================================
+========== DEBUG HORAS VS DISP ==========
+========================================
+[CP-SAT] Variables creadas: 1925
+[CP-SAT] Iniciando solver...
+[CP-SAT] Solución encontrada: OPTIMAL
+[INFO] Total asignado: 175 bloques
+
+================ METRICAS PARA TESIS ================
+Bloques requeridos: 175
+Bloques asignados: 175
+Conflictos docentes: 0
+Conflictos por grupo: 0
+Violaciones de disponibilidad: 0
+Violaciones de carga: 0
+Tiempo de ejecucion: 4.389 segundos
+Estado del solver: OPTIMAL
+NumConflicts: 20249
+NumBranches: 116976
+=====================================================
+

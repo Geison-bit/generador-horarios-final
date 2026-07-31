@@ -23,6 +23,148 @@ def normalizar_texto(texto):
         return ""
     return unicodedata.normalize("NFD", texto).encode("ascii", "ignore").decode("ascii").lower()
 
+
+def calcular_metricas_solucion(
+    map_asignaciones,
+    asignaciones_programadas,
+    bloqueos,
+    docentes,
+    tiempo_ejecucion_segundos,
+    estado_solver,
+    num_conflicts,
+    num_branches,
+    tiempo_solver_segundos=None,
+):
+    """Calcula metricas verificables a partir de la solucion materializada.
+
+    Un conflicto representa una asignacion excedente para el mismo recurso y
+    slot. Por ejemplo, tres clases simultaneas del mismo docente cuentan como
+    dos conflictos. Una violacion de carga representa un docente cuya carga
+    asignada supera ``jornada_total``.
+    """
+    programadas = list(asignaciones_programadas or [])
+    bloqueos = set(bloqueos or set())
+
+    bloques_requeridos = sum(
+        max(0, normalizar_entero(req.get("horas")))
+        for req in (map_asignaciones or [])
+    )
+    bloques_asignados = len(programadas)
+
+    ocupacion_docente = Counter()
+    ocupacion_grupo = Counter()
+    carga_asignada = Counter()
+    violaciones_disponibilidad = 0
+
+    for item in programadas:
+        docente = normalizar_entero(item.get("docente"))
+        grupo = normalizar_entero(item.get("grupo"))
+        dia = normalizar_entero(item.get("dia"))
+        bloque = normalizar_entero(item.get("bloque"))
+
+        ocupacion_docente[(docente, dia, bloque)] += 1
+        ocupacion_grupo[(grupo, dia, bloque)] += 1
+        carga_asignada[docente] += 1
+        if (docente, dia, bloque) in bloqueos:
+            violaciones_disponibilidad += 1
+
+    conflictos_docentes = sum(max(0, cantidad - 1) for cantidad in ocupacion_docente.values())
+    conflictos_grupo = sum(max(0, cantidad - 1) for cantidad in ocupacion_grupo.values())
+
+    limites_carga = {}
+    for docente in docentes or []:
+        if docente.get("jornada_total") is None:
+            continue
+        limites_carga[normalizar_entero(docente.get("id"))] = max(
+            0, normalizar_entero(docente.get("jornada_total"))
+        )
+
+    docentes_con_exceso = []
+    exceso_carga_bloques = 0
+    for docente, carga in carga_asignada.items():
+        if docente not in limites_carga:
+            continue
+        exceso = carga - limites_carga[docente]
+        if exceso > 0:
+            docentes_con_exceso.append({
+                "docente_id": docente,
+                "carga_asignada": carga,
+                "jornada_total": limites_carga[docente],
+                "exceso": exceso,
+            })
+            exceso_carga_bloques += exceso
+
+    metricas = {
+        "bloques_requeridos": bloques_requeridos,
+        "bloques_asignados": bloques_asignados,
+        "bloques_faltantes": max(0, bloques_requeridos - bloques_asignados),
+        "conflictos_docentes": conflictos_docentes,
+        "conflictos_grupo": conflictos_grupo,
+        "violaciones_disponibilidad": violaciones_disponibilidad,
+        "violaciones_carga": len(docentes_con_exceso),
+        "exceso_carga_bloques": exceso_carga_bloques,
+        "detalle_violaciones_carga": docentes_con_exceso,
+        "tiempo_ejecucion_segundos": round(float(tiempo_ejecucion_segundos), 6),
+        "estado_solver": str(estado_solver),
+        "num_conflicts": int(num_conflicts),
+        "num_branches": int(num_branches),
+    }
+    if tiempo_solver_segundos is not None:
+        metricas["tiempo_solver_segundos"] = round(float(tiempo_solver_segundos), 6)
+    return metricas
+
+
+def _emitir_evento_progreso(progress_callback, event_type, **datos):
+    """Emite instrumentacion sin alterar la formulacion ni detener el solver."""
+    if progress_callback is None:
+        return
+    evento = {"type": event_type, **datos}
+    try:
+        progress_callback(evento)
+    except Exception as exc:
+        print(f"[WARN] No se pudo emitir progreso ({event_type}): {exc}")
+
+
+class StressProgressCallback(cp_model.CpSolverSolutionCallback):
+    """Reporta solo soluciones factibles completas devueltas por CP-SAT."""
+
+    def __init__(
+        self,
+        scenario,
+        required_blocks,
+        x_variables,
+        start_time,
+        print_interval_seconds=60,
+        progress_callback=None,
+    ):
+        super().__init__()
+        self.scenario = str(scenario)
+        self.required_blocks = int(required_blocks)
+        self.x_variables = tuple(x_variables.values())
+        self.start_time = float(start_time)
+        self.print_interval_seconds = float(print_interval_seconds)
+        self.progress_callback = progress_callback
+        self.solution_count = 0
+
+    def on_solution_callback(self):
+        self.solution_count += 1
+        assigned_blocks = sum(self.Value(variable) for variable in self.x_variables)
+        coverage = (
+            assigned_blocks / self.required_blocks
+            if self.required_blocks > 0
+            else None
+        )
+        _emitir_evento_progreso(
+            self.progress_callback,
+            "solution",
+            scenario=self.scenario,
+            elapsed_seconds=time.time() - self.start_time,
+            solution_number=self.solution_count,
+            assigned_blocks=assigned_blocks,
+            required_blocks=self.required_blocks,
+            coverage_rate=coverage,
+        )
+
 # --- NUEVO MODELO CP-SAT ---
 
 def generar_horario_cp(
@@ -34,6 +176,13 @@ def generar_horario_cp(
     version=1,
     patrones_division=None,
     progress_callback=None,
+    time_limit_seconds=None,
+    workers=8,
+    random_seed=None,
+    log_search_progress=False,
+    solver_log_callback=None,
+    progress_scenario="CP-SAT",
+    progress_print_interval_seconds=60,
 ):
     """
     Genera un horario escolar utilizando Programación por Restricciones (CP-SAT).
@@ -41,6 +190,12 @@ def generar_horario_cp(
     """
     print("[CP-SAT] Iniciando modelado matemático...")
     t0 = time.time()
+    _emitir_evento_progreso(
+        progress_callback,
+        "model_build_started",
+        scenario=progress_scenario,
+        started_at=t0,
+    )
     
     # 1. Preparación y Limpieza de Datos
     # ---------------------------------------------------------
@@ -490,17 +645,75 @@ def generar_horario_cp(
 
     diagnostico_datos = _diagnosticar_datos()
 
+    _emitir_evento_progreso(
+        progress_callback,
+        "model_built",
+        scenario=progress_scenario,
+        required_blocks=total_horas_requeridas,
+        variables=len(x),
+        elapsed_seconds=time.time() - t0,
+    )
+
     # 5. Configuración del Solver
     # ---------------------------------------------------------
+    workers = int(workers)
+    if time_limit_seconds is not None:
+        time_limit_seconds = float(time_limit_seconds)
+        if time_limit_seconds <= 0:
+            raise ValueError("time_limit_seconds debe ser mayor que cero")
+    if workers <= 0:
+        raise ValueError("workers debe ser mayor que cero")
+    if random_seed is not None:
+        random_seed = int(random_seed)
+        if random_seed < 0:
+            raise ValueError("random_seed debe ser mayor o igual que cero")
+
     solver = cp_model.CpSolver()
-    # Limite de tiempo para buscar (ajustable)
-    solver.parameters.max_time_in_seconds = 30.0 
-    # Usar todos los núcleos del CPU
-    solver.parameters.num_search_workers = 8 
+    if time_limit_seconds is not None:
+        solver.parameters.max_time_in_seconds = time_limit_seconds
+    solver.parameters.num_search_workers = workers
+    if random_seed is not None:
+        solver.parameters.random_seed = random_seed
+    solver.parameters.log_search_progress = bool(log_search_progress)
+    if solver_log_callback is not None and hasattr(solver, "log_callback"):
+        solver.log_callback = solver_log_callback
+        solver.parameters.log_to_stdout = False
 
     print("[CP-SAT] Variables creadas:", len(x))
     print("[CP-SAT] Iniciando solver...")
-    status = solver.Solve(model)
+    solver_started_at = time.time()
+    _emitir_evento_progreso(
+        progress_callback,
+        "solver_started",
+        scenario=progress_scenario,
+        required_blocks=total_horas_requeridas,
+        workers=workers,
+        time_limit_seconds=time_limit_seconds,
+        started_at=solver_started_at,
+    )
+    solution_callback = None
+    if progress_callback is not None:
+        solution_callback = StressProgressCallback(
+            scenario=progress_scenario,
+            required_blocks=total_horas_requeridas,
+            x_variables=x,
+            start_time=solver_started_at,
+            print_interval_seconds=progress_print_interval_seconds,
+            progress_callback=progress_callback,
+        )
+    status = solver.Solve(model, solution_callback)
+    solutions_found = solution_callback.solution_count if solution_callback else 0
+    _emitir_evento_progreso(
+        progress_callback,
+        "solver_finished",
+        scenario=progress_scenario,
+        status=solver.StatusName(status),
+        elapsed_seconds=time.time() - solver_started_at,
+        solutions_found=solutions_found,
+        conflicts=solver.NumConflicts(),
+        branches=solver.NumBranches(),
+        wall_time=solver.WallTime(),
+    )
 
     # 6. Construcción de la Salida (Formato idéntico al original)
     # ---------------------------------------------------------
@@ -510,6 +723,7 @@ def generar_horario_cp(
     
     fallidos = 0
     asignaciones_exitosas = 0
+    asignaciones_programadas = []
     
     if status == cp_model.OPTIMAL or status == cp_model.FEASIBLE:
         print(f"[CP-SAT] Solución encontrada: {solver.StatusName(status)}")
@@ -527,6 +741,14 @@ def generar_horario_cp(
                         horario_salida[d][b][grupo_id] = c_id
                         horas_asignadas_curso += 1
                         asignaciones_exitosas += 1
+                        asignaciones_programadas.append({
+                            "asignacion_idx": idx,
+                            "curso": c_id,
+                            "grupo": grupo_id,
+                            "docente": d_id,
+                            "dia": d,
+                            "bloque": b,
+                        })
             
             if horas_asignadas_curso < req['horas']:
                 # Esto no debería pasar si status es FEASIBLE, pero por seguridad
@@ -539,64 +761,39 @@ def generar_horario_cp(
         print("===============================================")
         fallidos = total_horas_requeridas # Todo falló
 
-    # Estadísticas básicas para el reporte
-    # Detectar si faltan bloques (lógica simple post-solución)
+    # Estadisticas verificables para el reporte
     faltan_3h = []
-    # ---- Reporte tipo "METRICAS PARA TESIS" ----
-    try:
-        total_requeridos = total_horas_requeridas
-        total_asignados = asignaciones_exitosas
-        p_hat = (total_asignados / total_requeridos) if total_requeridos else 0.0
-        # Contar asignaciones con deficit (por curso/grado)
-        deficit_count = 0
-        for idx, req in enumerate(map_asignaciones):
-            horas_asignadas = 0
-            for d in range(NUM_DIAS):
-                for b in range(num_bloques):
-                    if solver.Value(x[(idx, d, b)]) == 1:
-                        horas_asignadas += 1
-            if horas_asignadas < req["horas"]:
-                deficit_count += 1
-        conflictos_detectados = 0
-        cumplimiento = "TOTAL" if fallidos == 0 else "PARCIAL"
+    tiempo_ejecucion = time.time() - t0
+    estado_solver = solver.StatusName(status)
+    metricas = calcular_metricas_solucion(
+        map_asignaciones=map_asignaciones,
+        asignaciones_programadas=asignaciones_programadas,
+        bloqueos=bloqueos,
+        docentes=docentes,
+        tiempo_ejecucion_segundos=tiempo_ejecucion,
+        estado_solver=estado_solver,
+        num_conflicts=solver.NumConflicts(),
+        num_branches=solver.NumBranches(),
+        tiempo_solver_segundos=solver.WallTime(),
+    )
+    metricas["time_limit_seconds"] = time_limit_seconds
+    metricas["workers"] = workers
+    metricas["random_seed"] = random_seed
+    metricas["solutions_found"] = solutions_found
 
-        print(f"[INFO] Total asignado: {total_asignados} bloques")
-        print("\n================ METRICAS PARA TESIS ================")
-        print(f"Bloques requeridos: {total_requeridos}")
-        print(f"Bloques asignados: {total_asignados}")
-        print(f"Proporcion de asignacion (p̂): {p_hat:.3f} ({p_hat*100:.2f}%)")
-        print(f"Conflictos detectados: {conflictos_detectados}")
-        print(f"Asignaciones exitosas: {len(map_asignaciones)}")
-        print(f"Asignaciones con deficit: {deficit_count}")
-        print(f"Cumplimiento de restricciones duras: {cumplimiento}")
-
-        # Test estadistico Z para proporcion de bloques asignados
-        p0 = 1.0
-        if total_requeridos > 0:
-            var = 1.0 / (4.0 * total_requeridos)
-            se = var ** 0.5
-            z = (p_hat - p0) / se if se > 0 else 0.0
-            print("\n--- Test Estadistico Z para proporcion de bloques asignados ---")
-            print(f"Valor ideal esperado (p0): {p0}")
-            print(f"Varianza estimada (rule of continuity): Var ≈ 1/(4n) = {var:.6f}")
-            print(f"Desviacion estandar (SE): sqrt(Var) = {se:.4f}")
-            print("\nCalculo con formula:")
-            print("Z = (p̂ - p0) / SE")
-            print(f"Z = ({p_hat:.3f} - {p0}) / {se:.4f}")
-            print(f"Z calculado = {z:.3f}")
-            print("\nInterpretacion:")
-            if abs(z) < 1.96:
-                print("La diferencia NO es estadisticamente significativa (p > 0.05).")
-                print("El sistema mantiene un nivel de asignacion estadisticamente compatible con el 100% esperado.")
-            else:
-                print("La diferencia ES estadisticamente significativa (p <= 0.05).")
-                print("El nivel de asignacion se aleja del 100% esperado.")
-
-        t1 = time.time()
-        print(f"\nTiempo de generacion: {t1 - t0:.3f} segundos")
-        print("=====================================================\n")
-    except Exception as _e:
-        print("[WARN] No se pudo generar reporte de metricas:", _e)
+    print(f"[INFO] Total asignado: {metricas['bloques_asignados']} bloques")
+    print("\n================ METRICAS PARA TESIS ================")
+    print(f"Bloques requeridos: {metricas['bloques_requeridos']}")
+    print(f"Bloques asignados: {metricas['bloques_asignados']}")
+    print(f"Conflictos docentes: {metricas['conflictos_docentes']}")
+    print(f"Conflictos por grupo: {metricas['conflictos_grupo']}")
+    print(f"Violaciones de disponibilidad: {metricas['violaciones_disponibilidad']}")
+    print(f"Violaciones de carga: {metricas['violaciones_carga']}")
+    print(f"Tiempo de ejecucion: {metricas['tiempo_ejecucion_segundos']:.3f} segundos")
+    print(f"Estado del solver: {metricas['estado_solver']}")
+    print(f"NumConflicts: {metricas['num_conflicts']}")
+    print(f"NumBranches: {metricas['num_branches']}")
+    print("=====================================================\n")
 
     faltan_2h = []
     
@@ -607,7 +804,8 @@ def generar_horario_cp(
         "total_bloques_asignados": asignaciones_exitosas,
         "faltan_3h": faltan_3h, # CP-SAT maneja esto internamente, devolvemos vacio
         "faltan_2h": faltan_2h,
-        "status": solver.StatusName(status),
+        "status": estado_solver,
+        "metricas": metricas,
         "diagnostico": diagnostico_datos,
     }
 
@@ -621,14 +819,28 @@ def generar_horario(
     version=1,
     patrones_division=None,
     progress_callback=None,
+    time_limit_seconds=None,
+    workers=8,
+    random_seed=None,
+    log_search_progress=False,
+    solver_log_callback=None,
+    progress_scenario="CP-SAT",
+    progress_print_interval_seconds=60,
 ):
     return generar_horario_cp(
-        docentes,
-        asignaciones,
-        restricciones,
-        horas_curso_grado,
-        nivel,
-        version,
-        patrones_division,
-        progress_callback,
+        docentes=docentes,
+        asignaciones=asignaciones,
+        restricciones=restricciones,
+        horas_curso_grado=horas_curso_grado,
+        nivel=nivel,
+        version=version,
+        patrones_division=patrones_division,
+        progress_callback=progress_callback,
+        time_limit_seconds=time_limit_seconds,
+        workers=workers,
+        random_seed=random_seed,
+        log_search_progress=log_search_progress,
+        solver_log_callback=solver_log_callback,
+        progress_scenario=progress_scenario,
+        progress_print_interval_seconds=progress_print_interval_seconds,
     )
