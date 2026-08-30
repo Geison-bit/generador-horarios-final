@@ -1,17 +1,17 @@
 // src/services/horarioService.js
+import { supabase } from "../supabaseClient";
+
 // En desarrollo usa proxy de Vite (ruta relativa). En producción toma VITE_API_URL.
 const baseURL = import.meta.env.DEV ? "" : import.meta.env.VITE_API_URL || "";
 
-import {
-  loadReglasParaNivel,
-  buildRestriccionesPayload,
-  disponibilidadEfectiva,     // 👈 clave para ignorar disponibilidad cuando la regla esté OFF
-  // helpers de la 2.ª restricción (pre-validación opcional)
-  createIndiceSolape,
-  canAsignarDocenteEnBloque,
-  markAsignacion,
-  isReglaActiva,
-} from "./restriccionesService";
+async function headersAutenticados() {
+  const { data } = await supabase.auth.getSession();
+  const token = data?.session?.access_token;
+  return {
+    "Content-Type": "application/json",
+    ...(token ? { Authorization: `Bearer ${token}` } : {}),
+  };
+}
 
 /**
  * Envía al backend el pedido de generación de horario.
@@ -30,7 +30,7 @@ export const enviarDznAlServidor = async (
 
     const response = await fetch(`${baseURL}/generar-horario-general`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: await headersAutenticados(),
       body: JSON.stringify({
         docentes,
         asignaciones,
@@ -70,7 +70,7 @@ export async function generarHorarioConProgreso({
 }) {
   const response = await fetch(`${baseURL}/generar-horario-general-job`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: await headersAutenticados(),
     body: JSON.stringify({
       docentes,
       asignaciones,
@@ -142,24 +142,8 @@ export async function generarHorarioConProgreso({
   });
 }
 
-/* ============================================================================
- * 1) API de alto nivel: arma las REGLAS por nivel y llama al backend
- *    - Lee reglas efectivas (overrides + defaults)
- *    - Construye el payload 'restricciones' que el backend consume
- *    - Llama a enviarDznAlServidor
- * ========================================================================== */
-
-/**
- * Genera el horario leyendo automáticamente las reglas activas por nivel
- * y construyendo el payload `restricciones` que entiende el backend.
- *
- * @param {Object} params
- * @param {Array}  params.docentes
- * @param {Array}  params.asignaciones
- * @param {Object} params.horasCursos  (horas_curso_grado)
- * @param {String} params.nivel        ("Primaria" | "Secundaria" | ...)
- * @param {Object} [params.disponibilidadMap]  // mapa 0-based: { [docenteId]: { "dia-bloque": true } }
- */
+// Compatibilidad para consumidores antiguos: solo conserva disponibilidad.
+// Las reglas variables se cargan exclusivamente desde reglas_ia.
 export async function generarHorarioConReglas({
   docentes,
   asignaciones,
@@ -168,26 +152,7 @@ export async function generarHorarioConReglas({
   version = 1,
   disponibilidadMap = {},
 }) {
-  // 1) Reglas efectivas (overrides + defaults)
-  const reglasEfectivas = await loadReglasParaNivel(nivel, version);
-
-  // 2) Disponibilidad efectiva según la regla 'disponibilidad_docente'
-  //    - Si la regla está OFF: se envía {}
-  const disponibilidad = disponibilidadEfectiva(disponibilidadMap, reglasEfectivas);
-
-  // 3) Construir payload que espera el backend
-  const restricciones = buildRestriccionesPayload(disponibilidad, reglasEfectivas);
-
-  // 4) (OPCIONAL) Pre-validación local de solapes (no bloqueante)
-  const reporte = prevalidarSolapes(asignaciones, reglasEfectivas);
-  if (reporte.haySolapes && isReglaActiva(restricciones.reglas, "no_solape_docente")) {
-    console.info(
-      "⚠️ Prevalidación: se detectaron posibles solapes de docente. " +
-      "El backend igualmente re-verificará y podrá reubicar o rechazar."
-    );
-  }
-
-  // 5) Enviar a backend
+  const restricciones = { disponibilidad: disponibilidadMap || {} };
   return await enviarDznAlServidor(
     docentes,
     asignaciones,
@@ -196,50 +161,6 @@ export async function generarHorarioConReglas({
     nivel,
     version
   );
-}
-
-/* ============================================================================
- * 2) Utilidades: pre-validación local de la 2.ª restricción (no bloqueante)
- *    - NO impide generar: solo informa y ayuda a depurar
- *    - Si la regla está desactivada, no marca como error
- * ========================================================================== */
-
-/**
- * Recorre las asignaciones candidatas y reporta si habría solapes de docente
- * en el mismo bloque (día & bloque). No modifica datos.
- *
- * Estructura mínima esperada de cada asignación:
- *   { docenteId, dia, bloque, ... }
- */
-export function prevalidarSolapes(asignaciones = [], reglas = {}) {
-  const indice = createIndiceSolape();
-  const conflictos = [];
-
-  for (const a of asignaciones) {
-    const { docenteId, dia, bloque } = a ?? {};
-    if (docenteId == null || dia == null || bloque == null) continue;
-
-    const ok = canAsignarDocenteEnBloque({
-      reglas,
-      indice,
-      docenteId,
-      dia,
-      bloque,
-    });
-
-    if (!ok) {
-      conflictos.push(a);
-      // no marcamos el índice para que se puedan listar todos los conflictos
-      continue;
-    }
-    // marcamos igual: no daña si la regla está OFF y permite contar usos
-    markAsignacion(indice, docenteId, dia, bloque);
-  }
-
-  return {
-    haySolapes: conflictos.length > 0,
-    conflictos, // puedes mostrar en UI si lo deseas
-  };
 }
 
 /* ============================================================================

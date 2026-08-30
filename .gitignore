@@ -1,9 +1,25 @@
-# Ignorar dependencias y archivos innecesarios
+# Dependencias y compilaciones
 node_modules/
 dist/
+.vercel/
+
+# Variables de entorno
 .env
-.vscode/
+.env.*
+!.env.example
+!backend/.env.example
+
+# Python
+venv/
+.venv/
 __pycache__/
 *.pyc
 *.pyo
 *.pyd
+.pytest_cache/
+
+# Herramientas y residuos locales
+.vscode/
+.cleanup-backup-*/
+tmp/
+debug_model.pbtxt

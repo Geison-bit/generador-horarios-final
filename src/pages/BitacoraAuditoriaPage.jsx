@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { supabase } from "../supabaseClient";
 import { Clock3, RefreshCw } from "lucide-react";
-import Breadcrumbs from "../components/Breadcrumbs";
+import Breadcrumbs from "../components/common/Breadcrumbs";
 
 export default function BitacoraAuditoriaPage() {
   const [rows, setRows] = useState([]);

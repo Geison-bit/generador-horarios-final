@@ -4,11 +4,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
-    "preview": "vite preview"
+    "preview": "vite preview",
+    "test:backend": "python -m pytest backend/tests -m \"not integration\"",
+    "test:integration": "python -m pytest backend/tests -m integration",
+    "test:research": "python -m pytest research/tests"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.49.4",
-    "axios": "^1.9.0",
     "date-fns": "^4.1.0",
     "file-saver": "^2.0.5",
     "framer-motion": "^12.23.12",
@@ -19,7 +21,6 @@
     "react-beautiful-dnd": "^13.1.1",
     "react-big-calendar": "^1.18.0",
     "react-dom": "^18.2.0",
-    "react-modal": "^3.16.3",
     "react-router-dom": "^7.5.0",
     "xlsx": "^0.18.5",
     "xlsx-js-style": "^1.2.0"

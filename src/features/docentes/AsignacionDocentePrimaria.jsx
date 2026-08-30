@@ -1,0 +1,308 @@
+import { useEffect, useState } from "react";
+import { supabase } from "../../supabaseClient";
+import { useDocentes } from "../../contexts/DocenteContext";
+import Breadcrumbs from "../../components/common/Breadcrumbs";
+import { ClipboardList } from "lucide-react";
+
+const gradosPrimaria = ["1°", "2°", "3°", "4°", "5°", "6°"];
+
+const AsignacionDocentePrimaria = () => {
+  const { docentes, setDocentes } = useDocentes();
+  const [cursos, setCursos] = useState([]);
+  const [horasCursos, setHorasCursos] = useState({});
+  const [nuevoCurso, setNuevoCurso] = useState("");
+  const [asignaciones, setAsignaciones] = useState({});
+  const [bloquesUsados, setBloquesUsados] = useState(0);
+  const [franjas, setFranjas] = useState([]);
+  const nivel = "Primaria";
+
+  useEffect(() => {
+    cargarDocentes();
+    cargarCursos();
+    cargarHorasCursoGrado();
+    cargarAsignacionesExistentes();
+    cargarFranjasHorarias();
+  }, []);
+
+  useEffect(() => {
+    let total = 0;
+    for (const cursoId in horasCursos) {
+      for (const gradoId in horasCursos[cursoId]) {
+        total += horasCursos[cursoId][gradoId] || 0;
+      }
+    }
+    setBloquesUsados(total);
+  }, [horasCursos]);
+
+  const cargarDocentes = async () => {
+    const { data } = await supabase
+      .from("docentes")
+      .select("id, nombre")
+      .eq("nivel", nivel)
+      .eq("activo", true); // ✅ Agregado
+    setDocentes(data || []);
+  };
+
+  const cargarCursos = async () => {
+    const { data } = await supabase
+      .from("cursos")
+      .select("id, nombre")
+      .eq("nivel", nivel)
+      .eq("activo", true); // ✅ Agregado
+    setCursos(data || []);
+  };
+
+  const cargarHorasCursoGrado = async () => {
+    const { data } = await supabase.from("horas_curso_grado").select("*").eq("nivel", nivel);
+    const map = {};
+    data?.forEach(({ curso_id, grado_id, horas }) => {
+      if (!map[curso_id]) map[curso_id] = {};
+      map[curso_id][grado_id] = horas;
+    });
+    setHorasCursos(map);
+  };
+
+  const cargarFranjasHorarias = async () => {
+    const { data } = await supabase
+      .from("franjas_horarias")
+      .select("*")
+      .eq("nivel", nivel);
+    setFranjas(data || []);
+  };
+
+  const cargarAsignacionesExistentes = async () => {
+    const { data } = await supabase.from("asignaciones").select("*").eq("nivel", nivel);
+    const map = {};
+    data?.forEach(({ grado_id, docente_id }) => {
+      map[grado_id] = docente_id;
+    });
+    setAsignaciones(map);
+  };
+
+  const editarHoras = async (cursoId, gradoId, horas) => {
+    const valor = parseInt(horas);
+    if (isNaN(valor) || valor < 2 || valor > 7) {
+      alert("⚠️ Las horas deben estar entre 2 y 7.");
+      return;
+    }
+
+    await supabase.from("horas_curso_grado").upsert({
+      curso_id: cursoId,
+      grado_id: gradoId,
+      seccion_id: null,
+      horas: valor,
+      nivel,
+      version_num: 1,
+    }, {
+      onConflict: "curso_id,grado_id,seccion_id,nivel,version_num"
+    });
+    cargarHorasCursoGrado();
+  };
+  
+  // ✅ Modificado: Ahora es un "soft delete"
+  const eliminarCurso = async (cursoId) => {
+    const confirmar = window.confirm("¿Estás seguro de que deseas desactivar este curso? No se eliminará permanentemente.");
+    if (!confirmar) return;
+
+    const { error } = await supabase
+      .from("cursos")
+      .update({ activo: false })
+      .eq("id", cursoId);
+
+    if (error) {
+        alert("❌ Error al desactivar el curso.");
+    } else {
+        // Vuelve a cargar los cursos para que el desactivado desaparezca de la UI
+        cargarCursos();
+        cargarHorasCursoGrado();
+    }
+  };
+
+  // ✅ Modificado: Se agrega 'activo: true' al crear un nuevo curso.
+  const agregarCurso = async () => {
+    if (!nuevoCurso.trim()) return;
+    const { data } = await supabase
+        .from("cursos")
+        .insert({ nombre: nuevoCurso, nivel, activo: true })
+        .select();
+
+    if (data) {
+      const cursoId = data[0].id;
+      const nuevasHoras = gradosPrimaria.map((_, idx) => ({
+        curso_id: cursoId,
+        grado_id: idx + 6, // IDs de grado para primaria (6 a 11)
+        horas: 0,
+        nivel
+      }));
+      await supabase.from("horas_curso_grado").insert(nuevasHoras);
+      setNuevoCurso("");
+      cargarCursos();
+      cargarHorasCursoGrado();
+    }
+  };
+
+  const eliminarAsignacion = async (gradoId) => {
+    setAsignaciones((prev) => {
+      const actualizado = { ...prev };
+      delete actualizado[gradoId];
+      return actualizado;
+    });
+
+    await supabase
+      .from("asignaciones")
+      .delete()
+      .eq("grado_id", gradoId)
+      .eq("nivel", nivel);
+  };
+
+  const guardarTodo = async () => {
+    const registros = [];
+
+    for (const curso of cursos) {
+      for (let i = 0; i < gradosPrimaria.length; i++) {
+        const grado_id = i + 6;
+        const docente_id = asignaciones[grado_id];
+        const horas = horasCursos[curso.id]?.[grado_id] || 0;
+        if (docente_id && horas > 0) {
+          registros.push({
+            curso_id: curso.id,
+            grado_id,
+            seccion_id: null,
+            docente_id,
+            horas,
+            nivel,
+            version_num: 1,
+          });
+        }
+      }
+    }
+
+    const { error } = await supabase.from("asignaciones").upsert(registros, {
+      onConflict: "curso_id,grado_id,seccion_id,nivel,version_num"
+    });
+
+    alert(error ? "❌ Error al guardar" : "✅ Asignaciones guardadas correctamente.");
+  };
+
+  const limiteBloquesCalculado = franjas.length * 5 * gradosPrimaria.length;
+
+  return (
+    <div className="p-4 max-w-7xl mx-auto">
+      <Breadcrumbs />
+      <div className="mt-4 mb-4 flex items-center gap-2">
+        <ClipboardList className="size-6 text-blue-600" />
+        <h2 className="text-xl md:text-2xl font-semibold text-slate-800">
+          Asignación de Docentes y Horas - Primaria
+        </h2>
+      </div>
+
+      <div className="flex items-center mb-6 gap-4">
+        <input
+          type="text"
+          value={nuevoCurso}
+          onChange={(e) => {
+            const valor = e.target.value;
+            if (/^[a-zA-ZáéíóúÁÉÍÓÚñÑ ]{0,30}$/.test(valor)) {
+              setNuevoCurso(valor);
+            }
+          }}
+          placeholder="Nombre del curso"
+          maxLength={30}
+          className="border px-3 py-2 rounded w-64"
+        />
+        <button onClick={agregarCurso} className="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+          Agregar
+        </button>
+        <span className={`ml-2 font-semibold ${bloquesUsados > limiteBloquesCalculado ? "text-red-600" : "text-gray-800"}`}>
+          Bloques usados: {bloquesUsados} / {limiteBloquesCalculado}
+        </span>
+      </div>
+
+      <h3 className="text-lg font-bold mb-2">Horas programadas por curso y grado</h3>
+      <table className="table-auto w-full border mb-8">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="border px-2 py-1">Curso</th>
+            {gradosPrimaria.map((g) => <th key={g} className="border px-2 py-1 text-center">{g}</th>)}
+            <th className="border px-2 py-1 text-center">Acciones</th>
+          </tr>
+        </thead>
+        <tbody>
+          {cursos.map((curso) => (
+            <tr key={curso.id}>
+              <td className="border px-2 py-1">{curso.nombre}</td>
+              {gradosPrimaria.map((grado, idx) => (
+                <td key={`${curso.id}-${grado}`} className="border px-2 py-1 text-center">
+                  <input
+                    type="number"
+                    min="2"
+                    max="7"
+                    value={horasCursos[curso.id]?.[idx + 6] || ""}
+                    onChange={(e) => editarHoras(curso.id, idx + 6, e.target.value)}
+                    className="w-14 px-1 text-center border rounded"
+                  />
+                </td>
+              ))}
+              <td className="border px-2 py-1 text-center">
+                <button onClick={() => eliminarCurso(curso.id)} className="text-red-600 hover:underline">Eliminar</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+
+      <h3 className="text-lg font-bold mb-2">Asignar un docente a cada grado</h3>
+      <table className="table-auto w-full border mb-6">
+        <thead className="bg-gray-100">
+          <tr>
+            <th className="border px-2 py-1">Grado</th>
+            <th className="border px-2 py-1 text-center">Docente</th>
+          </tr>
+        </thead>
+        <tbody>
+          {gradosPrimaria.map((grado, idx) => {
+            const gradoId = idx + 6;
+            return (
+              <tr key={gradoId}>
+                <td className="border px-2 py-1">{grado}</td>
+                <td className="border px-2 py-1 text-center">
+                  <select
+                    value={asignaciones[gradoId] || ""}
+                    onChange={(e) =>
+                      setAsignaciones((prev) => ({
+                        ...prev,
+                        [gradoId]: parseInt(e.target.value),
+                      }))
+                    }
+                    className="border px-2 py-1 w-full bg-blue-100"
+                  >
+                    <option value="">-- Seleccionar Docente --</option>
+                    {docentes.map((docente) => (
+                      <option key={docente.id} value={docente.id}>{docente.nombre}</option>
+                    ))}
+                  </select>
+                  {asignaciones[gradoId] && (
+                    <button
+                      onClick={() => eliminarAsignacion(gradoId)}
+                      className="text-sm text-red-600 mt-1 hover:underline"
+                    >
+                      Eliminar asignación
+                    </button>
+                  )}
+                </td>
+              </tr>
+            );
+          })}
+        </tbody>
+      </table>
+
+      <div className="flex justify-end mt-6">
+        <button onClick={guardarTodo} className="bg-blue-700 text-white px-6 py-2 rounded hover:bg-blue-800">
+          Guardar todo
+        </button>
+      </div>
+    </div>
+  );
+};
+
+export default AsignacionDocentePrimaria;
