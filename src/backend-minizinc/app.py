@@ -16,46 +16,26 @@ import unicodedata
 
 app = Flask(__name__)
 
-# CORS dinámico para dev y prod
+# Orígenes permitidos. En Railway se pueden ampliar con CORS_ORIGINS,
+# usando una lista separada por comas.
+default_cors_origins = (
+    "https://gestion-de-horarios.vercel.app,http://localhost:5173"
+)
+allowed_origins = [
+    origin.strip()
+    for origin in os.getenv("CORS_ORIGINS", default_cors_origins).split(",")
+    if origin.strip()
+]
+
+# Flask-CORS también responde automáticamente las solicitudes OPTIONS.
 CORS(
     app,
-    origins=["https://gestion-de-horarios.vercel.app", "http://localhost:5173"],
+    resources={r"/*": {"origins": allowed_origins}},
+    methods=["GET", "POST", "OPTIONS"],
+    allow_headers=["Content-Type", "Authorization"],
     supports_credentials=True,
+    max_age=86400,
 )
-
-@app.after_request
-def after_request(response):
-    origin = request.headers.get("Origin")
-    if origin in ["http://localhost:5173", "https://gestion-de-horarios.vercel.app"]:
-        response.headers["Access-Control-Allow-Origin"] = origin
-        response.headers["Access-Control-Allow-Credentials"] = "true"
-    response.headers["Access-Control-Allow-Headers"] = request.headers.get(
-        "Access-Control-Request-Headers",
-        "Content-Type,Authorization"
-    )
-    response.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    return response
-
-# Preflight global
-@app.route("/", defaults={"path": ""}, methods=["OPTIONS"])
-@app.route("/<path:path>", methods=["OPTIONS"])
-def options_any(path):
-    resp = Response(status=204)
-    origin = request.headers.get("Origin")
-
-    allowed = ["https://gestion-de-horarios.vercel.app", "http://localhost:5173"]
-    if origin in allowed:
-        resp.headers["Access-Control-Allow-Origin"] = origin
-        resp.headers["Access-Control-Allow-Credentials"] = "true"
-
-    # Devuelve EXACTAMENTE los headers que el browser pidió
-    resp.headers["Access-Control-Allow-Headers"] = request.headers.get(
-        "Access-Control-Request-Headers",
-        "Content-Type,Authorization"
-    )
-    resp.headers["Access-Control-Allow-Methods"] = "GET,POST,OPTIONS"
-    resp.headers["Access-Control-Max-Age"] = "86400"
-    return resp
 
 # .env
 env_path = Path(__file__).resolve().parent / ".env"
