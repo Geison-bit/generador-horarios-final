@@ -1,1 +1,0 @@
-"""Ejecuciones y comparaciones experimentales."""

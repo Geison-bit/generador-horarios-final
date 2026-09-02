@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import SelectorNivel from "../components/common/SelectorNivel";
+import SelectorNivel from "../components/SelectorNivel";
 import { useAuth } from "../auth/AuthContext";
 import { LazyMotion, domAnimation, m, useReducedMotion } from "framer-motion";
 import {
@@ -18,7 +18,6 @@ import {
   LogOut,
   Users2,
   Layers3,
-  Sparkles,
 } from "lucide-react";
 
 const horarioFlowCards = [
@@ -36,7 +35,7 @@ const horarioFlowCards = [
     to: "/secciones",
     icon: Layers3,
     title: "Crear Secciones",
-    desc: "Gestiona grupos como 1 A y 1 B dentro de la configuración vigente.",
+    desc: "Gestiona grupos como 1 A, 1 B y copia su configuracion base.",
     ariaLabel: "Ir a gestion de secciones",
     accent: "from-cyan-600/10 to-cyan-600/0",
   },
@@ -78,15 +77,6 @@ const horarioFlowCards = [
   },
   {
     step: 7,
-    to: "/reglas-ia",
-    icon: Sparkles,
-    title: "Reglas del Colegio con IA",
-    desc: "Convierte reglas escritas en restricciones revisables para CP-SAT.",
-    ariaLabel: "Ir a reglas del colegio con inteligencia artificial",
-    accent: "from-violet-600/10 to-violet-600/0",
-  },
-  {
-    step: 8,
     to: "/restricciones-panel",
     icon: Ban,
     title: "Panel de Restricciones",
@@ -95,7 +85,7 @@ const horarioFlowCards = [
     accent: "from-fuchsia-600/10 to-fuchsia-600/0",
   },
   {
-    step: 9,
+    step: 8,
     to: "/horario",
     icon: CalendarDays,
     title: "Horario General",
@@ -104,7 +94,7 @@ const horarioFlowCards = [
     accent: "from-violet-600/10 to-violet-600/0",
   },
   {
-    step: 10,
+    step: 9,
     to: "/horario-docente",
     icon: IdCard,
     title: "Horario por Docente",
@@ -116,7 +106,7 @@ const horarioFlowCards = [
 
 const adminCards = [
   {
-    step: 11,
+    step: 10,
     to: "/admin/usuarios/crear",
     icon: UserPlus,
     title: "Crear Usuario",
@@ -125,7 +115,7 @@ const adminCards = [
     accent: "from-emerald-600/10 to-emerald-600/0",
   },
   {
-    step: 12,
+    step: 11,
     to: "/admin/cuentas",
     icon: Users2,
     title: "Gestion de Cuentas",
@@ -134,7 +124,7 @@ const adminCards = [
     accent: "from-cyan-600/10 to-cyan-600/0",
   },
   {
-    step: 13,
+    step: 12,
     to: "/admin/docentes",
     icon: UserCog,
     title: "Gestion de Docentes",
@@ -143,7 +133,7 @@ const adminCards = [
     accent: "from-sky-600/10 to-sky-600/0",
   },
   {
-    step: 14,
+    step: 13,
     to: "/admin/auditoria",
     icon: FileSearch,
     title: "Bitacora de Auditoria",
@@ -233,7 +223,7 @@ export default function Home() {
         <div className="mb-5 grid gap-3 rounded-2xl border border-blue-100 bg-blue-50/70 p-4 text-sm text-slate-700 md:grid-cols-2">
           <div className="flex items-start gap-3">
             <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-full bg-blue-600 text-sm font-bold text-white">
-              1-10
+              1-9
             </span>
             <div>
               <p className="font-semibold text-slate-800">Proceso de generacion de horarios</p>
@@ -242,7 +232,7 @@ export default function Home() {
           </div>
           <div className="flex items-start gap-3">
             <span className="mt-0.5 inline-flex size-8 items-center justify-center rounded-full bg-emerald-600 text-sm font-bold text-white">
-              11-14
+              10-13
             </span>
             <div>
               <p className="font-semibold text-slate-800">Seguridad y administracion</p>

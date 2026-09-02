@@ -1,4 +1,5 @@
 @echo off
-python -m pip install -r backend\requirements-dev.txt
-python -m pytest backend\tests research\tests -m "not integration"
+call venv\Scripts\activate
+pip install -r src\backend-minizinc\requirements.txt
+pytest
 pause

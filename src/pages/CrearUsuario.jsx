@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { createUser } from "../services/userService";
-import Breadcrumbs from "../components/common/Breadcrumbs";
+import Breadcrumbs from "../components/Breadcrumbs";
 import { UserPlus } from "lucide-react";
 
 export default function CrearUsuario() {

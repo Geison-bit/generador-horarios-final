@@ -1,1 +1,0 @@
-"""Modelo CP-SAT activo."""

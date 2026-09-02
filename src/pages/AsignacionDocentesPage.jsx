@@ -1,7 +1,7 @@
 // src/pages/AsignacionDocentesPage.jsx
 import { useLocation } from "react-router-dom";
-import AsignacionDocenteCurso from "../features/docentes/AsignacionDocenteCurso";
-import AsignacionDocentePrimaria from "../features/docentes/AsignacionDocentePrimaria";
+import AsignacionDocenteCurso from "../components/AsignacionDocenteCurso";
+import AsignacionDocentePrimaria from "../components/AsignacionDocentePrimaria"; // ✅ ruta corregida
 
 const AsignacionDocentesPage = () => {
   const location = useLocation();

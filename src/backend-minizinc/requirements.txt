@@ -1,0 +1,7 @@
+flask
+flask-cors
+gunicorn
+python-dotenv
+supabase
+pytest
+ortools==9.10.4067

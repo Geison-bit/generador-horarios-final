@@ -4,24 +4,23 @@ import Login from "./auth/Login";
 import ProtectedRoute from "./auth/ProtectedRoute";
 
 // Rutas existentes
-import DocentesForm from "./features/docentes/DocentesForm";
-import FranjasHorariasForm from "./features/configuracion/FranjasHorariasForm";
-import RestriccionesForm from "./features/disponibilidad/RestriccionesForm";
-import HorarioTable from "./features/horarios/HorarioTable";
-import HorarioPorDocente from "./features/horarios/HorarioPorDocente";
+import DocentesForm from "./components/DocentesForm";
+import FranjasHorariasForm from "./components/FranjasHorariasForm";
+import RestriccionesForm from "./components/RestriccionesForm";
+import HorarioTable from "./components/HorarioTable";
+import HorarioPorDocente from "./components/HorarioPorDocente";
 import AsignacionDocentesPage from "./pages/AsignacionDocentesPage";
-import AulasForm from "./features/configuracion/AulasForm";
-import SeccionesForm from "./features/configuracion/SeccionesForm";
+import AulasForm from "./components/AulasForm";
+import SeccionesForm from "./components/SeccionesForm";
 
 // Panel de restricciones
-import RestriccionesPanel from "./features/reglas/RestriccionesPanel";
-import ReglasIAForm from "./features/reglas/ReglasIAForm";
+import RestriccionesPanel from "./components/RestriccionesPanel";
 
 // Gestión y roles
-import DocentesAdmin from "./features/administracion/DocentesAdmin";
+import DocentesAdmin from "./components/DocentesAdmin";
 import CrearUsuario from "./pages/CrearUsuario";
 import BitacoraAuditoriaPage from "./pages/BitacoraAuditoriaPage";
-import GestionCuentas from "./features/administracion/GestionCuentas";
+import GestionCuentas from "./components/GestionCuentas";
 
 function App() {
   return (
@@ -75,14 +74,6 @@ function App() {
           element={
             <ProtectedRoute>
               <RestriccionesForm />
-            </ProtectedRoute>
-          }
-        />
-        <Route
-          path="/reglas-ia"
-          element={
-            <ProtectedRoute>
-              <ReglasIAForm />
             </ProtectedRoute>
           }
         />
